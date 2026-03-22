@@ -1,297 +1,259 @@
 using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace HAL
 {
-    public sealed  class MotionSimulator : IMoton
+    public sealed class MotionSimulator : IMoton
     {
+        private const double SimulatedSpeed = 100d;
+        private const double PositionTolerance = 0.001d;
+        private static readonly TimeSpan UpdateInterval = TimeSpan.FromMilliseconds(20);
+
         private readonly ConcurrentDictionary<int, AxisState> _axes = new();
 
-        public void MoveAbsolute(int axisNo, double position, double velocity, double acceleration, double deceleration, bool wait)
+        public Task DisableAllAsync(int[] axisNos)
         {
-            ExecuteMoveAsync(axisNo, position, velocity, wait, CancellationToken.None).GetAwaiter().GetResult();
+            return ExecuteForAllAsync(axisNos, DisableAsync);
         }
 
-        public void MoveRelative(int axisNo, double distance, double velocity, double acceleration, double deceleration, bool wait)
+        public Task DisableAsync(int axisNo)
         {
             var axisState = GetAxisState(axisNo);
-            double targetPosition;
+            CancellationTokenSource? motionCts;
 
             lock (axisState.SyncRoot)
             {
-                targetPosition = axisState.Position + distance;
+                axisState.Enabled = false;
+                motionCts = axisState.MotionCts;
+                axisState.MotionCts = null;
             }
 
-            ExecuteMoveAsync(axisNo, targetPosition, velocity, wait, CancellationToken.None).GetAwaiter().GetResult();
+            CancelMotion(motionCts);
+            return Task.CompletedTask;
         }
 
-        public void MoveAbsolute(IReadOnlyList<AxisParaml> axisParams, bool wait)
+        public Task EmergencyStopAllAsync(int[] axisNos)
         {
-            ExecuteMultiMoveAsync(axisParams, true, wait, CancellationToken.None).GetAwaiter().GetResult();
+            return ExecuteForAllAsync(axisNos, EmergencyStopAsync);
         }
 
-        public void MoveRelative(IReadOnlyList<AxisParaml> axisParams, bool wait)
-        {
-            ExecuteMultiMoveAsync(axisParams, false, wait, CancellationToken.None).GetAwaiter().GetResult();
-        }
-
-        public Task MoveAbsoluteAsync(int axisNo, double position, double velocity, double acceleration, double deceleration, bool wait, CancellationToken cancellationToken = default)
-        {
-            return ExecuteMoveAsync(axisNo, position, velocity, wait, cancellationToken);
-        }
-
-        public Task MoveRelativeAsync(int axisNo, double distance, double velocity, double acceleration, double deceleration, bool wait, CancellationToken cancellationToken = default)
+        public Task EmergencyStopAsync(int axisNo)
         {
             var axisState = GetAxisState(axisNo);
-            double targetPosition;
+            CancellationTokenSource? motionCts;
 
             lock (axisState.SyncRoot)
             {
-                targetPosition = axisState.Position + distance;
+                axisState.Enabled = false;
+                motionCts = axisState.MotionCts;
+                axisState.MotionCts = null;
             }
 
-            return ExecuteMoveAsync(axisNo, targetPosition, velocity, wait, cancellationToken);
+            CancelMotion(motionCts);
+            return Task.CompletedTask;
         }
 
-        public Task MoveAbsoluteAsync(IReadOnlyList<AxisParaml> axisParams, bool wait, CancellationToken cancellationToken = default)
+        public Task EnableAllAsync(int[] axisNos)
         {
-            return ExecuteMultiMoveAsync(axisParams, true, wait, cancellationToken);
+            return ExecuteForAllAsync(axisNos, EnableAsync);
         }
 
-        public Task MoveRelativeAsync(IReadOnlyList<AxisParaml> axisParams, bool wait, CancellationToken cancellationToken = default)
-        {
-            return ExecuteMultiMoveAsync(axisParams, false, wait, cancellationToken);
-        }
-
-        public void Home(int axisNo, bool wait)
-        {
-            HomeAsync(axisNo, wait, CancellationToken.None).GetAwaiter().GetResult();
-        }
-
-        public Task HomeAsync(int axisNo, bool wait, CancellationToken cancellationToken = default)
-        {
-            return ExecuteMoveAsync(axisNo, 0d, 100d, wait, cancellationToken, markHomed: true);
-        }
-
-        public void Stop(int axisNo)
-        {
-            var axisState = GetAxisState(axisNo);
-            CancellationTokenSource? cts;
-
-            lock (axisState.SyncRoot)
-            {
-                cts = axisState.MotionCts;
-            }
-
-            cts?.Cancel();
-        }
-
-        public void StopAll()
-        {
-            foreach (var axisNo in _axes.Keys)
-            {
-                Stop(axisNo);
-            }
-        }
-
-        public void EmergencyStop(int axisNo)
-        {
-            var axisState = GetAxisState(axisNo);
-            CancellationTokenSource? cts;
-
-            lock (axisState.SyncRoot)
-            {
-                axisState.IsEmergencyStopped = true;
-                cts = axisState.MotionCts;
-            }
-
-            cts?.Cancel();
-        }
-
-        public void EmergencyStopAll()
-        {
-            foreach (var axisNo in _axes.Keys)
-            {
-                EmergencyStop(axisNo);
-            }
-        }
-
-        public void Enable(int axisNo)
+        public Task EnableAsync(int axisNo)
         {
             var axisState = GetAxisState(axisNo);
             lock (axisState.SyncRoot)
             {
-                axisState.IsEnabled = true;
+                axisState.Enabled = true;
             }
-        }
 
-        public void Disable(int axisNo)
-        {
-            var axisState = GetAxisState(axisNo);
-            lock (axisState.SyncRoot)
-            {
-                axisState.IsEnabled = false;
-            }
-        }
-
-        public void Reset(int axisNo)
-        {
-            var axisState = GetAxisState(axisNo);
-            lock (axisState.SyncRoot)
-            {
-                axisState.IsEmergencyStopped = false;
-            }
-        }
-
-        public double GetPosition(int axisNo)
-        {
-            var axisState = GetAxisState(axisNo);
-            lock (axisState.SyncRoot)
-            {
-                return axisState.Position;
-            }
+            return Task.CompletedTask;
         }
 
         public Task<double> GetPositionAsync(int axisNo, CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return Task.FromResult(GetPosition(axisNo));
-        }
-
-        private Task ExecuteMoveAsync(int axisNo, double targetPosition, double velocity, bool wait, CancellationToken cancellationToken, bool markHomed = false)
-        {
-            if (cancellationToken.IsCancellationRequested)
-            {
-                return Task.FromCanceled(cancellationToken);
-            }
 
             var axisState = GetAxisState(axisNo);
-            var motionTask = StartMove(axisState, targetPosition, velocity, cancellationToken, markHomed);
-            return wait ? motionTask : ObserveAsync(motionTask);
+            lock (axisState.SyncRoot)
+            {
+                return Task.FromResult(axisState.Position);
+            }
         }
 
-        private Task ExecuteMultiMoveAsync(IReadOnlyList<AxisParaml> axisParams, bool isAbsolute, bool wait, CancellationToken cancellationToken)
+        public Task HomeAsync(int axisNo, bool wait, CancellationToken cancellationToken = default)
         {
-            ArgumentNullException.ThrowIfNull(axisParams);
-
-            if (cancellationToken.IsCancellationRequested)
-            {
-                return Task.FromCanceled(cancellationToken);
-            }
-
-            var tasks = new Task[axisParams.Count];
-            for (var i = 0; i < axisParams.Count; i++)
-            {
-                var axisParam = axisParams[i];
-                var axisState = GetAxisState(axisParam.AxisNo);
-                var targetPosition = axisParam.Position;
-
-                if (!isAbsolute)
-                {
-                    lock (axisState.SyncRoot)
-                    {
-                        targetPosition = axisState.Position + axisParam.Position;
-                    }
-                }
-
-                tasks[i] = StartMove(axisState, targetPosition, axisParam.Velocity, cancellationToken, markHomed: false);
-            }
-
-            var whenAllTask = Task.WhenAll(tasks);
-            return wait ? whenAllTask : ObserveAsync(whenAllTask);
+            return MoveCoreAsync(axisNo, 0d, wait, cancellationToken);
         }
 
-        private Task StartMove(AxisState axisState, double targetPosition, double velocity, CancellationToken cancellationToken, bool markHomed)
+        public Task MoveAbsoluteAsync(int axisNo, double position, bool wait, CancellationToken cancellationToken = default)
         {
-            CancellationTokenSource linkedCts;
-            Task motionTask;
+            return MoveCoreAsync(axisNo, position, wait, cancellationToken);
+        }
+
+        public Task MoveRelativeAsync(int axisNo, double distance, bool wait, CancellationToken cancellationToken = default)
+        {
+            var axisState = GetAxisState(axisNo);
+            double target;
 
             lock (axisState.SyncRoot)
             {
-                EnsureAxisCanMove(axisState);
-                axisState.MotionCts?.Cancel();
-                axisState.MotionCts?.Dispose();
-                linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                axisState.MotionCts = linkedCts;
-                motionTask = RunMotionAsync(axisState, targetPosition, velocity, linkedCts.Token, markHomed);
-                axisState.CurrentTask = motionTask;
+                target = axisState.Position + distance;
             }
 
-            return motionTask;
+            return MoveCoreAsync(axisNo, target, wait, cancellationToken);
         }
 
-        private static async Task ObserveAsync(Task task)
+        public Task StopAllAsync(int[] axisNos)
         {
-            try
-            {
-                await task.ConfigureAwait(false);
-            }
-            catch (OperationCanceledException)
-            {
-            }
+            return ExecuteForAllAsync(axisNos, StopAsync);
         }
 
-        private static async Task RunMotionAsync(AxisState axisState, double targetPosition, double velocity, CancellationToken cancellationToken, bool markHomed)
+        public Task StopAsync(int axisNo)
         {
-            double startPosition;
+            var axisState = GetAxisState(axisNo);
+            CancellationTokenSource? motionCts;
 
             lock (axisState.SyncRoot)
             {
-                startPosition = axisState.Position;
+                motionCts = axisState.MotionCts;
+                axisState.MotionCts = null;
             }
 
-            var distance = Math.Abs(targetPosition - startPosition);
-            var normalizedVelocity = velocity <= 0 ? 100d : Math.Abs(velocity);
-            var duration = TimeSpan.FromSeconds(distance / normalizedVelocity);
-
-            if (duration > TimeSpan.Zero)
-            {
-                await Task.Delay(duration, cancellationToken).ConfigureAwait(false);
-            }
-
-            lock (axisState.SyncRoot)
-            {
-                axisState.Position = targetPosition;
-                axisState.IsHomed = markHomed || targetPosition == 0d;
-            }
+            CancelMotion(motionCts);
+            return Task.CompletedTask;
         }
 
-        private static void EnsureAxisCanMove(AxisState axisState)
+        private static void CancelMotion(CancellationTokenSource? motionCts)
         {
-            if (!axisState.IsEnabled)
+            if (motionCts is null)
             {
-                throw new InvalidOperationException("Axis is disabled.");
+                return;
             }
 
-            if (axisState.IsEmergencyStopped)
+            motionCts.Cancel();
+        }
+
+        private static async Task ExecuteForAllAsync(int[] axisNos, Func<int, Task> action)
+        {
+            ArgumentNullException.ThrowIfNull(axisNos);
+
+            var tasks = new Task[axisNos.Length];
+            for (var i = 0; i < axisNos.Length; i++)
             {
-                throw new InvalidOperationException("Axis is in emergency stop state.");
+                tasks[i] = action(axisNos[i]);
             }
+
+            await Task.WhenAll(tasks).ConfigureAwait(false);
         }
 
         private AxisState GetAxisState(int axisNo)
         {
-            return _axes.GetOrAdd(axisNo, _ => new AxisState());
+            return _axes.GetOrAdd(axisNo, static _ => new AxisState());
+        }
+
+        private Task MoveCoreAsync(int axisNo, double targetPosition, bool wait, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var axisState = GetAxisState(axisNo);
+            CancellationTokenSource? previousMotion;
+            CancellationTokenSource motionCts;
+
+            lock (axisState.SyncRoot)
+            {
+                if (!axisState.Enabled)
+                {
+                    throw new InvalidOperationException($"Axis {axisNo} is disabled.");
+                }
+
+                previousMotion = axisState.MotionCts;
+                motionCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                axisState.MotionCts = motionCts;
+            }
+
+            CancelMotion(previousMotion);
+
+            var motionTask = SimulateMoveAsync(axisState, motionCts, targetPosition);
+            if (wait)
+            {
+                return motionTask;
+            }
+
+            ObserveTask(motionTask);
+            return Task.CompletedTask;
+        }
+
+        private static void ObserveTask(Task task)
+        {
+            _ = task.ContinueWith(
+                static completedTask => _ = completedTask.Exception,
+                CancellationToken.None,
+                TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
+        }
+
+        private static async Task SimulateMoveAsync(AxisState axisState, CancellationTokenSource motionCts, double targetPosition)
+        {
+            try
+            {
+                while (true)
+                {
+                    motionCts.Token.ThrowIfCancellationRequested();
+
+                    double currentPosition;
+                    lock (axisState.SyncRoot)
+                    {
+                        currentPosition = axisState.Position;
+                    }
+
+                    var remainingDistance = targetPosition - currentPosition;
+                    if (Math.Abs(remainingDistance) <= PositionTolerance)
+                    {
+                        lock (axisState.SyncRoot)
+                        {
+                            axisState.Position = targetPosition;
+                        }
+
+                        return;
+                    }
+
+                    var step = Math.Sign(remainingDistance) * Math.Min(
+                        Math.Abs(remainingDistance),
+                        SimulatedSpeed * UpdateInterval.TotalSeconds);
+
+                    await Task.Delay(UpdateInterval, motionCts.Token).ConfigureAwait(false);
+
+                    lock (axisState.SyncRoot)
+                    {
+                        axisState.Position += step;
+                    }
+                }
+            }
+            finally
+            {
+                lock (axisState.SyncRoot)
+                {
+                    if (ReferenceEquals(axisState.MotionCts, motionCts))
+                    {
+                        axisState.MotionCts = null;
+                    }
+                }
+
+                motionCts.Dispose();
+            }
         }
 
         private sealed class AxisState
         {
-            public object SyncRoot { get; } = new();
+            public bool Enabled { get; set; } = true;
 
             public double Position { get; set; }
 
-            public bool IsEnabled { get; set; } = true;
-
-            public bool IsHomed { get; set; }
-
-            public bool IsEmergencyStopped { get; set; }
-
             public CancellationTokenSource? MotionCts { get; set; }
 
-            public Task CurrentTask { get; set; } = Task.CompletedTask;
+            public object SyncRoot { get; } = new();
         }
     }
 }
