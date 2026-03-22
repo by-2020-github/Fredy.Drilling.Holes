@@ -1,1 +1,5 @@
-<Solution />
+<Solution>
+  <Project Path="Common/Common.csproj" />
+  <Project Path="Fredy/Fredy.csproj" />
+  <Project Path="HAL/HAL.csproj" />
+</Solution>

@@ -1,0 +1,19 @@
+﻿<Application x:Class="Fredy.Drilling.Holes.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:Fredy.Drilling.Holes"
+             xmlns:converters="clr-namespace:Fredy.Drilling.Holes.Converters"
+            >
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/Fredy.Drilling.Holes;component/Themes/MainResources.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+ 
+            <converters:InverseBoolConverter x:Key="InverseBoolConverter"/>
+            <converters:StatusColorConverter x:Key="StatusColorConverter"/>
+
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>
+

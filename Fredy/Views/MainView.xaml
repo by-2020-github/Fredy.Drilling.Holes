@@ -1,0 +1,168 @@
+﻿<UserControl x:Class="Fredy.Drilling.Holes.Views.MainView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:vm="clr-namespace:Fredy.Drilling.Holes.ViewModels"
+             mc:Ignorable="d" 
+    
+             d:DesignHeight="800" d:DesignWidth="1200"
+             d:DataContext="{d:DesignInstance Type=vm:MainViewModel, IsDesignTimeCreatable=False}">
+
+    <UserControl.Resources>
+        <ResourceDictionary Source="/Fredy.Drilling.Holes;component/Themes/MainResources.xaml"/>
+    </UserControl.Resources>
+
+    <Grid Background="White">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="300"/>
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="250"/>
+            <RowDefinition Height="30"/>
+        </Grid.RowDefinitions>
+
+        <Border BorderBrush="Gray" BorderThickness="1" Margin="5" Background="#F5F5F5">
+            <TextBlock Text="图形/相机显示区域" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="Gray"/>
+        </Border>
+
+        <StackPanel Grid.Column="1" Grid.RowSpan="2" Margin="5">
+            <Border BorderBrush="#CCCCCC" BorderThickness="1" Padding="10" Background="#F9F9F9">
+                <StackPanel>
+                    <TextBlock Text="自动冲孔控制软件" FontSize="20" FontWeight="Bold" Margin="0,0,0,10"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.Resources>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Margin" Value="0,3"/>
+                                <Setter Property="FontSize" Value="14"/>
+                            </Style>
+                        </Grid.Resources>
+                        <StackPanel>
+                            <TextBlock Text="工件类型:"/>
+                            <TextBlock Text="总孔数:"/>
+                            <TextBlock Text="当前圈:" Foreground="Red" FontWeight="Bold"/>
+                            <TextBlock Text="已冲孔:"/>
+                            <TextBlock Text="速度:"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Margin="10,0,0,0">
+                            <TextBlock Text="{Binding Status.WorkpieceType}" Foreground="RoyalBlue"/>
+                            <TextBlock Text="{Binding Status.TotalHoles}" Foreground="Red" FontWeight="Bold"/>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{Binding Status.CurrentRing}" Foreground="Red" FontWeight="Bold" Width="40"/>
+                                <TextBlock Text="当前孔:" Margin="20,0,0,0" Foreground="Red" FontWeight="Bold"/>
+                                <TextBlock Text="{Binding Status.CurrentHole}" Foreground="Red" FontWeight="Bold" Margin="10,0,0,0"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{Binding Status.PunchedHoles}" Foreground="Red" FontWeight="Bold" Width="40"/>
+                                <TextBlock Text="待冲孔:" Margin="20,0,0,0" Foreground="Red" FontWeight="Bold"/>
+                                <TextBlock Text="{Binding Status.RemainingHoles}" Foreground="Red" FontWeight="Bold" Margin="10,0,0,0"/>
+                            </StackPanel>
+                            <TextBlock Text="{Binding Status.Speed}" Foreground="Teal"/>
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <UniformGrid Columns="1" Margin="0,10">
+                <Button Content="手动页面" Style="{StaticResource NavButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="Manual"/>
+                <Button Content="参数配置" Style="{StaticResource NavButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="Config"/>
+                <Button Content="分区扫描" Style="{StaticResource NavButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="PartScan"/>
+                <Button Content="工艺参数" Style="{StaticResource NavButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="ProcessParam"/>
+            </UniformGrid>
+
+            <StackPanel Margin="0,10">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,5">
+                    <CheckBox Content="模拟冲孔" IsChecked="{Binding IsSimulate}" VerticalAlignment="Center" Foreground="Red" Margin="0,0,20,0"/>
+                    <RadioButton Content="头道" IsChecked="{Binding IsFirstPass}" Margin="0,0,10,0"/>
+                    <RadioButton Content="二道" IsChecked="{Binding IsFirstPass, Converter={StaticResource InverseBoolConverter}}"/>
+                </StackPanel>
+
+                <UniformGrid Columns="2">
+                    <Button Content="启动冲孔" Background="#00FF00" Style="{StaticResource ControlButtonStyle}" Command="{Binding StartPunchingCommand}"/>
+                    <Button Content="暂停冲孔" Style="{StaticResource ControlButtonStyle}" Command="{Binding PausePunchingCommand}"/>
+                    <Button Content="自定义" Background="Orange" Style="{StaticResource ControlButtonStyle}"/>
+                    <Button Content="复位" Background="Orange" Style="{StaticResource ControlButtonStyle}" Command="{Binding ResetMachineCommand}"/>
+                </UniformGrid>
+                <Button Content="停止" Background="Red" Foreground="White" Height="50" FontSize="20" FontWeight="Bold" Margin="5" Command="{Binding StopPunchingCommand}"/>
+            </StackPanel>
+
+            <Border BorderBrush="Gray" BorderThickness="1" Margin="5" Padding="5">
+                <StackPanel>
+                    <TextBlock Text="机台坐标" FontWeight="Bold" Margin="0,0,0,5"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="20"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition/>
+                            <RowDefinition/>
+                            <RowDefinition/>
+                        </Grid.RowDefinitions>
+                        <TextBlock Text="X:"/>
+                        <Border Grid.Column="1" Background="#00FF00" Margin="2">
+                            <TextBlock Text="{Binding Status.PosX, StringFormat=N3}" HorizontalAlignment="Right"/>
+                        </Border>
+                        <TextBlock Text="Y:" Grid.Row="1"/>
+                        <Border Grid.Column="1" Grid.Row="1" Background="#00FF00" Margin="2">
+                            <TextBlock Text="{Binding Status.PosY, StringFormat=N3}" HorizontalAlignment="Right"/>
+                        </Border>
+                        <TextBlock Text="Z:" Grid.Row="2"/>
+                        <Border Grid.Column="1" Grid.Row="2" Background="#00FF00" Margin="2">
+                            <TextBlock Text="{Binding Status.PosZ, StringFormat=N3}" HorizontalAlignment="Right"/>
+                        </Border>
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+
+        <Grid Grid.Row="1" Margin="5">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="操作日志" VerticalAlignment="Center" FontWeight="Bold"/>
+                <TextBlock Text="共" Margin="12,0,0,0" VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding Logs.Count}" VerticalAlignment="Center" FontWeight="Bold" Foreground="RoyalBlue"/>
+                <TextBlock Text="/" VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding LogCapacity}" VerticalAlignment="Center" FontWeight="Bold" Foreground="RoyalBlue"/>
+                <TextBlock Text="条" VerticalAlignment="Center"/>
+                <CheckBox Content="仅看 Error/Warning" Margin="12,0,0,0" IsChecked="{Binding OnlyShowWarningsAndErrors}" VerticalAlignment="Center"/>
+                <Button Content="导出日志" Margin="10,0" Command="{Binding ExportLogsCommand}" Padding="5,2"/>
+                <Button Content="清空日志" Margin="10,0" Command="{Binding ClearLogsCommand}" Padding="5,2"/>
+            </StackPanel>
+            <ListBox Grid.Row="1" ItemsSource="{Binding FilteredLogs}" Background="#F0F0F0" BorderBrush="#D0D0D0" BorderThickness="1">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <Border Margin="0,1" Padding="4,2" Background="{Binding Background}">
+                            <TextBlock Text="{Binding DisplayText}" Foreground="{Binding Foreground}" FontFamily="Consolas" TextWrapping="Wrap"/>
+                        </Border>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </Grid>
+
+        <StatusBar Grid.Row="2" Grid.ColumnSpan="2" Background="#F0F0F0">
+            <StatusBarItem Content="自动冲孔机控制系统"/>
+            <Separator/>
+            <StatusBarItem Content="软件版本 1.0.1"/>
+            <Separator/>
+            <TextBlock Text="运动控制卡状态"/>
+            <Border Background="{Binding Status.IsMotionCardReady, Converter={StaticResource StatusColorConverter}}" Padding="5,1">
+                <TextBlock Text="未就绪"/>
+            </Border>
+            <Separator/>
+            <TextBlock Text="相机状态"/>
+            <Border Background="Red" Padding="5,1">
+                <TextBlock Text="未连接" Foreground="White"/>
+            </Border>
+        </StatusBar>
+    </Grid>
+</UserControl>

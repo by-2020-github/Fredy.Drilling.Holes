@@ -1,0 +1,157 @@
+﻿using Fredy.Drilling.Holes.Services;
+using Fredy.Drilling.Holes.ViewModels;
+using Fredy.Drilling.Holes.Views;
+using Fredy.Views;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Serilog;
+using System;
+using System.IO;
+using System.Reflection;
+using System.Runtime.InteropServices;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Media.Media3D;
+using System.Windows.Threading;
+using HAL;
+
+namespace Fredy.Drilling.Holes
+{
+    public partial class App : Application
+    {
+        public static IServiceProvider ServiceProvider { get; private set; } = null!;
+
+        protected override void OnStartup(StartupEventArgs e)
+        {
+            var logStore = new AppLogStore();
+            ConfigureLogging(logStore);
+            RegisterGlobalExceptionHandlers();
+
+            try
+            {
+                var serviceCollection = new ServiceCollection();
+                ConfigureServices(serviceCollection, logStore);
+
+                ServiceProvider = serviceCollection.BuildServiceProvider();
+
+                LogStartupInformation();
+                Log.Information("应用程序启动完成");
+
+                base.OnStartup(e);
+
+                var mainWindow = ServiceProvider.GetRequiredService<MainWindow>();
+                MainWindow = mainWindow;
+                mainWindow.Show();
+            }
+            catch (Exception ex)
+            {
+                Log.Fatal(ex, "应用程序启动失败");
+                throw;
+            }
+        }
+
+        protected override void OnExit(ExitEventArgs e)
+        {
+            Log.Information("应用程序正在退出");
+            Log.CloseAndFlush();
+            base.OnExit(e);
+        }
+
+        private static void ConfigureLogging(IAppLogStore logStore)
+        {
+            var logDirectory = Path.Combine(AppContext.BaseDirectory, "Logs");
+            Directory.CreateDirectory(logDirectory);
+
+            Log.Logger = new LoggerConfiguration()
+                .MinimumLevel.Information()
+                .Enrich.FromLogContext()
+                .WriteTo.Debug(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}")
+                .WriteTo.File(
+                    Path.Combine(logDirectory, "fredy-.log"),
+                    rollingInterval: RollingInterval.Day,
+                    retainedFileCountLimit: 14,
+                    shared: true,
+                    outputTemplate: "[{Timestamp:yyyy-MM-dd HH:mm:ss.fff} {Level:u3}] {Message:lj}{NewLine}{Exception}")
+                .WriteTo.Sink(new SerilogObservableSink(logStore))
+                .CreateLogger();
+        }
+
+        private void ConfigureServices(IServiceCollection services, IAppLogStore logStore)
+        {
+            //注册硬件
+            services.AddSingleton<ICamera, CameraSimulator>();
+            services.AddSingleton<IMoton, MotionSimulator>();
+
+            services.AddSingleton(logStore);
+            services.AddSingleton<IAppLogStore>(logStore);
+            services.AddSingleton<IAppLogExportService, AppLogExportService>();
+            services.AddLogging(builder =>
+            {
+                builder.ClearProviders();
+                builder.AddSerilog(Log.Logger, dispose: false);
+            });
+
+            // Windows
+            services.AddTransient<ScanWindow>(s => new ScanWindow()
+            {
+                DataContext = s.GetRequiredService<ScanViewModel>()
+            });
+
+            services.AddTransient<ConfigViewModel>();
+            services.AddTransient<ConfigWindow>(); // 每次打开配置页面都创建一个新的实例
+
+            services.AddSingleton<MainViewModel>();
+            services.AddTransient<ManualControlViewModel>();
+            services.AddTransient<DetectionViewModel>();
+            services.AddTransient<PunchingCompensationViewModel>();
+            services.AddTransient<SecondPassDetectionViewModel>();
+
+            services.AddSingleton<MainWindow>();
+        }
+
+        private static void LogStartupInformation()
+        {
+            var assembly = Assembly.GetExecutingAssembly().GetName();
+            var version = assembly.Version?.ToString() ?? "Unknown";
+
+            Log.Information(
+                "启动信息 Machine={MachineName} User={UserName} OS={OSDescription} Framework={FrameworkDescription} Architecture={ProcessArchitecture} BaseDirectory={BaseDirectory} Version={Version}",
+                Environment.MachineName,
+                Environment.UserName,
+                RuntimeInformation.OSDescription,
+                RuntimeInformation.FrameworkDescription,
+                RuntimeInformation.ProcessArchitecture,
+                AppContext.BaseDirectory,
+                version);
+        }
+
+        private void RegisterGlobalExceptionHandlers()
+        {
+            DispatcherUnhandledException += OnDispatcherUnhandledException;
+            AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
+            TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
+        }
+
+        private static void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
+        {
+            Log.Error(e.Exception, "捕获到 UI 线程未处理异常");
+        }
+
+        private static void OnUnhandledException(object? sender, UnhandledExceptionEventArgs e)
+        {
+            if (e.ExceptionObject is Exception exception)
+            {
+                Log.Fatal(exception, "捕获到 AppDomain 未处理异常");
+                return;
+            }
+
+            Log.Fatal("捕获到 AppDomain 未处理异常，异常对象类型: {ExceptionObjectType}", e.ExceptionObject?.GetType().FullName ?? "Unknown");
+        }
+
+        private static void OnUnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs e)
+        {
+            Log.Error(e.Exception, "捕获到未观察的任务异常");
+            e.SetObserved();
+        }
+    }
+}
