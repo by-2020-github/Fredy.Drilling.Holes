@@ -15,15 +15,16 @@ namespace Common.Tools
             SetRuntimePath(runtimePath);
         }
 
-        public string RuntimePath { get; private set; }
+        public static string RuntimePath { get; private set; }
+        public static string RecipePath { get; private set; }
 
-        public string ConfigPath { get; private set; }
+        public static string ConfigPath { get; private set; }
 
-        public string ResultPath { get; private set; }
+        public static string ResultPath { get; private set; }
 
-        public string LogPath { get; private set; }
+        public static string LogPath { get; private set; }
 
-        public void SetRuntimePath(string runtimePath)
+        public static void SetRuntimePath(string runtimePath)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(runtimePath);
 
@@ -31,9 +32,10 @@ namespace Common.Tools
             ConfigPath = Path.Combine(RuntimePath, "Config");
             ResultPath = Path.Combine(RuntimePath, "Result");
             LogPath = Path.Combine(RuntimePath, "Logs");
+            RecipePath = Path.Combine(RuntimePath, "Recipe");
         }
 
-        public void EnsureDirectories()
+        public static void EnsureDirectories()
         {
             Directory.CreateDirectory(RuntimePath);
             Directory.CreateDirectory(ConfigPath);
@@ -41,19 +43,19 @@ namespace Common.Tools
             Directory.CreateDirectory(LogPath);
         }
 
-        public string GetConfigFilePath(string fileName)
+        public static string GetConfigFilePath(string fileName)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
             return Path.Combine(ConfigPath, fileName);
         }
 
-        public string GetResultFilePath(string fileName)
+        public static string GetResultFilePath(string fileName)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
             return Path.Combine(ResultPath, fileName);
         }
 
-        public string GetLogFilePath(string fileName)
+        public static string GetLogFilePath(string fileName)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
             return Path.Combine(LogPath, fileName);

@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:uc="clr-namespace:Fredy.Drilling.Holes.UserControls"
              xmlns:vm="clr-namespace:Fredy.Drilling.Holes.ViewModels"
              mc:Ignorable="d" 
     
@@ -24,9 +25,8 @@
             <RowDefinition Height="30"/>
         </Grid.RowDefinitions>
 
-        <Border BorderBrush="Gray" BorderThickness="1" Margin="5" Background="#F5F5F5">
-            <TextBlock Text="图形/相机显示区域" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="Gray"/>
-        </Border>
+        <uc:RecipeUserControl Margin="5"
+                              RecipeViewModel="{Binding CurrentRecipeViewModel}"/>
 
         <StackPanel Grid.Column="1" Grid.RowSpan="2" Margin="5">
             <Border BorderBrush="#CCCCCC" BorderThickness="1" Padding="10" Background="#F9F9F9">
@@ -51,7 +51,13 @@
                             <TextBlock Text="速度:"/>
                         </StackPanel>
                         <StackPanel Grid.Column="1" Margin="10,0,0,0">
-                            <TextBlock Text="{Binding Status.WorkpieceType}" Foreground="RoyalBlue"/>
+                            <DockPanel LastChildFill="True">
+                                <Button Content="刷新" DockPanel.Dock="Right" Margin="10,0,0,0" Padding="8,2" Command="{Binding RefreshRecipesCommand}"/>
+                                <ComboBox ItemsSource="{Binding RecipeNames}"
+                                          SelectedItem="{Binding Status.WorkpieceType, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                          Foreground="RoyalBlue"
+                                          MinWidth="160"/>
+                            </DockPanel>
                             <TextBlock Text="{Binding Status.TotalHoles}" Foreground="Red" FontWeight="Bold"/>
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="{Binding Status.CurrentRing}" Foreground="Red" FontWeight="Bold" Width="40"/>

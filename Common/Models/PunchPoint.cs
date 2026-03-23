@@ -35,5 +35,6 @@ namespace Common.Models
         {
             return $"圈:{RingNumber}, 序号:{SequenceIndex}, 坐标:({X}, {Y})";
         }
+
     }
 }

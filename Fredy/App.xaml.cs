@@ -1,4 +1,5 @@
-﻿using Fredy.Drilling.Holes.Services;
+﻿using Common.Tools;
+using Fredy.Drilling.Holes.Services;
 using Fredy.Drilling.Holes.ViewModels;
 using Fredy.Drilling.Holes.Views;
 using Fredy.Views;
@@ -23,6 +24,8 @@ namespace Fredy.Drilling.Holes
 
         protected override void OnStartup(StartupEventArgs e)
         {
+            InitializePathManager();
+
             var logStore = new AppLogStore();
             ConfigureLogging(logStore);
             RegisterGlobalExceptionHandlers();
@@ -33,6 +36,7 @@ namespace Fredy.Drilling.Holes
                 ConfigureServices(serviceCollection, logStore);
 
                 ServiceProvider = serviceCollection.BuildServiceProvider();
+                InitializeRecipeService();
 
                 LogStartupInformation();
                 Log.Information("应用程序启动完成");
@@ -59,7 +63,7 @@ namespace Fredy.Drilling.Holes
 
         private static void ConfigureLogging(IAppLogStore logStore)
         {
-            var logDirectory = Path.Combine(AppContext.BaseDirectory, "Logs");
+            var logDirectory = PathManager.LogPath;
             Directory.CreateDirectory(logDirectory);
 
             Log.Logger = new LoggerConfiguration()
@@ -81,6 +85,8 @@ namespace Fredy.Drilling.Holes
             //注册硬件
             services.AddSingleton<ICamera, CameraSimulator>();
             services.AddSingleton<IMoton, MotionSimulator>();
+            services.AddSingleton(_ => new PathManager(AppContext.BaseDirectory));
+            services.AddSingleton<RecipeService>();
 
             services.AddSingleton(logStore);
             services.AddSingleton<IAppLogStore>(logStore);
@@ -107,6 +113,19 @@ namespace Fredy.Drilling.Holes
             services.AddTransient<SecondPassDetectionViewModel>();
 
             services.AddSingleton<MainWindow>();
+        }
+
+        private static void InitializePathManager()
+        {
+            PathManager.SetRuntimePath(AppContext.BaseDirectory);
+            PathManager.EnsureDirectories();
+        }
+
+        private static void InitializeRecipeService()
+        {
+            var recipeService = ServiceProvider.GetRequiredService<RecipeService>();
+            var recipeCount = recipeService.Recipes.Count;
+            Log.Information("RecipeService 初始化完成，已加载 {RecipeCount} 个配方", recipeCount);
         }
 
         private static void LogStartupInformation()
