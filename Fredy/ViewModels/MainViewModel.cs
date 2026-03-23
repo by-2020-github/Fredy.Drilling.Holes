@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.Input;
 using Fredy.Drilling.Holes.Models;
 using Fredy.Drilling.Holes.Services;
 using Fredy.Drilling.Holes.Views;
+using HAL;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.ObjectModel;
@@ -14,6 +15,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Data;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 
 namespace Fredy.Drilling.Holes.ViewModels
 {
@@ -22,7 +25,10 @@ namespace Fredy.Drilling.Holes.ViewModels
         private readonly IAppLogExportService? _logExportService;
         private readonly IAppLogStore? _logStore;
         private readonly ILogger<MainViewModel>? _logger;
+        private readonly ICamera? _camera;
         private readonly RecipeService? _recipeService;
+        private CancellationTokenSource? _cameraPreviewCancellationTokenSource;
+        private Task? _cameraPreviewTask;
         private PunchStateMachine? _punchStateMachine;
         private CancellationTokenSource? _punchingCancellationTokenSource;
         private Task? _punchingTask;
@@ -32,6 +38,7 @@ namespace Fredy.Drilling.Holes.ViewModels
         [ObservableProperty] private bool _isFirstPass = true; // 默认选中头道
         [ObservableProperty] private bool _onlyShowWarningsAndErrors;
 
+        private ImageSource? _currentCameraImage;
         private RecipeViewModel? _currentRecipeViewModel;
 
         public ObservableCollection<string> RecipeNames { get; } = new();
@@ -41,6 +48,12 @@ namespace Fredy.Drilling.Holes.ViewModels
         public ICollectionView FilteredLogs { get; }
 
         public ReadOnlyObservableCollection<AppLogEntry> Logs { get; }
+
+        public ImageSource? CurrentCameraImage
+        {
+            get => _currentCameraImage;
+            set => SetProperty(ref _currentCameraImage, value);
+        }
 
         public RecipeViewModel? CurrentRecipeViewModel
         {
@@ -68,17 +81,19 @@ namespace Fredy.Drilling.Holes.ViewModels
             Status.PropertyChanged += Status_PropertyChanged;
         }
 
-        public MainViewModel(IAppLogStore logStore, IAppLogExportService logExportService, ILogger<MainViewModel> logger, RecipeService recipeService)
+        public MainViewModel(IAppLogStore logStore, IAppLogExportService logExportService, ILogger<MainViewModel> logger, RecipeService recipeService, ICamera camera)
         {
             _logStore = logStore;
             _logExportService = logExportService;
             _logger = logger;
             _recipeService = recipeService;
+            _camera = camera;
             Logs = logStore.Entries;
             FilteredLogs = CollectionViewSource.GetDefaultView(Logs);
             FilteredLogs.Filter = FilterLogEntry;
             Status.PropertyChanged += Status_PropertyChanged;
             RefreshRecipes();
+            StartCameraPreview();
 
             _logger.LogInformation("主界面视图模型已初始化");
         }
@@ -124,7 +139,7 @@ namespace Fredy.Drilling.Holes.ViewModels
 
             try
             {
-                _punchingTask = RunPunchingProcessAsync(CurrentRecipeViewModel, _punchStateMachine, _punchingCancellationTokenSource.Token);
+                _punchingTask = RunPunchingProcessAsync(CurrentRecipeViewModel, _punchStateMachine, processType, _punchingCancellationTokenSource.Token);
                 await _punchingTask;
             }
             catch (OperationCanceledException)
@@ -394,7 +409,7 @@ namespace Fredy.Drilling.Holes.ViewModels
             return new PunchStateMachine(hardwareController);
         }
 
-        private async Task RunPunchingProcessAsync(RecipeViewModel recipeViewModel, PunchStateMachine punchStateMachine, CancellationToken cancellationToken)
+        private async Task RunPunchingProcessAsync(RecipeViewModel recipeViewModel, PunchStateMachine punchStateMachine, PunchProcessType processType, CancellationToken cancellationToken)
         {
             for (int index = 0; index < recipeViewModel.PunchPoints.Count; index++)
             {
@@ -420,7 +435,7 @@ namespace Fredy.Drilling.Holes.ViewModels
                         continue;
                     }
 
-                    punchStateMachine.ExecuteNextStep();
+                    punchStateMachine.ExecuteNextStep(processType);
                     await Task.Delay(50, cancellationToken);
                 }
 
@@ -470,6 +485,77 @@ namespace Fredy.Drilling.Holes.ViewModels
             }
 
             _logger?.LogInformation("{Message}", e.Message);
+        }
+
+        private void StartCameraPreview()
+        {
+            if (_camera is null)
+            {
+                return;
+            }
+
+            _cameraPreviewCancellationTokenSource?.Cancel();
+            _cameraPreviewCancellationTokenSource = new CancellationTokenSource();
+            _cameraPreviewTask = Task.Run(() => CameraPreviewLoopAsync(_cameraPreviewCancellationTokenSource.Token));
+        }
+
+        private async Task CameraPreviewLoopAsync(CancellationToken cancellationToken)
+        {
+            try
+            {
+                if (!_camera!.IsConnected)
+                {
+                    await Application.Current.Dispatcher.InvokeAsync(() => Status.IsCameraConnected = _camera.Open());
+                }
+                else
+                {
+                    await Application.Current.Dispatcher.InvokeAsync(() => Status.IsCameraConnected = true);
+                }
+
+                while (!cancellationToken.IsCancellationRequested)
+                {
+                    var frame = await _camera.GrabAsync().ConfigureAwait(false);
+                    var bitmap = CreateBitmapSource(frame);
+
+                    if (bitmap is not null)
+                    {
+                        await Application.Current.Dispatcher.InvokeAsync(() => CurrentCameraImage = bitmap);
+                    }
+
+                    await Task.Delay(100, cancellationToken).ConfigureAwait(false);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch (Exception ex)
+            {
+                await Application.Current.Dispatcher.InvokeAsync(() => Status.IsCameraConnected = false);
+                _logger?.LogError(ex, "主界面相机预览启动失败");
+            }
+        }
+
+        private static BitmapSource? CreateBitmapSource(CameraArgs? frame)
+        {
+            if (frame?.Data is null || frame.Width <= 0 || frame.Height <= 0)
+            {
+                return null;
+            }
+
+            var pixelFormat = frame.Format switch
+            {
+                HAL.PixelFormat.Mono8 => PixelFormats.Gray8,
+                HAL.PixelFormat.RGB8 => PixelFormats.Rgb24,
+                HAL.PixelFormat.BGR8 => PixelFormats.Bgr24,
+                HAL.PixelFormat.RGBA8 => PixelFormats.Bgra32,
+                HAL.PixelFormat.BGRA8 => PixelFormats.Bgra32,
+                _ => PixelFormats.Bgr24
+            };
+
+            var stride = frame.Stride > 0 ? frame.Stride : ((frame.Width * pixelFormat.BitsPerPixel) + 7) / 8;
+            var bitmap = BitmapSource.Create(frame.Width, frame.Height, 96, 96, pixelFormat, null, frame.Data, stride);
+            bitmap.Freeze();
+            return bitmap;
         }
 
         private bool CanStartPunching()

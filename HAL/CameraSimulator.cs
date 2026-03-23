@@ -53,7 +53,7 @@ namespace HAL
                     HersheyFonts.HersheyComplex, 1.5, Scalar.Green, 2);
 
                 // 模拟随机噪点或图形
-                Cv2.Circle(canvas, new Point(_width / 2, _height / 2), (int)(_frameCounter % 100 + 50), Scalar.Red, -1);
+                Cv2.Circle(canvas, new Point(_width / 2, _height / 2), (int)(_frameCounter % 100 + 50), Scalar.AliceBlue, -1);
 
                 // 2. 将 Mat 转换为 CameraArgs 需要的原始数据
                 var args = MatToCameraArgs(canvas);

@@ -25,8 +25,84 @@
             <RowDefinition Height="30"/>
         </Grid.RowDefinitions>
 
-        <uc:RecipeUserControl Margin="5"
-                              RecipeViewModel="{Binding CurrentRecipeViewModel}"/>
+        <Border Margin="5" BorderBrush="#D6D6D6" BorderThickness="1" Background="#101214" CornerRadius="6">
+            <Grid>
+                <Grid x:Name="CameraViewport"
+                      Background="Transparent"
+                      ClipToBounds="True"
+                      MouseLeftButtonDown="CameraViewport_MouseLeftButtonDown"
+                      MouseLeftButtonUp="CameraViewport_MouseLeftButtonUp"
+                      MouseMove="CameraViewport_MouseMove"
+                      MouseWheel="CameraViewport_MouseWheel"
+                      LostMouseCapture="CameraViewport_LostMouseCapture">
+                    <Grid.ContextMenu>
+                        <ContextMenu>
+                            <MenuItem Header="重置视图" Click="ResetCameraViewMenuItem_Click"/>
+                            <MenuItem Header="保存图像" Click="SaveCameraImageMenuItem_Click"/>
+                            <Separator/>
+                            <MenuItem x:Name="ToggleCenterCrossMenuItem"
+                                      Header="显示图像中心十字标记"
+                                      IsCheckable="True"
+                                      IsChecked="True"
+                                      Click="ToggleCenterCrossMenuItem_Click"/>
+                        </ContextMenu>
+                    </Grid.ContextMenu>
+                    <Grid x:Name="CameraContentLayer"
+                          RenderTransformOrigin="0,0"
+                          IsHitTestVisible="False">
+                        <Image x:Name="CameraImage"
+                               Source="{Binding CurrentCameraImage}"
+                               Stretch="Uniform"/>
+                        <Grid x:Name="CameraCenterCross"
+                              Width="48"
+                              Height="48"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center">
+                            <Line X1="24" Y1="6" X2="24" Y2="42" Stroke="#FF5252" StrokeThickness="1.5"/>
+                            <Line X1="6" Y1="24" X2="42" Y2="24" Stroke="#FF5252" StrokeThickness="1.5"/>
+                            <Ellipse Width="8" Height="8" Stroke="#FF5252" StrokeThickness="1.5" Fill="#40FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Grid>
+                    </Grid>
+                </Grid>
+
+                <TextBlock Text="当前相机图像"
+                           Margin="12,10,12,0"
+                           HorizontalAlignment="Left"
+                           VerticalAlignment="Top"
+                           Foreground="White"
+                           FontSize="16"
+                           FontWeight="SemiBold"/>
+
+                <TextBlock Text="暂无相机图像"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           Foreground="#D0D0D0"
+                           FontSize="18">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding CurrentCameraImage}" Value="{x:Null}">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+
+                <Border Width="340"
+                        Height="320"
+                        Margin="12"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Top"
+                        Background="#CCFFFFFF"
+                        BorderBrush="#D6D6D6"
+                        BorderThickness="1"
+                        CornerRadius="6">
+                    <uc:RecipeUserControl RecipeViewModel="{Binding CurrentRecipeViewModel}"/>
+                </Border>
+            </Grid>
+        </Border>
 
         <StackPanel Grid.Column="1" Grid.RowSpan="2" Margin="5">
             <Border BorderBrush="#CCCCCC" BorderThickness="1" Padding="10" Background="#F9F9F9">
@@ -183,8 +259,19 @@
             </Border>
             <Separator/>
             <TextBlock Text="相机状态"/>
-            <Border Background="Red" Padding="5,1">
-                <TextBlock Text="未连接" Foreground="White"/>
+            <Border Background="{Binding Status.IsCameraConnected, Converter={StaticResource StatusColorConverter}}" Padding="5,1">
+                <TextBlock Foreground="White">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Text" Value="未连接"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Status.IsCameraConnected}" Value="True">
+                                    <Setter Property="Text" Value="已连接"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
             </Border>
         </StatusBar>
     </Grid>

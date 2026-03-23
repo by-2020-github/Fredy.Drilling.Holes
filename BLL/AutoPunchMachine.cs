@@ -182,8 +182,10 @@ namespace BLL
         /// <summary>
         /// 执行状态机下一步 (通常在控制线程的 while 循环或 Timer 中调用)
         /// </summary>
-        public void ExecuteNextStep()
+        public void ExecuteNextStep(PunchProcessType processType)
         {
+            ProcessType = processType;
+
             if (CurrentState == PunchState.Finished || CurrentState == PunchState.Paused) return;
 
             switch (CurrentState)
