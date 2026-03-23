@@ -9,7 +9,7 @@ namespace Fredy.Drilling.Holes.ViewModels
 {
     public partial class PunchPointViewModel : ObservableObject
     {
-        private bool _complete;
+        private bool _complete = false;
 
         public PunchPointViewModel(PunchPoint punchPoint)
         {

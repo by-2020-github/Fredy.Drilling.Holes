@@ -154,7 +154,14 @@
                 <Button Content="导出日志" Margin="10,0" Command="{Binding ExportLogsCommand}" Padding="5,2"/>
                 <Button Content="清空日志" Margin="10,0" Command="{Binding ClearLogsCommand}" Padding="5,2"/>
             </StackPanel>
-            <ListBox Grid.Row="1" ItemsSource="{Binding FilteredLogs}" Background="#F0F0F0" BorderBrush="#D0D0D0" BorderThickness="1">
+            <ListBox x:Name="LogListBox"
+                     Grid.Row="1"
+                     ItemsSource="{Binding FilteredLogs}"
+                     Background="#F0F0F0"
+                     BorderBrush="#D0D0D0"
+                     BorderThickness="1"
+                     Loaded="LogListBox_Loaded"
+                     Unloaded="LogListBox_Unloaded">
                 <ListBox.ItemTemplate>
                     <DataTemplate>
                         <Border Margin="0,1" Padding="4,2" Background="{Binding Background}">

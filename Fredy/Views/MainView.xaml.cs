@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Specialized;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -12,6 +13,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
+using System.Windows.Threading;
 
 namespace Fredy.Drilling.Holes.Views
 {
@@ -23,6 +25,44 @@ namespace Fredy.Drilling.Holes.Views
         public MainView()
         {
             InitializeComponent();
+        }
+
+        private void LogListBox_Loaded(object sender, RoutedEventArgs e)
+        {
+            if (LogListBox.Items is INotifyCollectionChanged collection)
+            {
+                collection.CollectionChanged -= LogItems_CollectionChanged;
+                collection.CollectionChanged += LogItems_CollectionChanged;
+            }
+
+            ScrollLogsToEnd();
+        }
+
+        private void LogListBox_Unloaded(object sender, RoutedEventArgs e)
+        {
+            if (LogListBox.Items is INotifyCollectionChanged collection)
+            {
+                collection.CollectionChanged -= LogItems_CollectionChanged;
+            }
+        }
+
+        private void LogItems_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+        {
+            if (e.Action is NotifyCollectionChangedAction.Add or NotifyCollectionChangedAction.Reset)
+            {
+                ScrollLogsToEnd();
+            }
+        }
+
+        private void ScrollLogsToEnd()
+        {
+            if (LogListBox.Items.Count == 0)
+            {
+                return;
+            }
+
+            var lastItem = LogListBox.Items[^1];
+            Dispatcher.BeginInvoke(() => LogListBox.ScrollIntoView(lastItem), DispatcherPriority.Background);
         }
     }
 }

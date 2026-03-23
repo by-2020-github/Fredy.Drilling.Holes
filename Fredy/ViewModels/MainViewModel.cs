@@ -342,6 +342,7 @@ namespace Fredy.Drilling.Holes.ViewModels
                 return;
             }
 
+            Status.PunchedHoles = 0;
             CurrentRecipeViewModel = _recipeService.CurrentRecipe is null ? null : new RecipeViewModel(_recipeService.CurrentRecipe);
             UpdateRecipeStatus();
             NotifyProcessCommandStateChanged();

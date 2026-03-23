@@ -1,6 +1,7 @@
 ﻿using Common.Models;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
@@ -60,7 +61,8 @@ namespace Common.Tools
 
             lock (_syncRoot)
             {
-                if (_recipes.ContainsKey(type) || HasDuplicateTypeName(recipeModel.TypeName))
+                // if (_recipes.ContainsKey(type) || HasDuplicateTypeName(recipeModel.TypeName))
+                if (_recipes.ContainsKey(type))
                 {
                     return false;
                 }
@@ -85,7 +87,8 @@ namespace Common.Tools
 
             lock (_syncRoot)
             {
-                if (!_recipes.ContainsKey(type) || HasDuplicateTypeName(recipeModel.TypeName, type))
+                // if (!_recipes.ContainsKey(type) || HasDuplicateTypeName(recipeModel.TypeName, type))
+                if (!_recipes.ContainsKey(type))
                 {
                     return false;
                 }
@@ -184,11 +187,13 @@ namespace Common.Tools
                          .Select(x => x!.Value)
                          .OrderBy(x => x.RecipeName, StringComparer.OrdinalIgnoreCase))
             {
-                if (!typeNames.Add(loadedRecipe.Recipe.TypeName))
-                {
-                    continue;
-                }
+                // if (!typeNames.Add(loadedRecipe.Recipe.TypeName))
+                // {
+                //     continue;
+                // }
 
+                typeNames.Add(loadedRecipe.Recipe.TypeName);
+                Debug.WriteLine(loadedRecipe.RecipeName);
                 recipeMap[loadedRecipe.RecipeName] = loadedRecipe.Recipe;
             }
 
