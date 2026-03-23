@@ -27,7 +27,19 @@ namespace BLL
         PunchAction = 5,        // Z轴冲孔动作
         LiftToHeight2 = 6,      // Z轴抬起到抬起高度
         CheckFinish = 7,        // 判断是否结束冲孔
-        Finished = 8            // 结束冲孔状态
+        Finished = 8,           // 结束冲孔状态
+        Paused = 9              // 暂停状态
+    }
+
+    /// <summary>
+    /// 流程结束状态
+    /// </summary>
+    public enum PunchCompletionStatus
+    {
+        None = 0,
+        NormalFinished = 1,
+        AbnormalFinished = 2,
+        Cancelled = 3
     }
 
     #region 事件参数定义
@@ -78,7 +90,13 @@ namespace BLL
         public event EventHandler<MessageEventArgs> MessageReported;
 
         private PunchState _currentState = PunchState.Finished;
+        private PunchState _stateBeforePause = PunchState.Finished;
         private IHardwareController Hardware;
+
+        public PunchStateMachine(IHardwareController hardware)
+        {
+            Hardware = hardware ?? throw new ArgumentNullException(nameof(hardware));
+        }
 
         /// <summary>
         /// 当前冲孔状态（赋值时自动触发事件）
@@ -100,6 +118,7 @@ namespace BLL
 
         public PunchProcessType ProcessType { get; set; }
         public int CurrentHoleIndex { get; private set; } = 1;
+        public PunchCompletionStatus CompletionStatus { get; private set; } = PunchCompletionStatus.None;
 
         // UI或配置项映射标志位
         public bool IsSimulationChecked { get; set; } = false;
@@ -118,8 +137,46 @@ namespace BLL
         {
             ProcessType = type;
             CurrentHoleIndex = 1;
+            _stateBeforePause = PunchState.Finished;
+            CompletionStatus = PunchCompletionStatus.None;
             Log($"[系统] 开始{(type == PunchProcessType.FirstPass ? "头道" : "二道")}冲孔流程...");
             CurrentState = PunchState.ReadCoordinate;
+        }
+
+        public void PauseProcess()
+        {
+            if (CurrentState == PunchState.Finished || CurrentState == PunchState.Paused)
+            {
+                return;
+            }
+
+            _stateBeforePause = CurrentState;
+            CurrentState = PunchState.Paused;
+            Log($"[系统] 冲孔流程已暂停，当前孔位: {CurrentHoleIndex}");
+        }
+
+        public void ResumeProcess()
+        {
+            if (CurrentState != PunchState.Paused)
+            {
+                return;
+            }
+
+            var resumeState = _stateBeforePause == PunchState.Finished ? PunchState.ReadCoordinate : _stateBeforePause;
+            CurrentState = resumeState;
+            Log($"[系统] 冲孔流程继续，当前孔位: {CurrentHoleIndex}");
+        }
+
+        public void CancelProcess()
+        {
+            if (CurrentState == PunchState.Finished)
+            {
+                return;
+            }
+
+            CompletionStatus = PunchCompletionStatus.Cancelled;
+            Log($"[系统] 冲孔流程已取消，停止于第 {CurrentHoleIndex} 孔");
+            EndProcess();
         }
 
         /// <summary>
@@ -127,7 +184,7 @@ namespace BLL
         /// </summary>
         public void ExecuteNextStep()
         {
-            if (CurrentState == PunchState.Finished) return;
+            if (CurrentState == PunchState.Finished || CurrentState == PunchState.Paused) return;
 
             switch (CurrentState)
             {
@@ -244,6 +301,7 @@ namespace BLL
                     {
                         Log("所有孔位加工完毕！");
                         CurrentHoleIndex = 1;
+                        CompletionStatus = PunchCompletionStatus.NormalFinished;
                         EndProcess();
                     }
                     else
@@ -262,6 +320,7 @@ namespace BLL
             Log("检测到断针！停止Z轴！");
             Hardware.StopZ();
             CurrentHoleIndex++;
+            CompletionStatus = PunchCompletionStatus.AbnormalFinished;
             ShowAlarm("断针报警！请检查冲针。");
             Hardware.LiftZ();
             EndProcess();
@@ -269,6 +328,7 @@ namespace BLL
 
         private void EndProcess()
         {
+            _stateBeforePause = PunchState.Finished;
             CurrentState = PunchState.Finished;
             Log("冲孔流程已结束/就绪。");
         }
@@ -281,6 +341,11 @@ namespace BLL
 
         private void ShowAlarm(string msg)
         {
+            if (CompletionStatus == PunchCompletionStatus.None)
+            {
+                CompletionStatus = PunchCompletionStatus.AbnormalFinished;
+            }
+
             MessageReported?.Invoke(this, new MessageEventArgs(msg, isAlarm: true));
         }
 

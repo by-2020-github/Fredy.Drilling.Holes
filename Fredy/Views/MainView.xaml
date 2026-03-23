@@ -91,8 +91,18 @@
 
                 <UniformGrid Columns="2">
                     <Button Content="启动冲孔" Background="#00FF00" Style="{StaticResource ControlButtonStyle}" Command="{Binding StartPunchingCommand}"/>
-                    <Button Content="暂停冲孔" Style="{StaticResource ControlButtonStyle}" Command="{Binding PausePunchingCommand}"/>
-                    <Button Content="自定义" Background="Orange" Style="{StaticResource ControlButtonStyle}"/>
+                    <Grid>
+                        <Button Content="暂停冲孔"
+                                Style="{StaticResource ControlButtonStyle}"
+                                Command="{Binding PausePunchingCommand}"
+                                Visibility="{Binding ShowPausePunchingButton, Converter={StaticResource BoolToVis}}"/>
+                        <Button Content="继续冲孔"
+                                Background="#00FF00"
+                                Style="{StaticResource ControlButtonStyle}"
+                                Command="{Binding ContinuePunchingCommand}"
+                                Visibility="{Binding ShowContinuePunchingButton, Converter={StaticResource BoolToVis}}"/>
+                    </Grid>
+                    <Button Content="自定义" Background="Orange" Style="{StaticResource ControlButtonStyle}" IsEnabled="{Binding CanUseCustomAction}"/>
                     <Button Content="复位" Background="Orange" Style="{StaticResource ControlButtonStyle}" Command="{Binding ResetMachineCommand}"/>
                 </UniformGrid>
                 <Button Content="停止" Background="Red" Foreground="White" Height="50" FontSize="20" FontWeight="Bold" Margin="5" Command="{Binding StopPunchingCommand}"/>

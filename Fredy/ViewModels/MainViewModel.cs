@@ -1,4 +1,5 @@
-﻿using Common.Tools;
+﻿using BLL;
+using Common.Tools;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Fredy.Drilling.Holes.Models;
@@ -9,6 +10,7 @@ using System;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Data;
@@ -21,6 +23,9 @@ namespace Fredy.Drilling.Holes.ViewModels
         private readonly IAppLogStore? _logStore;
         private readonly ILogger<MainViewModel>? _logger;
         private readonly RecipeService? _recipeService;
+        private PunchStateMachine? _punchStateMachine;
+        private CancellationTokenSource? _punchingCancellationTokenSource;
+        private Task? _punchingTask;
 
         [ObservableProperty] private MachineStatus _status = new();
         [ObservableProperty] private bool _isSimulate;
@@ -40,8 +45,20 @@ namespace Fredy.Drilling.Holes.ViewModels
         public RecipeViewModel? CurrentRecipeViewModel
         {
             get => _currentRecipeViewModel;
-            set => SetProperty(ref _currentRecipeViewModel, value);
+            set
+            {
+                if (SetProperty(ref _currentRecipeViewModel, value))
+                {
+                    NotifyProcessCommandStateChanged();
+                }
+            }
         }
+
+        public bool CanUseCustomAction => !IsPunchingActive;
+
+        public bool ShowPausePunchingButton => !IsPunchingPaused;
+
+        public bool ShowContinuePunchingButton => IsPunchingPaused;
 
         public MainViewModel()
         {
@@ -72,25 +89,89 @@ namespace Fredy.Drilling.Holes.ViewModels
             //_logger.LogInformation("日志筛选已切换为: {FilterMode}", value ? "仅看告警/错误" : "显示全部");
         }
 
-        [RelayCommand]
-        private void StartPunching()
+        [RelayCommand(CanExecute = nameof(CanStartPunching))]
+        private async Task StartPunchingAsync()
         {
+            if (CurrentRecipeViewModel?.PunchPoints is not { Count: > 0 } punchPoints)
+            {
+                _logger?.LogWarning("未加载有效配方，无法启动冲孔流程");
+                return;
+            }
+
+            if (_punchingTask is { IsCompleted: false })
+            {
+                _logger?.LogWarning("冲孔流程正在执行中");
+                return;
+            }
+
             _logger?.LogInformation("收到启动冲孔命令，模式: {Mode}，工序: {Pass}", IsSimulate ? "模拟" : "实际", IsFirstPass ? "头道" : "二道");
+
+            Status.PunchedHoles = 0;
+            CurrentRecipeViewModel.UpdateCompletedCount(0);
+
+            _punchingCancellationTokenSource?.Cancel();
+            _punchingCancellationTokenSource = new CancellationTokenSource();
+
+            _punchStateMachine = CreatePunchStateMachine();
+            _punchStateMachine.IsSimulationChecked = IsSimulate;
+            _punchStateMachine.IsDetectionEnabled = !IsSimulate;
+            _punchStateMachine.StateChanged += PunchStateMachine_StateChanged;
+            _punchStateMachine.MessageReported += PunchStateMachine_MessageReported;
+            NotifyProcessCommandStateChanged();
+
+            var processType = IsFirstPass ? PunchProcessType.FirstPass : PunchProcessType.SecondPass;
+            _punchStateMachine.StartProcess(processType);
+
+            try
+            {
+                _punchingTask = RunPunchingProcessAsync(CurrentRecipeViewModel, _punchStateMachine, _punchingCancellationTokenSource.Token);
+                await _punchingTask;
+            }
+            catch (OperationCanceledException)
+            {
+                _logger?.LogInformation("冲孔流程已响应取消请求");
+            }
+            finally
+            {
+                if (_punchStateMachine is not null)
+                {
+                    _punchStateMachine.StateChanged -= PunchStateMachine_StateChanged;
+                    _punchStateMachine.MessageReported -= PunchStateMachine_MessageReported;
+                }
+
+                _punchingCancellationTokenSource?.Dispose();
+                _punchingCancellationTokenSource = null;
+                _punchingTask = null;
+                NotifyProcessCommandStateChanged();
+            }
         }
 
-        [RelayCommand]
+        [RelayCommand(CanExecute = nameof(CanStopPunching))]
         private void StopPunching()
         {
+            _punchingCancellationTokenSource?.Cancel();
+            _punchStateMachine?.CancelProcess();
+            NotifyProcessCommandStateChanged();
             _logger?.LogWarning("收到停止冲孔命令");
         }
 
-        [RelayCommand]
+        [RelayCommand(CanExecute = nameof(CanPausePunching))]
         private void PausePunching()
         {
+            _punchStateMachine?.PauseProcess();
+            NotifyProcessCommandStateChanged();
             _logger?.LogInformation("收到暂停冲孔命令");
         }
 
-        [RelayCommand]
+        [RelayCommand(CanExecute = nameof(CanContinuePunching))]
+        private void ContinuePunching()
+        {
+            _punchStateMachine?.ResumeProcess();
+            NotifyProcessCommandStateChanged();
+            _logger?.LogInformation("收到继续冲孔命令");
+        }
+
+        [RelayCommand(CanExecute = nameof(CanResetMachine))]
         private void ResetMachine()
         {
             _logger?.LogInformation("收到机台复位命令");
@@ -129,6 +210,7 @@ namespace Fredy.Drilling.Holes.ViewModels
             if (_recipeService is null)
             {
                 CurrentRecipeViewModel = null;
+                NotifyProcessCommandStateChanged();
                 return;
             }
 
@@ -149,6 +231,7 @@ namespace Fredy.Drilling.Holes.ViewModels
                 Status.WorkpieceType = string.Empty;
                 CurrentRecipeViewModel = null;
                 UpdateRecipeStatus();
+                NotifyProcessCommandStateChanged();
                 _logger?.LogWarning("未加载到任何配方名称");
                 return;
             }
@@ -246,6 +329,7 @@ namespace Fredy.Drilling.Holes.ViewModels
             {
                 CurrentRecipeViewModel = null;
                 UpdateRecipeStatus();
+                NotifyProcessCommandStateChanged();
                 return;
             }
 
@@ -253,12 +337,14 @@ namespace Fredy.Drilling.Holes.ViewModels
             {
                 CurrentRecipeViewModel = null;
                 UpdateRecipeStatus();
+                NotifyProcessCommandStateChanged();
                 _logger?.LogWarning("未找到配方: {RecipeName}", Status.WorkpieceType);
                 return;
             }
 
             CurrentRecipeViewModel = _recipeService.CurrentRecipe is null ? null : new RecipeViewModel(_recipeService.CurrentRecipe);
             UpdateRecipeStatus();
+            NotifyProcessCommandStateChanged();
         }
 
         private void UpdateRecipeStatus()
@@ -296,6 +382,135 @@ namespace Fredy.Drilling.Holes.ViewModels
             var nextPoint = punchPoints[completedCount];
             Status.CurrentRing = nextPoint.RingNumber;
             Status.CurrentHole = nextPoint.SequenceIndex;
+        }
+
+        private PunchStateMachine CreatePunchStateMachine()
+        {
+            IHardwareController hardwareController = IsSimulate
+                ? new MockHardwareController()
+                : new HardwareSimulation();
+
+            return new PunchStateMachine(hardwareController);
+        }
+
+        private async Task RunPunchingProcessAsync(RecipeViewModel recipeViewModel, PunchStateMachine punchStateMachine, CancellationToken cancellationToken)
+        {
+            for (int index = 0; index < recipeViewModel.PunchPoints.Count; index++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var point = recipeViewModel.PunchPoints[index];
+                punchStateMachine.IsLastHole = index == recipeViewModel.PunchPoints.Count - 1;
+
+                _logger?.LogInformation("开始检测孔位: 圈 {RingNumber}, 序号 {SequenceIndex}, 坐标 ({X}, {Y})",
+                    point.RingNumber,
+                    point.SequenceIndex,
+                    point.X,
+                    point.Y);
+
+                while (punchStateMachine.CurrentState != PunchState.Finished
+                    && punchStateMachine.CurrentHoleIndex == index + 1)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    if (punchStateMachine.CurrentState == PunchState.Paused)
+                    {
+                        await Task.Delay(100, cancellationToken);
+                        continue;
+                    }
+
+                    punchStateMachine.ExecuteNextStep();
+                    await Task.Delay(50, cancellationToken);
+                }
+
+                if (punchStateMachine.CompletionStatus is PunchCompletionStatus.AbnormalFinished or PunchCompletionStatus.Cancelled)
+                {
+                    break;
+                }
+
+                point.Complete = true;
+                Status.PunchedHoles = index + 1;
+
+                if (punchStateMachine.CurrentState == PunchState.Finished)
+                {
+                    break;
+                }
+            }
+
+            switch (punchStateMachine.CompletionStatus)
+            {
+                case PunchCompletionStatus.NormalFinished:
+                    _logger?.LogInformation("配方冲孔流程正常结束");
+                    break;
+                case PunchCompletionStatus.AbnormalFinished:
+                    _logger?.LogWarning("配方冲孔流程异常结束");
+                    break;
+                case PunchCompletionStatus.Cancelled:
+                    _logger?.LogWarning("配方冲孔流程已取消");
+                    break;
+                default:
+                    _logger?.LogInformation("配方冲孔流程结束");
+                    break;
+            }
+        }
+
+        private void PunchStateMachine_StateChanged(object? sender, StateChangedEventArgs e)
+        {
+            NotifyProcessCommandStateChanged();
+            _logger?.LogInformation("状态切换: {OldState} -> {NewState}, 当前孔位索引: {HoleIndex}", e.OldState, e.NewState, e.CurrentHoleIndex);
+        }
+
+        private void PunchStateMachine_MessageReported(object? sender, MessageEventArgs e)
+        {
+            if (e.IsAlarm)
+            {
+                _logger?.LogWarning("{Message}", e.Message);
+                return;
+            }
+
+            _logger?.LogInformation("{Message}", e.Message);
+        }
+
+        private bool CanStartPunching()
+        {
+            return CurrentRecipeViewModel?.PunchPoints.Count > 0
+                && !IsPunchingActive;
+        }
+
+        private bool CanPausePunching()
+        {
+            return IsPunchingActive && !IsPunchingPaused;
+        }
+
+        private bool CanContinuePunching()
+        {
+            return IsPunchingPaused;
+        }
+
+        private bool CanStopPunching()
+        {
+            return IsPunchingActive;
+        }
+
+        private bool CanResetMachine()
+        {
+            return !IsPunchingActive;
+        }
+
+        private bool IsPunchingActive => _punchingTask is { IsCompleted: false };
+
+        private bool IsPunchingPaused => _punchStateMachine?.CurrentState == PunchState.Paused;
+
+        private void NotifyProcessCommandStateChanged()
+        {
+            OnPropertyChanged(nameof(CanUseCustomAction));
+            OnPropertyChanged(nameof(ShowPausePunchingButton));
+            OnPropertyChanged(nameof(ShowContinuePunchingButton));
+            StartPunchingCommand.NotifyCanExecuteChanged();
+            PausePunchingCommand.NotifyCanExecuteChanged();
+            ContinuePunchingCommand.NotifyCanExecuteChanged();
+            StopPunchingCommand.NotifyCanExecuteChanged();
+            ResetMachineCommand.NotifyCanExecuteChanged();
         }
 
         
