@@ -1,0 +1,129 @@
+﻿<UserControl x:Class="Fredy.Drilling.Holes.UserControls.RecipeEditUserControl"
+             x:Name="Root"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:converters="clr-namespace:Fredy.Drilling.Holes.Converters"
+             xmlns:local="clr-namespace:Fredy.Drilling.Holes.UserControls"
+             xmlns:views="clr-namespace:Fredy.Drilling.Holes.Views"
+             mc:Ignorable="d" 
+             d:DesignHeight="450" d:DesignWidth="800">
+    <UserControl.Resources>
+        <converters:InverseBoolConverter x:Key="InverseBoolConverter"/>
+    </UserControl.Resources>
+
+    <Grid Background="#F0F0F0">
+        <TabControl Margin="8" DataContext="{Binding RecipeViewModel, ElementName=Root}">
+            <TabItem Header="基础信息设置">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <Grid Margin="16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="120"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Text="RecipeName" VerticalAlignment="Center" Margin="0,0,12,12" FontSize="14"/>
+                        <TextBox Grid.Column="1"
+                                 Margin="0,0,0,12"
+                                 Height="32"
+                                 IsReadOnly="{Binding IsEditing, ElementName=Root, Converter={StaticResource InverseBoolConverter}}"
+                                 Text="{Binding RecipeName, UpdateSourceTrigger=PropertyChanged}"/>
+
+                        <TextBlock Grid.Row="1" Text="TypeName" VerticalAlignment="Center" Margin="0,0,12,12" FontSize="14"/>
+                        <TextBox Grid.Row="1"
+                                 Grid.Column="1"
+                                 Margin="0,0,0,12"
+                                 Height="32"
+                                 IsReadOnly="{Binding IsEditing, ElementName=Root, Converter={StaticResource InverseBoolConverter}}"
+                                 Text="{Binding TypeName, UpdateSourceTrigger=PropertyChanged}"/>
+
+                        <TextBlock Grid.Row="2" Text="Radius" VerticalAlignment="Center" Margin="0,0,12,12" FontSize="14"/>
+                        <TextBox Grid.Row="2"
+                                 Grid.Column="1"
+                                 Margin="0,0,0,12"
+                                 Height="32"
+                                 IsReadOnly="{Binding IsEditing, ElementName=Root, Converter={StaticResource InverseBoolConverter}}"
+                                 Text="{Binding Radius, UpdateSourceTrigger=PropertyChanged}"/>
+
+                        <TextBlock Grid.Row="3" Text="Rings" VerticalAlignment="Center" Margin="0,0,12,12" FontSize="14"/>
+                        <TextBox Grid.Row="3"
+                                 Grid.Column="1"
+                                 Margin="0,0,0,12"
+                                 Height="32"
+                                 IsReadOnly="{Binding IsEditing, ElementName=Root, Converter={StaticResource InverseBoolConverter}}"
+                                 Text="{Binding Rings, UpdateSourceTrigger=PropertyChanged}"/>
+
+                        <TextBlock Grid.Row="4" Text="PunchPoints" VerticalAlignment="Center" Margin="0,0,12,12" FontSize="14"/>
+                        <TextBlock Grid.Row="4"
+                                   Grid.Column="1"
+                                   Margin="0,0,0,12"
+                                   VerticalAlignment="Center"
+                                   FontSize="14"
+                                   FontWeight="SemiBold"
+                                   Foreground="RoyalBlue"
+                                   Text="{Binding TotalCount, StringFormat=共 {0} 个点位}"/>
+
+                        <TextBlock Grid.Row="5" Text="说明" VerticalAlignment="Top" Margin="0,0,12,12" FontSize="14"/>
+                        <Border Grid.Row="5" Grid.Column="1" Padding="12" Background="#FFF8E1" BorderBrush="#FFE082" BorderThickness="1" CornerRadius="4">
+                            <TextBlock TextWrapping="Wrap" Foreground="#6D4C41" Text="基础信息页用于维护 Recipe 元数据。冲孔点位新增与维护请切换到第二个 Tab，工艺参数请切换到第三个 Tab。"/>
+                        </Border>
+                    </Grid>
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem Header="PunchPoints 点位编辑">
+                <Grid Margin="12">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <DockPanel Margin="0,0,0,10">
+                        <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
+                            <Button Content="新增单点" Width="100" Height="32" Margin="0,0,8,0" Command="{Binding AddPunchPointCommand}" IsEnabled="{Binding IsEditing, ElementName=Root}"/>
+                            <Button Content="删除选中" Width="100" Height="32" Margin="0,0,8,0" Command="{Binding RemoveSelectedPunchPointCommand}" IsEnabled="{Binding IsEditing, ElementName=Root}"/>
+                            <Button Content="重新排序" Width="100" Height="32" Command="{Binding SortPunchPointsCommand}" IsEnabled="{Binding IsEditing, ElementName=Root}"/>
+                        </StackPanel>
+                        <TextBlock DockPanel.Dock="Right"
+                                   VerticalAlignment="Center"
+                                   Foreground="#666666"
+                                   Text="当前先支持单点插入，后续可在此扩展更多点位生成方式。"/>
+                    </DockPanel>
+
+                    <DataGrid Grid.Row="1"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              CanUserDeleteRows="False"
+                              HeadersVisibility="Column"
+                              ItemsSource="{Binding PunchPoints}"
+                              SelectedItem="{Binding SelectedPunchPoint, Mode=TwoWay}"
+                              SelectionMode="Single"
+                              IsReadOnly="{Binding IsEditing, ElementName=Root, Converter={StaticResource InverseBoolConverter}}">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="X" Binding="{Binding X, UpdateSourceTrigger=PropertyChanged}" Width="*"/>
+                            <DataGridTextColumn Header="Y" Binding="{Binding Y, UpdateSourceTrigger=PropertyChanged}" Width="*"/>
+                            <DataGridTextColumn Header="RingNumber" Binding="{Binding RingNumber, UpdateSourceTrigger=PropertyChanged}" Width="*"/>
+                            <DataGridTextColumn Header="SequenceIndex" Binding="{Binding SequenceIndex, UpdateSourceTrigger=PropertyChanged}" Width="*"/>
+                            <DataGridCheckBoxColumn Header="完成" Binding="{Binding Complete, UpdateSourceTrigger=PropertyChanged}" Width="90"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="ProcessParameters 参数编辑">
+                <views:ProcessView RecipeViewModel="{Binding RecipeViewModel, ElementName=Root}"
+                                   IsEditing="{Binding IsEditing, ElementName=Root}"/>
+            </TabItem>
+        </TabControl>
+    </Grid>
+</UserControl>

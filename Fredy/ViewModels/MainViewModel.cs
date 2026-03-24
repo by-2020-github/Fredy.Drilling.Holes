@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.Input;
 using Fredy.Drilling.Holes.Models;
 using Fredy.Drilling.Holes.Services;
 using Fredy.Drilling.Holes.Views;
+using Fredy.Drilling.Holes.Windows.Recipe;
 using HAL;
 using Microsoft.Extensions.Logging;
 using System;
@@ -275,20 +276,22 @@ namespace Fredy.Drilling.Holes.ViewModels
                 "Manual" => new ManualControlView(),
                 "Config" => new ConfigWindow(),
                 "PartScan" => new ScanWindow(),
-                "ProcessParam" => new ProcessWindow(),
                 "Calibration" => new CalibrationWindow(),
                 "Compensation" => new PunchingCompensationView(),
                 "Detection" => new DetectionView(),
                 "SecondPassDetection" => new SecondPassDetectionView(),
+                "RecipeWin" => new RecipeWindow(),
                 _ => null
             };
-            window.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+
             if (window is null)
             {
                 _logger?.LogWarning("未识别的窗口名称: {WinName}", winName);
                 MessageBox.Show($"未识别的窗口名称: {winName}", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
+
+            window.WindowStartupLocation = WindowStartupLocation.CenterScreen;
 
             //var existedWindow = Application.Current?.Windows
             //    .OfType<Window>()

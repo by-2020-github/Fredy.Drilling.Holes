@@ -1,0 +1,110 @@
+﻿<Window x:Class="Fredy.Drilling.Holes.Windows.Recipe.RecipeWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+         xmlns:converters="clr-namespace:Fredy.Drilling.Holes.Converters"
+         xmlns:local="clr-namespace:Fredy.Drilling.Holes.Windows.Recipe"
+         xmlns:uc="clr-namespace:Fredy.Drilling.Holes.UserControls"
+        mc:Ignorable="d"
+         Title="Recipe 管理"
+         Height="760"
+         Width="1400"
+         MinHeight="620"
+         MinWidth="1100"
+         Background="#F4F4F4">
+    <Window.Resources>
+        <converters:InverseBoolConverter x:Key="InverseBoolConverter"/>
+    </Window.Resources>
+
+    <Grid Margin="12">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="260"/>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="160"/>
+        </Grid.ColumnDefinitions>
+
+        <GroupBox Header="所有 Recipe" Padding="8">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <TextBlock Margin="4,0,4,8"
+                           Foreground="#666666"
+                           Text="选择一个 Recipe 后可加载到中间编辑区。"/>
+
+                <ListBox Grid.Row="1"
+                         ItemsSource="{Binding RecipeNames}"
+                         IsEnabled="{Binding IsEditing, Converter={StaticResource InverseBoolConverter}}"
+                         SelectedItem="{Binding SelectedRecipeName, Mode=TwoWay}"
+                         BorderBrush="#D0D0D0"
+                         BorderThickness="1"
+                         Background="White"/>
+            </Grid>
+        </GroupBox>
+
+        <Border Grid.Column="1"
+                Margin="12,0"
+                Padding="8"
+                Background="White"
+                BorderBrush="#D6D6D6"
+                BorderThickness="1"
+                CornerRadius="6">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <DockPanel Margin="4,0,4,8">
+                    <TextBlock Text="Recipe 编辑区"
+                               FontSize="16"
+                               FontWeight="SemiBold"
+                               Foreground="#404040"/>
+                    <TextBlock DockPanel.Dock="Right"
+                               VerticalAlignment="Center"
+                               Foreground="#666666"
+                               Text="{Binding EditingRecipeDisplayName}"/>
+                </DockPanel>
+
+                <Grid Grid.Row="1">
+                    <uc:RecipeEditUserControl RecipeViewModel="{Binding CurrentRecipeViewModel}"
+                                              IsEditing="{Binding IsEditing}"/>
+
+                    <TextBlock Text="请先从左侧选择 Recipe，或点击右侧 New 创建新 Recipe"
+                               FontSize="18"
+                               Foreground="#9A9A9A"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding CurrentRecipeViewModel}" Value="{x:Null}">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </Grid>
+            </Grid>
+        </Border>
+
+        <GroupBox Grid.Column="2" Header="操作" Padding="8">
+            <StackPanel>
+                <Button Content="Load" Height="36" Margin="0,0,0,8" IsEnabled="{Binding IsEditing, Converter={StaticResource InverseBoolConverter}}" Click="LoadButton_Click"/>
+                <Button Content="Edit" Height="36" Margin="0,0,0,8" IsEnabled="{Binding CanEdit}" Click="EditButton_Click"/>
+                <Button Content="Save" Height="36" Margin="0,0,0,8" Background="#DFF0D8" IsEnabled="{Binding IsEditing}" Click="SaveButton_Click"/>
+                <Button Content="Cancel" Height="36" Margin="0,0,0,8" IsEnabled="{Binding IsEditing}" Click="CancelButton_Click"/>
+                <Button Content="Delete" Height="36" Margin="0,0,0,8" Background="#F2DEDE" IsEnabled="{Binding CanDelete}" Click="DeleteButton_Click"/>
+                <Button Content="Copy" Height="36" Margin="0,0,0,8" IsEnabled="{Binding CanCopy}" Click="CopyButton_Click"/>
+                <Button Content="New" Height="36" Margin="0,0,0,8" Background="#D9EDF7" IsEnabled="{Binding CanCreateNew}" Click="NewButton_Click"/>
+                <Separator Margin="0,8,0,8"/>
+                <Button Content="Close" Height="36" Click="CloseButton_Click"/>
+            </StackPanel>
+        </GroupBox>
+    </Grid>
+</Window>

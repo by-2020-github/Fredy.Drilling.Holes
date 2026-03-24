@@ -6,6 +6,61 @@ using System.Threading.Tasks;
 
 namespace Common.Models
 {
+    public class RecipeDepthItem
+    {
+        public string Label { get; set; } = string.Empty;
+
+        public int Value { get; set; }
+    }
+
+    public class RecipeProcessParameters
+    {
+        public string WorkpieceType { get; set; } = "PS60-6X500-0.05X0.075X10";
+
+        public int FirstPunchDepth { get; set; } = 186;
+
+        public int FirstAlarmDepth { get; set; } = 50;
+
+        public int FirstLiftHeight { get; set; } = 260;
+
+        public int FirstPeckDepth { get; set; } = 400;
+
+        public int FirstPeckSingleDepth { get; set; } = 200;
+
+        public int SecondPunchDepth { get; set; } = 200;
+
+        public int SecondAlarmDepth { get; set; } = 120;
+
+        public int SecondLiftHeight { get; set; } = 260;
+
+        public int MinSafeDepth { get; set; } = 20;
+
+        public bool IsSecondDetectionActive { get; set; }
+
+        public List<RecipeDepthItem> PunchDepths { get; set; } = CreateDefaultPunchDepths();
+
+        public static RecipeProcessParameters CreateDefault(string? workpieceType = null)
+        {
+            return new RecipeProcessParameters
+            {
+                WorkpieceType = string.IsNullOrWhiteSpace(workpieceType) ? "PS60-6X500-0.05X0.075X10" : workpieceType
+            };
+        }
+
+        private static List<RecipeDepthItem> CreateDefaultPunchDepths()
+        {
+            int[] defaultValues = { 400, 200, 300, 200, 100, 0, 0, 0 };
+
+            return defaultValues
+                .Select((value, index) => new RecipeDepthItem
+                {
+                    Label = $"No.{index + 1}",
+                    Value = value
+                })
+                .ToList();
+        }
+    }
+
     public class Recipe
     {
         public required string RecipeName { get; set; }
@@ -15,6 +70,8 @@ namespace Common.Models
         public required double Radius { get; set; }
 
         public required int Rings { get; set; }
+
+        public RecipeProcessParameters ProcessParameters { get; set; } = new();
 
         /// <summary>
         /// 创建一个虚拟的环形分布 Recipe
@@ -52,7 +109,8 @@ namespace Common.Models
                 TypeName = "Virtual_Circular",
                 PunchPoints = points,
                 Radius = radius,
-                Rings = rings
+                Rings = rings,
+                ProcessParameters = RecipeProcessParameters.CreateDefault(recipeName)
             };
         }
     }

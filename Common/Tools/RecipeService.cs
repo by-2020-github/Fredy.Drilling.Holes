@@ -128,6 +128,37 @@ namespace Common.Tools
             }
         }
 
+        public bool Delete(string type)
+        {
+            EnsureInitialized();
+
+            if (string.IsNullOrWhiteSpace(type) || string.IsNullOrWhiteSpace(RuntimePath))
+            {
+                return false;
+            }
+
+            lock (_syncRoot)
+            {
+                if (!_recipes.Remove(type, out var deletedRecipe))
+                {
+                    return false;
+                }
+
+                var recipeDirectory = GetRecipeDirectory(type);
+                if (Directory.Exists(recipeDirectory))
+                {
+                    Directory.Delete(recipeDirectory, true);
+                }
+
+                if (CurrentRecipe == deletedRecipe)
+                {
+                    CurrentRecipe = null;
+                }
+
+                return true;
+            }
+        }
+
         private string GetRecipeDirectory(string type)
         {
             return Path.Combine(RuntimePath, type);
