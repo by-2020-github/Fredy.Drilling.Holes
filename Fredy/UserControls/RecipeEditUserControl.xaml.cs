@@ -1,6 +1,6 @@
-﻿using System.Windows;
+﻿using Fredy.Drilling.Holes.ViewModels;
+using System.Windows;
 using System.Windows.Controls;
-using Fredy.Drilling.Holes.ViewModels;
 
 namespace Fredy.Drilling.Holes.UserControls
 {

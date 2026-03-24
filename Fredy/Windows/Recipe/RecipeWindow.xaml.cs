@@ -238,9 +238,7 @@ namespace Fredy.Drilling.Holes.Windows.Recipe
             {
                 RecipeName = recipeName,
                 TypeName = "Custom",
-                PunchPoints = new(),
-                Radius = 0,
-                Rings = 0,
+                PunchParameters = RecipePunchParameters.CreateDefault(),
                 ProcessParameters = RecipeProcessParameters.CreateDefault(recipeName)
             };
 

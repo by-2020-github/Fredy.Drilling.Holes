@@ -1,0 +1,340 @@
+<UserControl x:Class="Fredy.Drilling.Holes.Views.HoleGeneratorView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:DesignHeight="780"
+             d:DesignWidth="1200">
+    <UserControl.Resources>
+        <Style x:Key="FieldLabelStyle" TargetType="TextBlock">
+            <Setter Property="Margin" Value="0,0,0,6" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="#333333" />
+        </Style>
+
+        <Style x:Key="InputTextBoxStyle" TargetType="TextBox">
+            <Setter Property="Margin" Value="0,0,0,12" />
+            <Setter Property="Padding" Value="8,4" />
+            <Setter Property="MinWidth" Value="140" />
+        </Style>
+
+        <Style x:Key="ActionButtonStyle" TargetType="Button">
+            <Setter Property="Margin" Value="0,0,8,8" />
+            <Setter Property="Padding" Value="12,6" />
+            <Setter Property="MinWidth" Value="110" />
+        </Style>
+
+        <Style x:Key="PreviewPointPresenterStyle" TargetType="ContentPresenter">
+            <Setter Property="Canvas.Left" Value="{Binding X}" />
+            <Setter Property="Canvas.Top" Value="{Binding Y}" />
+        </Style>
+    </UserControl.Resources>
+
+    <Grid Background="#F7F8FA">
+        <TabControl Margin="16">
+            <TabItem Header="橘子瓣">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <Grid Margin="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="320" />
+                            <ColumnDefinition Width="16" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Style="{StaticResource FieldLabelStyle}" Text="圈数" />
+                            <TextBox Style="{StaticResource InputTextBoxStyle}" Text="{Binding Sector.CircleCount, UpdateSourceTrigger=PropertyChanged}" />
+
+                            <TextBlock Style="{StaticResource FieldLabelStyle}" Text="扇区数" />
+                            <TextBox Style="{StaticResource InputTextBoxStyle}" Text="{Binding Sector.SectorCount, UpdateSourceTrigger=PropertyChanged}" />
+
+                            <TextBlock Style="{StaticResource FieldLabelStyle}" Text="筋宽" />
+                            <TextBox Style="{StaticResource InputTextBoxStyle}" Text="{Binding Sector.RibWidth, UpdateSourceTrigger=PropertyChanged, StringFormat=F2}" />
+
+                            <TextBlock Style="{StaticResource FieldLabelStyle}" Text="起始半径" />
+                            <TextBox Style="{StaticResource InputTextBoxStyle}" Text="{Binding Sector.StartRadius, UpdateSourceTrigger=PropertyChanged, StringFormat=F2}" />
+
+                            <TextBlock Style="{StaticResource FieldLabelStyle}" Text="圈间距" />
+                            <TextBox Style="{StaticResource InputTextBoxStyle}" Text="{Binding Sector.CircleSpacing, UpdateSourceTrigger=PropertyChanged, StringFormat=F2}" />
+
+                            <WrapPanel Margin="0,8,0,12">
+                                <Button Style="{StaticResource ActionButtonStyle}" Command="{Binding Sector.CalculateTotalCommand}" Content="计算总孔数" />
+                                <Button Style="{StaticResource ActionButtonStyle}" Command="{Binding Sector.GeneratePreviewCommand}" Content="生成预览" />
+                                <Button Style="{StaticResource ActionButtonStyle}" Command="{Binding Sector.ExportCoordinatesCommand}" Content="导出坐标" />
+                            </WrapPanel>
+
+                            <Border Padding="12" Background="White" CornerRadius="6" BorderBrush="#D9DCE3" BorderThickness="1">
+                                <StackPanel>
+                                    <TextBlock Text="总孔数" FontWeight="Bold" Foreground="#4A4A4A" />
+                                    <TextBlock Margin="0,6,0,0" FontSize="22" FontWeight="Bold" Text="{Binding Sector.TotalHoles}" />
+                                    <TextBlock Margin="0,12,0,0" TextWrapping="Wrap" Foreground="#5F6B7A" Text="{Binding Sector.StatusMessage}" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+
+                        <Grid Grid.Column="2">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="240" />
+                                <RowDefinition Height="16" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+
+                            <GroupBox Header="每圈孔数配置">
+                                <DataGrid ItemsSource="{Binding Sector.Circles}"
+                                          AutoGenerateColumns="False"
+                                          CanUserAddRows="False"
+                                          CanUserDeleteRows="False"
+                                          HeadersVisibility="Column"
+                                          IsReadOnly="False">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="圈号" Binding="{Binding Number}" IsReadOnly="True" Width="100" />
+                                        <DataGridTextColumn Header="孔数" Binding="{Binding HoleCount, UpdateSourceTrigger=PropertyChanged}" Width="*" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </GroupBox>
+
+                            <GroupBox Grid.Row="2" Header="坐标预览">
+                                <Grid>
+                                    <Border Width="{Binding Sector.PreviewCanvasSize}"
+                                            Height="{Binding Sector.PreviewCanvasSize}"
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"
+                                            Background="#FCFCFD"
+                                            BorderBrush="#CBD2D9"
+                                            BorderThickness="1"
+                                            CornerRadius="4">
+                                        <ItemsControl Width="{Binding Sector.PreviewCanvasSize}"
+                                                      Height="{Binding Sector.PreviewCanvasSize}"
+                                                      ItemsSource="{Binding Sector.PreviewPoints}"
+                                                      ItemContainerStyle="{StaticResource PreviewPointPresenterStyle}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <Canvas />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Ellipse Width="6" Height="6" Fill="#1976D2" ToolTip="{Binding ToolTip}" />
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </Border>
+                                </Grid>
+                            </GroupBox>
+                        </Grid>
+                    </Grid>
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem Header="满天星">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <Grid Margin="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="320" />
+                            <ColumnDefinition Width="16" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Style="{StaticResource FieldLabelStyle}" Text="偏移角度" />
+                            <TextBox Style="{StaticResource InputTextBoxStyle}" Text="{Binding Starry.OffsetAngle, UpdateSourceTrigger=PropertyChanged, StringFormat=F2}" />
+
+                            <TextBlock Style="{StaticResource FieldLabelStyle}" Text="起始半径" />
+                            <TextBox Style="{StaticResource InputTextBoxStyle}" Text="{Binding Starry.StartRadius, UpdateSourceTrigger=PropertyChanged, StringFormat=F2}" />
+
+                            <TextBlock Style="{StaticResource FieldLabelStyle}" Text="圈数" />
+                            <TextBox Style="{StaticResource InputTextBoxStyle}" Text="{Binding Starry.CircleCount, UpdateSourceTrigger=PropertyChanged}" />
+
+                            <TextBlock Style="{StaticResource FieldLabelStyle}" Text="圈间距" />
+                            <TextBox Style="{StaticResource InputTextBoxStyle}" Text="{Binding Starry.CircleSpacing, UpdateSourceTrigger=PropertyChanged, StringFormat=F2}" />
+
+                            <TextBlock Style="{StaticResource FieldLabelStyle}" Text="孔增量" />
+                            <TextBox Style="{StaticResource InputTextBoxStyle}" Text="{Binding Starry.HoleIncrement, UpdateSourceTrigger=PropertyChanged}" />
+
+                            <TextBlock Style="{StaticResource FieldLabelStyle}" Text="首圈孔数" />
+                            <TextBox Style="{StaticResource InputTextBoxStyle}" Text="{Binding Starry.FirstCircleHoles, UpdateSourceTrigger=PropertyChanged}" />
+
+                            <WrapPanel Margin="0,8,0,12">
+                                <Button Style="{StaticResource ActionButtonStyle}" Command="{Binding Starry.GenerateCircleInfoCommand}" Content="生成圈信息" />
+                                <Button Style="{StaticResource ActionButtonStyle}" Command="{Binding Starry.RefreshCommand}" Content="刷新" />
+                                <Button Style="{StaticResource ActionButtonStyle}" Command="{Binding Starry.GeneratePreviewCommand}" Content="图形预览" />
+                                <Button Style="{StaticResource ActionButtonStyle}" Command="{Binding Starry.ExportCoordinatesCommand}" Content="导出坐标" />
+                            </WrapPanel>
+
+                            <Border Padding="12" Background="White" CornerRadius="6" BorderBrush="#D9DCE3" BorderThickness="1">
+                                <StackPanel>
+                                    <TextBlock Text="总孔数" FontWeight="Bold" Foreground="#4A4A4A" />
+                                    <TextBlock Margin="0,6,0,0" FontSize="22" FontWeight="Bold" Text="{Binding Starry.TotalHoles}" />
+                                    <TextBlock Margin="0,12,0,0" TextWrapping="Wrap" Foreground="#5F6B7A" Text="{Binding Starry.StatusMessage}" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+
+                        <Grid Grid.Column="2">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="260" />
+                                <RowDefinition Height="16" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+
+                            <GroupBox Header="圈信息">
+                                <DataGrid ItemsSource="{Binding Starry.CircleInfos}"
+                                          AutoGenerateColumns="False"
+                                          CanUserAddRows="False"
+                                          CanUserDeleteRows="False"
+                                          HeadersVisibility="Column"
+                                          IsReadOnly="False">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="编号" Binding="{Binding Number}" IsReadOnly="True" Width="70" />
+                                        <DataGridTextColumn Header="增加孔数" Binding="{Binding HoleIncrement, UpdateSourceTrigger=PropertyChanged}" Width="100" />
+                                        <DataGridTextColumn Header="半径" Binding="{Binding Radius, StringFormat=F3}" IsReadOnly="True" Width="100" />
+                                        <DataGridTextColumn Header="起始度数" Binding="{Binding StartAngle, StringFormat=F2}" IsReadOnly="True" Width="100" />
+                                        <DataGridTextColumn Header="孔数" Binding="{Binding HoleCount}" IsReadOnly="True" Width="*" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </GroupBox>
+
+                            <GroupBox Grid.Row="2" Header="坐标预览">
+                                <Grid>
+                                    <Border Width="{Binding Starry.PreviewCanvasSize}"
+                                            Height="{Binding Starry.PreviewCanvasSize}"
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"
+                                            Background="#FCFCFD"
+                                            BorderBrush="#CBD2D9"
+                                            BorderThickness="1"
+                                            CornerRadius="4">
+                                        <ItemsControl Width="{Binding Starry.PreviewCanvasSize}"
+                                                      Height="{Binding Starry.PreviewCanvasSize}"
+                                                      ItemsSource="{Binding Starry.PreviewPoints}"
+                                                      ItemContainerStyle="{StaticResource PreviewPointPresenterStyle}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <Canvas />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Ellipse Width="6" Height="6" Fill="#8E24AA" ToolTip="{Binding ToolTip}" />
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </Border>
+                                </Grid>
+                            </GroupBox>
+                        </Grid>
+                    </Grid>
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem Header="环形喷丝板">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <Grid Margin="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="320" />
+                            <ColumnDefinition Width="16" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Style="{StaticResource FieldLabelStyle}" Text="圈数" />
+                            <TextBox Style="{StaticResource InputTextBoxStyle}" Text="{Binding RingSpinneret.CircleCount, UpdateSourceTrigger=PropertyChanged}" />
+
+                            <TextBlock Style="{StaticResource FieldLabelStyle}" Text="首圈孔数" />
+                            <TextBox Style="{StaticResource InputTextBoxStyle}" Text="{Binding RingSpinneret.FirstCircleHoles, UpdateSourceTrigger=PropertyChanged}" />
+
+                            <TextBlock Style="{StaticResource FieldLabelStyle}" Text="首圈直径" />
+                            <TextBox Style="{StaticResource InputTextBoxStyle}" Text="{Binding RingSpinneret.FirstCircleDiameter, UpdateSourceTrigger=PropertyChanged, StringFormat=F2}" />
+
+                            <TextBlock Style="{StaticResource FieldLabelStyle}" Text="圈间距" />
+                            <TextBox Style="{StaticResource InputTextBoxStyle}" Text="{Binding RingSpinneret.CircleSpacing, UpdateSourceTrigger=PropertyChanged, StringFormat=F2}" />
+
+                            <TextBlock Style="{StaticResource FieldLabelStyle}" Text="偏移角度" />
+                            <TextBox Style="{StaticResource InputTextBoxStyle}" Text="{Binding RingSpinneret.OffsetAngle, UpdateSourceTrigger=PropertyChanged, StringFormat=F2}" />
+
+                            <WrapPanel Margin="0,8,0,12">
+                                <Button Style="{StaticResource ActionButtonStyle}" Command="{Binding RingSpinneret.GenerateCircleInfoCommand}" Content="生成圈信息" />
+                                <Button Style="{StaticResource ActionButtonStyle}" Command="{Binding RingSpinneret.RefreshCommand}" Content="刷新" />
+                                <Button Style="{StaticResource ActionButtonStyle}" Command="{Binding RingSpinneret.GeneratePreviewCommand}" Content="图形预览" />
+                                <Button Style="{StaticResource ActionButtonStyle}" Command="{Binding RingSpinneret.ExportCoordinatesCommand}" Content="导出坐标" />
+                            </WrapPanel>
+
+                            <Border Padding="12" Background="White" CornerRadius="6" BorderBrush="#D9DCE3" BorderThickness="1">
+                                <StackPanel>
+                                    <TextBlock Text="总孔数" FontWeight="Bold" Foreground="#4A4A4A" />
+                                    <TextBlock Margin="0,6,0,0" FontSize="22" FontWeight="Bold" Text="{Binding RingSpinneret.TotalHoles}" />
+                                    <TextBlock Margin="0,12,0,0" TextWrapping="Wrap" Foreground="#5F6B7A" Text="{Binding RingSpinneret.StatusMessage}" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+
+                        <Grid Grid.Column="2">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="260" />
+                                <RowDefinition Height="16" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+
+                            <GroupBox Header="圈信息">
+                                <DataGrid ItemsSource="{Binding RingSpinneret.CircleInfos}"
+                                          AutoGenerateColumns="False"
+                                          CanUserAddRows="False"
+                                          CanUserDeleteRows="False"
+                                          HeadersVisibility="Column"
+                                          IsReadOnly="True">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="编号" Binding="{Binding Number}" Width="70" />
+                                        <DataGridTextColumn Header="直径" Binding="{Binding Diameter, StringFormat=F3}" Width="120" />
+                                        <DataGridTextColumn Header="孔数" Binding="{Binding HoleCount}" Width="100" />
+                                        <DataGridTextColumn Header="起始角度" Binding="{Binding StartAngle, StringFormat=F2}" Width="*" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </GroupBox>
+
+                            <GroupBox Grid.Row="2" Header="坐标预览">
+                                <Grid>
+                                    <Border Width="{Binding RingSpinneret.PreviewCanvasSize}"
+                                            Height="{Binding RingSpinneret.PreviewCanvasSize}"
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"
+                                            Background="#FCFCFD"
+                                            BorderBrush="#CBD2D9"
+                                            BorderThickness="1"
+                                            CornerRadius="4">
+                                        <ItemsControl Width="{Binding RingSpinneret.PreviewCanvasSize}"
+                                                      Height="{Binding RingSpinneret.PreviewCanvasSize}"
+                                                      ItemsSource="{Binding RingSpinneret.PreviewPoints}"
+                                                      ItemContainerStyle="{StaticResource PreviewPointPresenterStyle}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <Canvas />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Ellipse Width="6" Height="6" Fill="#00897B" ToolTip="{Binding ToolTip}" />
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </Border>
+                                </Grid>
+                            </GroupBox>
+                        </Grid>
+                    </Grid>
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem Header="水磨针">
+                <Grid Margin="24">
+                    <Border Padding="24" Background="White" CornerRadius="8" BorderBrush="#D9DCE3" BorderThickness="1">
+                        <StackPanel>
+                            <TextBlock FontSize="24" FontWeight="Bold" Foreground="#1F3B64" Text="水磨针功能" />
+                            <TextBlock Margin="0,16,0,0" FontSize="16" TextWrapping="Wrap" Text="当前模式在原始程序中仍处于开发中。该 WPF 版本已预留 MVVM 扩展位，可继续在对应 ViewModel 中补充参数、命令和预览逻辑。" />
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </TabItem>
+        </TabControl>
+    </Grid>
+</UserControl>

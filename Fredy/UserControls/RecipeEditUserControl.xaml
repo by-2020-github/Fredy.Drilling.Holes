@@ -53,7 +53,7 @@
                                  Margin="0,0,0,12"
                                  Height="32"
                                  IsReadOnly="{Binding IsEditing, ElementName=Root, Converter={StaticResource InverseBoolConverter}}"
-                                 Text="{Binding Radius, UpdateSourceTrigger=PropertyChanged}"/>
+                                 Text="{Binding PunchParameters.Radius, UpdateSourceTrigger=PropertyChanged}"/>
 
                         <TextBlock Grid.Row="3" Text="Rings" VerticalAlignment="Center" Margin="0,0,12,12" FontSize="14"/>
                         <TextBox Grid.Row="3"
@@ -61,7 +61,7 @@
                                  Margin="0,0,0,12"
                                  Height="32"
                                  IsReadOnly="{Binding IsEditing, ElementName=Root, Converter={StaticResource InverseBoolConverter}}"
-                                 Text="{Binding Rings, UpdateSourceTrigger=PropertyChanged}"/>
+                                 Text="{Binding PunchParameters.Rings, UpdateSourceTrigger=PropertyChanged}"/>
 
                         <TextBlock Grid.Row="4" Text="PunchPoints" VerticalAlignment="Center" Margin="0,0,12,12" FontSize="14"/>
                         <TextBlock Grid.Row="4"
@@ -100,23 +100,9 @@
                                    Text="当前先支持单点插入，后续可在此扩展更多点位生成方式。"/>
                     </DockPanel>
 
-                    <DataGrid Grid.Row="1"
-                              AutoGenerateColumns="False"
-                              CanUserAddRows="False"
-                              CanUserDeleteRows="False"
-                              HeadersVisibility="Column"
-                              ItemsSource="{Binding PunchPoints}"
-                              SelectedItem="{Binding SelectedPunchPoint, Mode=TwoWay}"
-                              SelectionMode="Single"
-                              IsReadOnly="{Binding IsEditing, ElementName=Root, Converter={StaticResource InverseBoolConverter}}">
-                        <DataGrid.Columns>
-                            <DataGridTextColumn Header="X" Binding="{Binding X, UpdateSourceTrigger=PropertyChanged}" Width="*"/>
-                            <DataGridTextColumn Header="Y" Binding="{Binding Y, UpdateSourceTrigger=PropertyChanged}" Width="*"/>
-                            <DataGridTextColumn Header="RingNumber" Binding="{Binding RingNumber, UpdateSourceTrigger=PropertyChanged}" Width="*"/>
-                            <DataGridTextColumn Header="SequenceIndex" Binding="{Binding SequenceIndex, UpdateSourceTrigger=PropertyChanged}" Width="*"/>
-                            <DataGridCheckBoxColumn Header="完成" Binding="{Binding Complete, UpdateSourceTrigger=PropertyChanged}" Width="90"/>
-                        </DataGrid.Columns>
-                    </DataGrid>
+                    <local:RecipePunchParametersControl Grid.Row="1"
+                                                       RecipeViewModel="{Binding RecipeViewModel, ElementName=Root}"
+                                                       IsEditing="{Binding IsEditing, ElementName=Root}"/>
                 </Grid>
             </TabItem>
 

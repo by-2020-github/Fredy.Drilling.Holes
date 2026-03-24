@@ -6,6 +6,25 @@ using System.Threading.Tasks;
 
 namespace Common.Models
 {
+    public class RecipePunchParameters
+    {
+        public List<PunchPoint> PunchPoints { get; set; } = new();
+
+        public double Radius { get; set; }
+
+        public int Rings { get; set; }
+
+        public static RecipePunchParameters CreateDefault(List<PunchPoint>? punchPoints = null, double radius = 0, int rings = 0)
+        {
+            return new RecipePunchParameters
+            {
+                PunchPoints = punchPoints ?? new List<PunchPoint>(),
+                Radius = radius,
+                Rings = rings
+            };
+        }
+    }
+
     public class RecipeDepthItem
     {
         public string Label { get; set; } = string.Empty;
@@ -65,11 +84,8 @@ namespace Common.Models
     {
         public required string RecipeName { get; set; }
         public required string TypeName { get; set; }
-        public required List<PunchPoint> PunchPoints { get; set; }
 
-        public required double Radius { get; set; }
-
-        public required int Rings { get; set; }
+        public RecipePunchParameters PunchParameters { get; set; } = new();
 
         public RecipeProcessParameters ProcessParameters { get; set; } = new();
 
@@ -107,9 +123,7 @@ namespace Common.Models
             {
                 RecipeName = recipeName,
                 TypeName = "Virtual_Circular",
-                PunchPoints = points,
-                Radius = radius,
-                Rings = rings,
+                PunchParameters = RecipePunchParameters.CreateDefault(points, radius, rings),
                 ProcessParameters = RecipeProcessParameters.CreateDefault(recipeName)
             };
         }

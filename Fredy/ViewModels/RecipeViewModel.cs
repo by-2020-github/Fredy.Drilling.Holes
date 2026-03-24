@@ -71,6 +71,7 @@ namespace Fredy.Drilling.Holes.ViewModels
     public partial class RecipeViewModel : ObservableObject
     {
         private readonly Recipe _recipe;
+        private readonly RecipePunchParameters _punchParameters;
         private string _recipeName = string.Empty;
         private string _typeName = string.Empty;
         private double _radius;
@@ -80,12 +81,15 @@ namespace Fredy.Drilling.Holes.ViewModels
         public RecipeViewModel(Recipe recipe)
         {
             _recipe = recipe;
-            ProcessParameters = recipe.ProcessParameters ?? new RecipeProcessParameters();
+            recipe.PunchParameters ??= new RecipePunchParameters();
+            recipe.ProcessParameters ??= new RecipeProcessParameters();
+            _punchParameters = recipe.PunchParameters;
+            ProcessParameters = recipe.ProcessParameters;
             _recipeName = recipe.RecipeName;
             _typeName = recipe.TypeName;
-            _radius = recipe.Radius;
-            _rings = recipe.Rings;
-            PunchPoints = new ObservableCollection<PunchPointViewModel>(recipe.PunchPoints
+            _radius = _punchParameters.Radius;
+            _rings = _punchParameters.Rings;
+            PunchPoints = new ObservableCollection<PunchPointViewModel>(_punchParameters.PunchPoints
                 .OrderBy(x => x.RingNumber)
                 .ThenBy(x => x.SequenceIndex)
                 .Select(x => new PunchPointViewModel(x)));
@@ -133,7 +137,7 @@ namespace Fredy.Drilling.Holes.ViewModels
             {
                 if (SetProperty(ref _radius, value))
                 {
-                    _recipe.Radius = value;
+                    _punchParameters.Radius = value;
                 }
             }
         }
@@ -145,7 +149,7 @@ namespace Fredy.Drilling.Holes.ViewModels
             {
                 if (SetProperty(ref _rings, value))
                 {
-                    _recipe.Rings = value;
+                    _punchParameters.Rings = value;
                 }
             }
         }
@@ -163,6 +167,8 @@ namespace Fredy.Drilling.Holes.ViewModels
         }
 
         public RecipeProcessParameters ProcessParameters { get; }
+
+        public RecipePunchParameters PunchParameters => _punchParameters;
 
         public Recipe Recipe => _recipe;
 
@@ -318,7 +324,7 @@ namespace Fredy.Drilling.Holes.ViewModels
 
         private void SyncRecipePunchPoints()
         {
-            _recipe.PunchPoints = PunchPoints.Select(x => x.ToModel()).ToList();
+            _punchParameters.PunchPoints = PunchPoints.Select(x => x.ToModel()).ToList();
         }
     }
 }
