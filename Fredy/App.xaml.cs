@@ -86,7 +86,9 @@ namespace Fredy.Drilling.Holes
             //注册硬件
             services.AddSingleton<ICamera, CameraSimulator>();
             services.AddSingleton<IMoton, MotionSimulator>();
+            services.AddSingleton<IIOCard, IOCardSimulator>();
             services.AddSingleton<IMotionService, MotionManager>();
+            services.AddSingleton<IHardwareStateService, HardwareStateService>();
             services.AddSingleton(_ => new PathManager(AppContext.BaseDirectory));
             services.AddSingleton<RecipeService>();
 

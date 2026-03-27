@@ -21,22 +21,24 @@ using System.Windows.Media.Imaging;
 
 namespace Fredy.Drilling.Holes.ViewModels
 {
-    public partial class MainViewModel : ObservableObject
+    public partial class MainViewModel : ObservableObject, IDisposable
     {
         private readonly IAppLogExportService? _logExportService;
         private readonly IAppLogStore? _logStore;
         private readonly ILogger<MainViewModel>? _logger;
         private readonly ICamera? _camera;
         private readonly RecipeService? _recipeService;
+        private readonly IHardwareStateService? _hardwareStateService;
         private CancellationTokenSource? _cameraPreviewCancellationTokenSource;
         private Task? _cameraPreviewTask;
         private PunchStateMachine? _punchStateMachine;
         private CancellationTokenSource? _punchingCancellationTokenSource;
         private Task? _punchingTask;
+        private bool _disposed;
 
         [ObservableProperty] private MachineStatus _status = new();
         [ObservableProperty] private bool _isSimulate;
-        [ObservableProperty] private bool _isFirstPass = true; // 默认选中头道
+        [ObservableProperty] private bool _isFirstPass = true;
         [ObservableProperty] private bool _onlyShowWarningsAndErrors;
 
         private ImageSource? _currentCameraImage;
@@ -82,17 +84,27 @@ namespace Fredy.Drilling.Holes.ViewModels
             Status.PropertyChanged += Status_PropertyChanged;
         }
 
-        public MainViewModel(IAppLogStore logStore, IAppLogExportService logExportService, ILogger<MainViewModel> logger, RecipeService recipeService, ICamera camera)
+        public MainViewModel(
+            IAppLogStore logStore,
+            IAppLogExportService logExportService,
+            ILogger<MainViewModel> logger,
+            RecipeService recipeService,
+            ICamera camera,
+            IHardwareStateService hardwareStateService)
         {
             _logStore = logStore;
             _logExportService = logExportService;
             _logger = logger;
             _recipeService = recipeService;
             _camera = camera;
+            _hardwareStateService = hardwareStateService;
             Logs = logStore.Entries;
             FilteredLogs = CollectionViewSource.GetDefaultView(Logs);
             FilteredLogs.Filter = FilterLogEntry;
             Status.PropertyChanged += Status_PropertyChanged;
+            ApplyHardwareState(hardwareStateService.CurrentState);
+            _hardwareStateService.StateChanged += HardwareStateService_StateChanged;
+            _ = _hardwareStateService.RefreshAsync();
             RefreshRecipes();
             StartCameraPreview();
 
@@ -102,7 +114,6 @@ namespace Fredy.Drilling.Holes.ViewModels
         partial void OnOnlyShowWarningsAndErrorsChanged(bool value)
         {
             FilteredLogs.Refresh();
-            //_logger.LogInformation("日志筛选已切换为: {FilterMode}", value ? "仅看告警/错误" : "显示全部");
         }
 
         [RelayCommand(CanExecute = nameof(CanStartPunching))]
@@ -490,6 +501,32 @@ namespace Fredy.Drilling.Holes.ViewModels
             _logger?.LogInformation("{Message}", e.Message);
         }
 
+        private void HardwareStateService_StateChanged(object? sender, HardwareStateChangedEventArgs e)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            var dispatcher = Application.Current?.Dispatcher;
+            if (dispatcher is null || dispatcher.CheckAccess())
+            {
+                ApplyHardwareState(e.State);
+                return;
+            }
+
+            _ = dispatcher.InvokeAsync(() => ApplyHardwareState(e.State));
+        }
+
+        private void ApplyHardwareState(HardwareStateSnapshot state)
+        {
+            Status.PosX = state.X;
+            Status.PosY = state.Y;
+            Status.PosZ = state.Z;
+            Status.IsMotionCardReady = state.IsMotionCardReady;
+            Status.IsCameraConnected = state.IsCameraConnected;
+        }
+
         private void StartCameraPreview()
         {
             if (_camera is null)
@@ -508,11 +545,11 @@ namespace Fredy.Drilling.Holes.ViewModels
             {
                 if (!_camera!.IsConnected)
                 {
-                    await Application.Current.Dispatcher.InvokeAsync(() => Status.IsCameraConnected = _camera.Open());
-                }
-                else
-                {
-                    await Application.Current.Dispatcher.InvokeAsync(() => Status.IsCameraConnected = true);
+                    _camera.Open();
+                    if (_hardwareStateService is not null)
+                    {
+                        await _hardwareStateService.RefreshAsync(cancellationToken).ConfigureAwait(false);
+                    }
                 }
 
                 while (!cancellationToken.IsCancellationRequested)
@@ -533,7 +570,17 @@ namespace Fredy.Drilling.Holes.ViewModels
             }
             catch (Exception ex)
             {
-                await Application.Current.Dispatcher.InvokeAsync(() => Status.IsCameraConnected = false);
+                if (_hardwareStateService is not null)
+                {
+                    try
+                    {
+                        await _hardwareStateService.RefreshAsync().ConfigureAwait(false);
+                    }
+                    catch
+                    {
+                    }
+                }
+
                 _logger?.LogError(ex, "主界面相机预览启动失败");
             }
         }
@@ -603,6 +650,23 @@ namespace Fredy.Drilling.Holes.ViewModels
             ResetMachineCommand.NotifyCanExecuteChanged();
         }
 
-        
+        public void Dispose()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+            Status.PropertyChanged -= Status_PropertyChanged;
+
+            if (_hardwareStateService is not null)
+            {
+                _hardwareStateService.StateChanged -= HardwareStateService_StateChanged;
+            }
+
+            _cameraPreviewCancellationTokenSource?.Cancel();
+            GC.SuppressFinalize(this);
+        }
     }
 }

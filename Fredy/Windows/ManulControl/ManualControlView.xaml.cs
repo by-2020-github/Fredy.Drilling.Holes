@@ -30,6 +30,16 @@ namespace Fredy.Drilling.Holes.Views
             if (!DesignerProperties.GetIsInDesignMode(this))
             {
                 DataContext ??= App.ServiceProvider.GetRequiredService<ManualControlViewModel>();
+                Closed += ManualControlView_Closed;
+            }
+        }
+
+        private void ManualControlView_Closed(object? sender, EventArgs e)
+        {
+            Closed -= ManualControlView_Closed;
+            if (DataContext is IDisposable disposable)
+            {
+                disposable.Dispose();
             }
         }
     }

@@ -2,17 +2,22 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Fredy.Drilling.Holes.Models;
+using HAL;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.ObjectModel;
 using System.Threading.Tasks;
+using System.Windows;
 
 namespace Fredy.Drilling.Holes.ViewModels
 {
-    public partial class ManualControlViewModel : ObservableObject
+    public partial class ManualControlViewModel : ObservableObject, IDisposable
     {
         private readonly ILogger<ManualControlViewModel>? _logger;
         private readonly IMotionService? _motionService;
+        private readonly IIOCard? _ioCard;
+        private readonly IHardwareStateService? _hardwareStateService;
+        private bool _disposed;
 
         [ObservableProperty] private MachineStatus _machineStatus = new();
         [ObservableProperty] private double _jogStep = 10;
@@ -28,21 +33,25 @@ namespace Fredy.Drilling.Holes.ViewModels
             InitializeCollections();
         }
 
-        public ManualControlViewModel(ILogger<ManualControlViewModel> logger, IMotionService motionService)
+        public ManualControlViewModel(ILogger<ManualControlViewModel> logger, IMotionService motionService, IIOCard ioCard, IHardwareStateService hardwareStateService)
             : this()
         {
             _logger = logger;
             _motionService = motionService;
-            MachineStatus.IsMotionCardReady = true;
+            _ioCard = ioCard;
+            _hardwareStateService = hardwareStateService;
 
-            _ = RefreshPositionsAsync();
+            InitializeCollections(hardwareStateService.InputCount, hardwareStateService.OutputCount);
+            ApplySnapshot(hardwareStateService.CurrentState);
+            _hardwareStateService.StateChanged += HardwareStateService_StateChanged;
+            _ = _hardwareStateService.RefreshAsync();
             _logger.LogInformation("手动控制视图模型已初始化");
         }
 
         [RelayCommand]
         private async Task MoveAxis(string direction)
         {
-            if (string.IsNullOrWhiteSpace(direction) || _motionService is null)
+            if (string.IsNullOrWhiteSpace(direction) || _motionService is null || _hardwareStateService is null)
             {
                 _logger?.LogWarning("轴向移动命令无效或运动服务未初始化: {Direction}", direction);
                 return;
@@ -50,31 +59,26 @@ namespace Fredy.Drilling.Holes.ViewModels
 
             try
             {
+                var currentState = _hardwareStateService.CurrentState;
                 var step = direction.EndsWith("-", StringComparison.Ordinal) ? -Math.Abs(JogStep) : Math.Abs(JogStep);
 
                 switch (direction[..1].ToUpperInvariant())
                 {
                     case "X":
-                        await _motionService.MoveXAsync(
-                            await _motionService.GetXPositionAsync().ConfigureAwait(true) + step,
-                            GetVelocity(_motionService.XAxis)).ConfigureAwait(true);
+                        await _motionService.MoveXAsync(currentState.X + step, GetVelocity(_motionService.XAxis)).ConfigureAwait(true);
                         break;
                     case "Y":
-                        await _motionService.MoveYAsync(
-                            await _motionService.GetYPositionAsync().ConfigureAwait(true) + step,
-                            GetVelocity(_motionService.YAxis)).ConfigureAwait(true);
+                        await _motionService.MoveYAsync(currentState.Y + step, GetVelocity(_motionService.YAxis)).ConfigureAwait(true);
                         break;
                     case "Z":
-                        await _motionService.MoveZAsync(
-                            await _motionService.GetZPositionAsync().ConfigureAwait(true) + step,
-                            GetVelocity(_motionService.ZAxis)).ConfigureAwait(true);
+                        await _motionService.MoveZAsync(currentState.Z + step, GetVelocity(_motionService.ZAxis)).ConfigureAwait(true);
                         break;
                     default:
                         _logger?.LogWarning("未识别的轴向移动命令: {Direction}", direction);
                         return;
                 }
 
-                await RefreshPositionsAsync().ConfigureAwait(true);
+                await _hardwareStateService.RefreshAsync().ConfigureAwait(true);
                 _logger?.LogInformation("执行轴向移动命令: {Direction}, 步距: {JogStep}", direction, JogStep);
             }
             catch (Exception ex)
@@ -86,7 +90,7 @@ namespace Fredy.Drilling.Holes.ViewModels
         [RelayCommand]
         private async Task HomeAxis(string axis)
         {
-            if (string.IsNullOrWhiteSpace(axis) || _motionService is null)
+            if (string.IsNullOrWhiteSpace(axis) || _motionService is null || _hardwareStateService is null)
             {
                 _logger?.LogWarning("轴回零命令无效或运动服务未初始化: {Axis}", axis);
                 return;
@@ -111,12 +115,34 @@ namespace Fredy.Drilling.Holes.ViewModels
                 }
 
                 MachineStatus.IsHomed = true;
-                await RefreshPositionsAsync().ConfigureAwait(true);
+                await _hardwareStateService.RefreshAsync().ConfigureAwait(true);
                 _logger?.LogInformation("执行轴回零命令: {Axis}", axis);
             }
             catch (Exception ex)
             {
                 _logger?.LogError(ex, "执行轴回零命令失败: {Axis}", axis);
+            }
+        }
+
+        [RelayCommand]
+        private async Task ToggleOutput(int portNo)
+        {
+            if (_ioCard is null || _hardwareStateService is null)
+            {
+                _logger?.LogWarning("GPIO 输出切换失败，IO 服务未初始化: {PortNo}", portNo);
+                return;
+            }
+
+            try
+            {
+                var currentValue = _hardwareStateService.CurrentState.Outputs.TryGetValue(portNo, out var value) && value;
+                await _ioCard.WriteOutputAsync(portNo, !currentValue).ConfigureAwait(true);
+                await _hardwareStateService.RefreshAsync().ConfigureAwait(true);
+                _logger?.LogInformation("GPIO 输出切换: Port={PortNo}, Value={Value}", portNo, !currentValue);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "GPIO 输出切换失败: {PortNo}", portNo);
             }
         }
 
@@ -132,39 +158,77 @@ namespace Fredy.Drilling.Holes.ViewModels
             _logger?.LogInformation("调整画面参数: {TypeAndDelta}", typeAndDelta);
         }
 
-        private static double GetVelocity(HAL.AxisParam axis)
+        public void Dispose()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            if (_hardwareStateService is not null)
+            {
+                _hardwareStateService.StateChanged -= HardwareStateService_StateChanged;
+            }
+
+            _disposed = true;
+            GC.SuppressFinalize(this);
+        }
+
+        private static double GetVelocity(AxisParam axis)
         {
             return axis.Velocity > 0 ? axis.Velocity : 1d;
         }
 
-        private void InitializeCollections()
+        private void InitializeCollections(int inputCount = 24, int outputCount = 9)
         {
-            if (GpioIn.Count > 0 || GpioOut.Count > 0)
-            {
-                return;
-            }
+            GpioIn.Clear();
+            GpioOut.Clear();
 
-            for (int i = 0; i < 24; i++)
+            for (int i = 0; i < inputCount; i++)
             {
                 GpioIn.Add(new GpioItem { Id = i });
             }
 
-            for (int i = 0; i < 9; i++)
+            for (int i = 0; i < outputCount; i++)
             {
-                GpioOut.Add(new GpioItem { Id = i, IsActive = true });
+                GpioOut.Add(new GpioItem { Id = i });
             }
         }
 
-        private async Task RefreshPositionsAsync()
+        private void ApplySnapshot(HardwareStateSnapshot state)
         {
-            if (_motionService is null)
+            MachineStatus.IsMotionCardReady = state.IsMotionCardReady;
+            MachineStatus.IsCameraConnected = state.IsCameraConnected;
+            MachineStatus.PosX = state.X;
+            MachineStatus.PosY = state.Y;
+            MachineStatus.PosZ = state.Z;
+
+            foreach (var item in GpioIn)
+            {
+                item.IsActive = state.Inputs.TryGetValue(item.Id, out var value) && value;
+            }
+
+            foreach (var item in GpioOut)
+            {
+                item.IsActive = state.Outputs.TryGetValue(item.Id, out var value) && value;
+            }
+        }
+
+        private void HardwareStateService_StateChanged(object? sender, HardwareStateChangedEventArgs e)
+        {
+            if (_disposed)
             {
                 return;
             }
 
-            MachineStatus.PosX = await _motionService.GetXPositionAsync().ConfigureAwait(true);
-            MachineStatus.PosY = await _motionService.GetYPositionAsync().ConfigureAwait(true);
-            MachineStatus.PosZ = await _motionService.GetZPositionAsync().ConfigureAwait(true);
+            var dispatcher = Application.Current?.Dispatcher;
+            if (dispatcher is null || dispatcher.CheckAccess())
+            {
+                ApplySnapshot(e.State);
+                return;
+            }
+
+            _ = dispatcher.InvokeAsync(() => ApplySnapshot(e.State));
         }
     }
 }
