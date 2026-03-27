@@ -15,6 +15,7 @@ using System.Windows;
 using System.Windows.Media.Media3D;
 using System.Windows.Threading;
 using HAL;
+using BLL;
 
 namespace Fredy.Drilling.Holes
 {
@@ -85,6 +86,7 @@ namespace Fredy.Drilling.Holes
             //注册硬件
             services.AddSingleton<ICamera, CameraSimulator>();
             services.AddSingleton<IMoton, MotionSimulator>();
+            services.AddSingleton<IMotionService, MotionManager>();
             services.AddSingleton(_ => new PathManager(AppContext.BaseDirectory));
             services.AddSingleton<RecipeService>();
 

@@ -12,6 +12,9 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
+using Fredy.Drilling.Holes.ViewModels;
+using Microsoft.Extensions.DependencyInjection;
+using System.ComponentModel;
 
 namespace Fredy.Drilling.Holes.Views
 {
@@ -23,6 +26,11 @@ namespace Fredy.Drilling.Holes.Views
         public ManualControlView()
         {
             InitializeComponent();
+
+            if (!DesignerProperties.GetIsInDesignMode(this))
+            {
+                DataContext ??= App.ServiceProvider.GetRequiredService<ManualControlViewModel>();
+            }
         }
     }
 }
