@@ -6,6 +6,13 @@ using System.Threading.Tasks;
 
 namespace Common.Models
 {
+    public class RecipeDetectionItem
+    {
+        public int Index { get; set; }
+
+        public int DetectionCount { get; set; }
+    }
+
     public class RecipePunchParameters
     {
         public List<PunchPoint> PunchPoints { get; set; } = new();
@@ -57,6 +64,14 @@ namespace Common.Models
         public bool IsSecondDetectionActive { get; set; }
 
         public List<RecipeDepthItem> PunchDepths { get; set; } = CreateDefaultPunchDepths();
+
+        public List<RecipeDetectionItem>? FirstPassDetectionItems { get; set; }
+
+        public int? FirstPassOffsetThreshold { get; set; }
+
+        public List<RecipeDetectionItem>? SecondPassDetectionItems { get; set; }
+
+        public int? SecondPassOffsetThreshold { get; set; }
 
         public static RecipeProcessParameters CreateDefault(string? workpieceType = null)
         {

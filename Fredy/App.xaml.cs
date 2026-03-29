@@ -91,6 +91,7 @@ namespace Fredy.Drilling.Holes
             services.AddSingleton<IHardwareStateService, HardwareStateService>();
             services.AddSingleton(_ => new PathManager(AppContext.BaseDirectory));
             services.AddSingleton<RecipeService>();
+            services.AddSingleton<ConfigService>();
 
             services.AddSingleton(logStore);
             services.AddSingleton<IAppLogStore>(logStore);

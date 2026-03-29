@@ -4,16 +4,18 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:Fredy.Drilling.Holes.ViewModels"
+        xmlns:models="clr-namespace:Fredy.Drilling.Holes.Models"
         mc:Ignorable="d" x:Name="thisWin"
         Title="参数配置" Height="750" Width="1200" Background="#F0F0F0"
         d:DataContext="{d:DesignInstance Type=vm:ConfigViewModel, IsDesignTimeCreatable=True}">
 
-    <Window.DataContext>
-        <vm:ConfigViewModel/>
-    </Window.DataContext>
-
     <Grid Margin="10">
-        <TabControl>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="220"/>
+        </Grid.ColumnDefinitions>
+
+        <TabControl Grid.Column="0">
             <TabItem Header="运动参数设置">
                 <Grid Margin="10">
                     <Grid.ColumnDefinitions>
@@ -188,9 +190,6 @@
 
                             <StackPanel Grid.Row="3" Margin="0,10,0,0">
                                 <CheckBox Content="调试模式" IsChecked="{Binding IsDebugMode}" Margin="0,5"/>
-                                <Button Content="应用并关闭" Background="#7FFF00" Height="45" FontSize="18" FontWeight="Bold"
-                                        Command="{Binding ApplyAndCloseCommand}"
-                                        CommandParameter="{Binding ElementName=thisWin}"/>
                             </StackPanel>
                         </Grid>
                     </GroupBox>
@@ -247,7 +246,7 @@
                             </Grid>
                         </GroupBox>
 
-                        <GroupBox Header="FOV尺寸" Background="#FCE4D6" Padding="10">
+                        <GroupBox Header="视野尺寸" Background="#FCE4D6" Padding="10">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="120"/>
@@ -255,15 +254,161 @@
                                     <ColumnDefinition Width="120"/>
                                     <ColumnDefinition Width="200"/>
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Text="FOV宽度 (mm)" VerticalAlignment="Center"/>
+                                <TextBlock Text="视野宽度 (像素)" VerticalAlignment="Center"/>
                                 <TextBox Grid.Column="1" Text="{Binding Camera.FovWidth}" Margin="5,0,15,0"/>
-                                <TextBlock Grid.Column="2" Text="FOV高度 (mm)" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="2" Text="视野高度 (像素)" VerticalAlignment="Center"/>
                                 <TextBox Grid.Column="3" Text="{Binding Camera.FovHeight}" Margin="5,0,0,0"/>
                             </Grid>
                         </GroupBox>
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
+
+            <TabItem Header="一道探测参数">
+                <Grid Margin="10">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0"
+                               Text="0 代表本圈不探测，其他数字 N 代表本圈探测次数"
+                               Foreground="Green"
+                               HorizontalAlignment="Center"
+                               Margin="0,0,0,12"
+                               FontSize="14"/>
+
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="0,0,0,10">
+                        <ItemsControl ItemsSource="{Binding DetectionRingItems}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type models:DetectionRingItem}">
+                                    <Grid Margin="45,2" Height="30">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="80"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock Text="{Binding Index, StringFormat=第{0}圈}" VerticalAlignment="Center" FontSize="14"/>
+                                        <TextBox Grid.Column="1"
+                                                 Text="{Binding DetectionCount, UpdateSourceTrigger=PropertyChanged}"
+                                                 VerticalContentAlignment="Center"
+                                                 HorizontalContentAlignment="Left"
+                                                 Padding="5,0"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+
+                    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,8,0,12">
+                        <TextBlock Text="探测偏移量阈值：" VerticalAlignment="Center" FontSize="14" FontWeight="Bold"/>
+                        <TextBox Text="{Binding DetectionOffsetThreshold, UpdateSourceTrigger=PropertyChanged}" Width="160" Height="28" VerticalContentAlignment="Center" Padding="5,0"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Center">
+                        <Button Content="重置"
+                                Width="110"
+                                Height="34"
+                                Command="{Binding ResetDetectionCommand}"/>
+                    </StackPanel>
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="二道探测参数">
+                <Grid Margin="10">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0"
+                               Text="0 代表本圈不探测，其他数字 N 代表本圈探测次数"
+                               Foreground="Green"
+                               HorizontalAlignment="Center"
+                               Margin="0,0,0,12"
+                               FontSize="14"/>
+
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="0,0,0,10">
+                        <ItemsControl ItemsSource="{Binding SecondPassDetectionItems}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type models:SecondPassDetectionItem}">
+                                    <Grid Margin="45,2" Height="30">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="80"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock Text="{Binding Index, StringFormat=第{0}圈}" VerticalAlignment="Center" FontSize="14"/>
+                                        <TextBox Grid.Column="1"
+                                                 Text="{Binding DetectionCount, UpdateSourceTrigger=PropertyChanged}"
+                                                 VerticalContentAlignment="Center"
+                                                 HorizontalContentAlignment="Left"
+                                                 Padding="5,0"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+
+                    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,8,0,12">
+                        <TextBlock Text="探测偏移量阈值：" VerticalAlignment="Center" FontSize="14" FontWeight="Bold"/>
+                        <TextBox Text="{Binding SecondPassOffsetThreshold, UpdateSourceTrigger=PropertyChanged}" Width="160" Height="28" VerticalContentAlignment="Center" Padding="5,0"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Center">
+                        <Button Content="重置"
+                                Width="110"
+                                Height="34"
+                                Command="{Binding ResetSecondPassDetectionCommand}"/>
+                    </StackPanel>
+                </Grid>
+            </TabItem>
         </TabControl>
+
+        <Border Grid.Column="1"
+                Margin="10,0,0,0"
+                Padding="12"
+                Background="#FFFFFF"
+                BorderBrush="#D0D0D0"
+                BorderThickness="1"
+                CornerRadius="6">
+            <StackPanel>
+                <TextBlock Text="全局操作"
+                           FontSize="16"
+                           FontWeight="SemiBold"
+                           Margin="0,0,0,12"/>
+
+                <Button Height="38"
+                        Margin="0,0,0,8"
+                        Background="#7FFF00"
+                        FontWeight="Bold"
+                        Content="保存"
+                        Command="{Binding SaveConfigCommand}"/>
+
+                <Button Height="38"
+                        Margin="0,0,0,8"
+                        Content="取消"
+                        Command="{Binding CancelChangesCommand}"/>
+
+                <Button Height="38"
+                        Margin="0,0,0,12"
+                        Content="保存并关闭"
+                        Command="{Binding ApplyAndCloseCommand}"
+                        CommandParameter="{Binding ElementName=thisWin}"/>
+
+                <Separator Margin="0,0,0,10"/>
+
+                <TextBlock Text="已修改参数"
+                           FontWeight="SemiBold"
+                           Margin="0,0,0,6"/>
+                <TextBlock Text="{Binding ModifiedParametersInfo}"
+                           TextWrapping="Wrap"
+                           Foreground="#4F4F4F"/>
+            </StackPanel>
+        </Border>
     </Grid>
 </Window>

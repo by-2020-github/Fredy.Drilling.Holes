@@ -107,6 +107,122 @@
                 </Grid>
             </TabItem>
 
+            <TabItem Header="Detection 一道探测">
+                <Grid Margin="12">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0"
+                               Text="0 代表本圈不探测，其他数字 N 代表本圈探测次数"
+                               Foreground="Green"
+                               HorizontalAlignment="Center"
+                               Margin="0,0,0,12"
+                               FontSize="14"/>
+
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="0,0,0,10">
+                        <ItemsControl ItemsSource="{Binding DetectionItems}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="45,2" Height="30">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="80"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock Text="{Binding Index, StringFormat=第{0}圈}" VerticalAlignment="Center" FontSize="14"/>
+                                        <TextBox Grid.Column="1"
+                                                 Text="{Binding DetectionCount, UpdateSourceTrigger=PropertyChanged}"
+                                                 IsReadOnly="{Binding IsEditing, ElementName=Root, Converter={StaticResource InverseBoolConverter}}"
+                                                 VerticalContentAlignment="Center"
+                                                 Padding="5,0"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+
+                    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,8,0,12">
+                        <TextBlock Text="探测偏移量阈值：" VerticalAlignment="Center" FontSize="14" FontWeight="Bold"/>
+                        <TextBox Text="{Binding DetectionOffsetThreshold, UpdateSourceTrigger=PropertyChanged}"
+                                 Width="160"
+                                 Height="28"
+                                 VerticalContentAlignment="Center"
+                                 IsReadOnly="{Binding IsEditing, ElementName=Root, Converter={StaticResource InverseBoolConverter}}"
+                                 Padding="5,0"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Center">
+                        <Button Content="重置"
+                                Width="110"
+                                Height="34"
+                                Command="{Binding ResetDetectionCommand}"
+                                IsEnabled="{Binding IsEditing, ElementName=Root}"/>
+                    </StackPanel>
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="SecondPassDetection 二道探测">
+                <Grid Margin="12">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0"
+                               Text="0 代表本圈不探测，其他数字 N 代表本圈探测次数"
+                               Foreground="Green"
+                               HorizontalAlignment="Center"
+                               Margin="0,0,0,12"
+                               FontSize="14"/>
+
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="0,0,0,10">
+                        <ItemsControl ItemsSource="{Binding SecondPassDetectionItems}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="45,2" Height="30">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="80"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock Text="{Binding Index, StringFormat=第{0}圈}" VerticalAlignment="Center" FontSize="14"/>
+                                        <TextBox Grid.Column="1"
+                                                 Text="{Binding DetectionCount, UpdateSourceTrigger=PropertyChanged}"
+                                                 IsReadOnly="{Binding IsEditing, ElementName=Root, Converter={StaticResource InverseBoolConverter}}"
+                                                 VerticalContentAlignment="Center"
+                                                 Padding="5,0"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+
+                    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,8,0,12">
+                        <TextBlock Text="探测偏移量阈值：" VerticalAlignment="Center" FontSize="14" FontWeight="Bold"/>
+                        <TextBox Text="{Binding SecondPassOffsetThreshold, UpdateSourceTrigger=PropertyChanged}"
+                                 Width="160"
+                                 Height="28"
+                                 VerticalContentAlignment="Center"
+                                 IsReadOnly="{Binding IsEditing, ElementName=Root, Converter={StaticResource InverseBoolConverter}}"
+                                 Padding="5,0"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Center">
+                        <Button Content="重置"
+                                Width="110"
+                                Height="34"
+                                Command="{Binding ResetSecondPassDetectionCommand}"
+                                IsEnabled="{Binding IsEditing, ElementName=Root}"/>
+                    </StackPanel>
+                </Grid>
+            </TabItem>
+
             <TabItem Header="ProcessParameters 参数编辑">
                 <views:ProcessView RecipeViewModel="{Binding RecipeViewModel, ElementName=Root}"
                                    IsEditing="{Binding IsEditing, ElementName=Root}"/>
