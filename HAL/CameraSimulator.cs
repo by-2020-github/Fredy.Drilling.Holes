@@ -1,5 +1,4 @@
-﻿ 
-using System;
+﻿using System;
 using System.ComponentModel.DataAnnotations;
 using System.Drawing;
 using System.Runtime.InteropServices;
@@ -16,6 +15,7 @@ namespace HAL
         private long _frameCounter = 0;
         private readonly int _width = 1920;
         private readonly int _height = 1080;
+        private readonly Random _random = new();
 
         public bool IsConnected => _isConnected;
 
@@ -43,17 +43,22 @@ namespace HAL
         {
             if (!_isConnected) throw new InvalidOperationException("Camera not connected.");
 
-            // 1. 使用 OpenCV 生成模拟图像 (例如创建一个带文字和随机颜色的背景)
-            using (Mat canvas = new Mat(_height, _width, MatType.CV_8UC3, new Scalar(40, 40, 40)))
+            _frameCounter++;
+
+            using (Mat canvas = new Mat(_height, _width, MatType.CV_8UC3, new Scalar(64, 64, 64)))
             {
-                // 画一些动态内容模拟实际拍摄
                 Cv2.PutText(canvas, $"Simulated Frame: {++_frameCounter}", new Point(50, 100),
-                    HersheyFonts.HersheyComplex, 2.0, Scalar.White, 3);
+                 HersheyFonts.HersheyComplex, 2.0, Scalar.White, 3);
                 Cv2.PutText(canvas, DateTime.Now.ToString("HH:mm:ss.fff"), new Point(50, 200),
                     HersheyFonts.HersheyComplex, 1.5, Scalar.Green, 2);
-
-                // 模拟随机噪点或图形
-                Cv2.Circle(canvas, new Point(_width / 2, _height / 2), (int)(_frameCounter % 100 + 50), Scalar.AliceBlue, -1);
+                var pointCount = _random.Next(80, 260);
+                for (int i = 0; i < pointCount; i++)
+                {
+                    var x = _random.Next(0, _width);
+                    var y = _random.Next(0, _height);
+                    var radius = _random.Next(1, 5);
+                    Cv2.Circle(canvas, new Point(x, y), radius, Scalar.White, -1, LineTypes.AntiAlias);
+                }
 
                 // 2. 将 Mat 转换为 CameraArgs 需要的原始数据
                 var args = MatToCameraArgs(canvas);

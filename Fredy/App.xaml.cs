@@ -103,6 +103,7 @@ namespace Fredy.Drilling.Holes
             });
 
             // Windows
+            services.AddTransient<ScanViewModel>();
             services.AddTransient<ScanWindow>(s => new ScanWindow()
             {
                 DataContext = s.GetRequiredService<ScanViewModel>()

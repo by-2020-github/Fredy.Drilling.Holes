@@ -35,6 +35,7 @@ namespace Fredy.Drilling.Holes.ViewModels
         private CancellationTokenSource? _punchingCancellationTokenSource;
         private Task? _punchingTask;
         private bool _disposed;
+        private bool _isCameraPreviewSuspended;
 
         [ObservableProperty] private MachineStatus _status = new();
         [ObservableProperty] private bool _isSimulate;
@@ -527,9 +528,29 @@ namespace Fredy.Drilling.Holes.ViewModels
             Status.IsCameraConnected = state.IsCameraConnected;
         }
 
+        public void SuspendCameraPreview()
+        {
+            _isCameraPreviewSuspended = true;
+
+            _cameraPreviewCancellationTokenSource?.Cancel();
+            _cameraPreviewCancellationTokenSource = null;
+            _cameraPreviewTask = null;
+        }
+
+        public void ResumeCameraPreview()
+        {
+            if (!_isCameraPreviewSuspended)
+            {
+                return;
+            }
+
+            _isCameraPreviewSuspended = false;
+            StartCameraPreview();
+        }
+
         private void StartCameraPreview()
         {
-            if (_camera is null)
+            if (_camera is null || _isCameraPreviewSuspended)
             {
                 return;
             }

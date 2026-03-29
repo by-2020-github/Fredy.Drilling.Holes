@@ -1,16 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using Fredy.Drilling.Holes.ViewModels;
+using Microsoft.Extensions.DependencyInjection;
 using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Shapes;
 
 namespace Fredy.Drilling.Holes.Views
 {
@@ -19,9 +9,39 @@ namespace Fredy.Drilling.Holes.Views
     /// </summary>
     public partial class ScanWindow : Window
     {
+        private readonly MainViewModel? _mainViewModel;
+        private bool _mainPreviewSuspended;
+
         public ScanWindow()
         {
             InitializeComponent();
+            DataContext = App.ServiceProvider.GetService<ScanViewModel>() ?? new ScanViewModel();
+            _mainViewModel = App.ServiceProvider.GetService<MainViewModel>();
+
+            Loaded += ScanWindow_Loaded;
+            Closed += ScanWindow_Closed;
+        }
+
+        private void ScanWindow_Loaded(object sender, RoutedEventArgs e)
+        {
+            if (_mainViewModel is null || _mainPreviewSuspended)
+            {
+                return;
+            }
+
+            _mainViewModel.SuspendCameraPreview();
+            _mainPreviewSuspended = true;
+        }
+
+        private void ScanWindow_Closed(object? sender, EventArgs e)
+        {
+            if (_mainViewModel is null || !_mainPreviewSuspended)
+            {
+                return;
+            }
+
+            _mainViewModel.ResumeCameraPreview();
+            _mainPreviewSuspended = false;
         }
     }
 }

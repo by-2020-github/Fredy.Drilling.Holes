@@ -7,7 +7,7 @@
         xmlns:models="clr-namespace:Fredy.Drilling.Holes.Models"
         mc:Ignorable="d" x:Name="thisWin"
         Title="参数配置" Height="750" Width="1200" Background="#F0F0F0"
-        d:DataContext="{d:DesignInstance Type=vm:ConfigViewModel, IsDesignTimeCreatable=True}">
+        d:DataContext="{d:DesignInstance Type=vm:ConfigViewModel, IsDesignTimeCreatable=False}">
 
     <Grid Margin="10">
         <Grid.ColumnDefinitions>
