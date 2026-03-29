@@ -92,12 +92,13 @@
                         <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
                             <Button Content="新增单点" Width="100" Height="32" Margin="0,0,8,0" Command="{Binding AddPunchPointCommand}" IsEnabled="{Binding IsEditing, ElementName=Root}"/>
                             <Button Content="删除选中" Width="100" Height="32" Margin="0,0,8,0" Command="{Binding RemoveSelectedPunchPointCommand}" IsEnabled="{Binding IsEditing, ElementName=Root}"/>
-                            <Button Content="重新排序" Width="100" Height="32" Command="{Binding SortPunchPointsCommand}" IsEnabled="{Binding IsEditing, ElementName=Root}"/>
+                            <Button Content="重新排序" Width="100" Height="32" Margin="0,0,8,0" Command="{Binding SortPunchPointsCommand}" IsEnabled="{Binding IsEditing, ElementName=Root}"/>
+                            <Button Content="打开点集生成器" Width="130" Height="32" Click="OpenHoleGeneratorWindowButton_Click" IsEnabled="{Binding IsEditing, ElementName=Root}"/>
                         </StackPanel>
                         <TextBlock DockPanel.Dock="Right"
                                    VerticalAlignment="Center"
                                    Foreground="#666666"
-                                   Text="当前先支持单点插入，后续可在此扩展更多点位生成方式。"/>
+                                   Text="点集生成器将在独立窗口中打开，用于不同方式生成并预览点位。"/>
                     </DockPanel>
 
                     <local:RecipePunchParametersControl Grid.Row="1"

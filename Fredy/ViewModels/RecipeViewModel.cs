@@ -199,6 +199,19 @@ namespace Fredy.Drilling.Holes.ViewModels
             OnPropertyChanged(nameof(RemainingCount));
         }
 
+        public void ReplacePunchPoints(IEnumerable<PunchPointViewModel> points)
+        {
+            var orderedPoints = points
+                .OrderBy(x => x.RingNumber)
+                .ThenBy(x => x.SequenceIndex)
+                .ThenBy(x => x.X)
+                .ThenBy(x => x.Y)
+                .ToList();
+
+            ApplyOrderedPunchPoints(orderedPoints);
+            SelectedPunchPoint = PunchPoints.FirstOrDefault();
+        }
+
         private void AddPunchPoint()
         {
             var nextRingNumber = PunchPoints.Count == 0 ? 1 : PunchPoints.Max(x => x.RingNumber);

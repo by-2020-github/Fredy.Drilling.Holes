@@ -13,11 +13,11 @@ namespace Fredy.Drilling.Holes.ViewModels
 {
     public class HoleGeneratorViewModel : ObservableObject
     {
-        public HoleGeneratorViewModel()
+        public HoleGeneratorViewModel(Action<IReadOnlyList<HoleCoordinate>>? applyGeneratedPoints = null)
         {
-            Sector = new SectorGeneratorViewModel();
-            Starry = new StarryGeneratorViewModel();
-            RingSpinneret = new RingSpinneretGeneratorViewModel();
+            Sector = new SectorGeneratorViewModel(applyGeneratedPoints);
+            Starry = new StarryGeneratorViewModel(applyGeneratedPoints);
+            RingSpinneret = new RingSpinneretGeneratorViewModel(applyGeneratedPoints);
         }
 
         public SectorGeneratorViewModel Sector { get; }
@@ -32,11 +32,13 @@ namespace Fredy.Drilling.Holes.ViewModels
         private const double CanvasSize = 420;
         private const double PointSize = 6;
         private const double Padding = 24;
+        private readonly Action<IReadOnlyList<HoleCoordinate>>? applyGeneratedPoints;
         private int totalHoles;
         private string statusMessage = "等待操作。";
 
-        protected GeneratorTabViewModelBase()
+        protected GeneratorTabViewModelBase(Action<IReadOnlyList<HoleCoordinate>>? applyGeneratedPoints = null)
         {
+            this.applyGeneratedPoints = applyGeneratedPoints;
             PreviewPoints = new ObservableCollection<PreviewPointItem>();
         }
 
@@ -54,6 +56,11 @@ namespace Fredy.Drilling.Holes.ViewModels
         {
             get => statusMessage;
             protected set => SetProperty(ref statusMessage, value);
+        }
+
+        protected void ApplyGeneratedPointsToRecipe(IReadOnlyList<HoleCoordinate> coordinates)
+        {
+            applyGeneratedPoints?.Invoke(coordinates);
         }
 
         protected void UpdatePreview(IEnumerable<HoleCoordinate> coordinates)
@@ -123,13 +130,15 @@ namespace Fredy.Drilling.Holes.ViewModels
         private double startRadius = 50;
         private double circleSpacing = 20;
 
-        public SectorGeneratorViewModel()
+        public SectorGeneratorViewModel(Action<IReadOnlyList<HoleCoordinate>>? applyGeneratedPoints = null)
+            : base(applyGeneratedPoints)
         {
             Circles = new ObservableCollection<SectorCircleItemViewModel>();
             Circles.CollectionChanged += Circles_CollectionChanged;
 
             CalculateTotalCommand = new RelayCommand(CalculateTotalHoles);
             GeneratePreviewCommand = new RelayCommand(GeneratePreview);
+            GenerateAndApplyCommand = new RelayCommand(GenerateAndApply);
             ExportCoordinatesCommand = new RelayCommand(ExportCoordinates);
 
             SyncCircles();
@@ -141,6 +150,8 @@ namespace Fredy.Drilling.Holes.ViewModels
         public IRelayCommand CalculateTotalCommand { get; }
 
         public IRelayCommand GeneratePreviewCommand { get; }
+
+        public IRelayCommand GenerateAndApplyCommand { get; }
 
         public IRelayCommand ExportCoordinatesCommand { get; }
 
@@ -271,6 +282,20 @@ namespace Fredy.Drilling.Holes.ViewModels
             StatusMessage = "已生成橘子瓣模式预览。";
         }
 
+        private void GenerateAndApply()
+        {
+            var result = generator.GenerateCoordinates(BuildParameters());
+            if (!ValidateResult(result))
+            {
+                return;
+            }
+
+            TotalHoles = result.TotalHoles;
+            UpdatePreview(result.Coordinates);
+            ApplyGeneratedPointsToRecipe(result.Coordinates);
+            StatusMessage = "已生成橘子瓣点集并应用到配方点位。";
+        }
+
         private void ExportCoordinates()
         {
             var result = generator.GenerateCoordinates(BuildParameters());
@@ -296,13 +321,15 @@ namespace Fredy.Drilling.Holes.ViewModels
         private int holeIncrement = 4;
         private int firstCircleHoles = 6;
 
-        public StarryGeneratorViewModel()
+        public StarryGeneratorViewModel(Action<IReadOnlyList<HoleCoordinate>>? applyGeneratedPoints = null)
+            : base(applyGeneratedPoints)
         {
             CircleInfos = new ObservableCollection<StarryCircleInfoItemViewModel>();
 
             GenerateCircleInfoCommand = new RelayCommand(GenerateCircleInfo);
             RefreshCommand = new RelayCommand(RefreshCircleInfo);
             GeneratePreviewCommand = new RelayCommand(GeneratePreview);
+            GenerateAndApplyCommand = new RelayCommand(GenerateAndApply);
             ExportCoordinatesCommand = new RelayCommand(ExportCoordinates);
 
             GenerateCircleInfo();
@@ -315,6 +342,8 @@ namespace Fredy.Drilling.Holes.ViewModels
         public IRelayCommand RefreshCommand { get; }
 
         public IRelayCommand GeneratePreviewCommand { get; }
+
+        public IRelayCommand GenerateAndApplyCommand { get; }
 
         public IRelayCommand ExportCoordinatesCommand { get; }
 
@@ -454,6 +483,24 @@ namespace Fredy.Drilling.Holes.ViewModels
             StatusMessage = "已生成满天星模式预览。";
         }
 
+        private void GenerateAndApply()
+        {
+            RefreshCircleInfo();
+            var coordinates = BuildStarryCoordinates().ToList();
+            if (coordinates.Count == 0)
+            {
+                ClearPreview();
+                TotalHoles = 0;
+                StatusMessage = "没有生成任何坐标，请检查参数。";
+                return;
+            }
+
+            TotalHoles = coordinates.Count;
+            UpdatePreview(coordinates);
+            ApplyGeneratedPointsToRecipe(coordinates);
+            StatusMessage = "已生成满天星点集并应用到配方点位。";
+        }
+
         private void ExportCoordinates()
         {
             RefreshCircleInfo();
@@ -518,13 +565,15 @@ namespace Fredy.Drilling.Holes.ViewModels
         private double circleSpacing = 20;
         private double offsetAngle;
 
-        public RingSpinneretGeneratorViewModel()
+        public RingSpinneretGeneratorViewModel(Action<IReadOnlyList<HoleCoordinate>>? applyGeneratedPoints = null)
+            : base(applyGeneratedPoints)
         {
             CircleInfos = new ObservableCollection<RingSpinneretCircleInfoItemViewModel>();
 
             GenerateCircleInfoCommand = new RelayCommand(GenerateCircleInfo);
             RefreshCommand = new RelayCommand(GenerateCircleInfo);
             GeneratePreviewCommand = new RelayCommand(GeneratePreview);
+            GenerateAndApplyCommand = new RelayCommand(GenerateAndApply);
             ExportCoordinatesCommand = new RelayCommand(ExportCoordinates);
 
             GenerateCircleInfo();
@@ -537,6 +586,8 @@ namespace Fredy.Drilling.Holes.ViewModels
         public IRelayCommand RefreshCommand { get; }
 
         public IRelayCommand GeneratePreviewCommand { get; }
+
+        public IRelayCommand GenerateAndApplyCommand { get; }
 
         public IRelayCommand ExportCoordinatesCommand { get; }
 
@@ -617,6 +668,20 @@ namespace Fredy.Drilling.Holes.ViewModels
             TotalHoles = result.TotalHoles;
             UpdatePreview(result.Coordinates);
             StatusMessage = "已生成环形喷丝板模式预览。";
+        }
+
+        private void GenerateAndApply()
+        {
+            var result = generator.GenerateCoordinates(BuildParameters());
+            if (!ValidateResult(result))
+            {
+                return;
+            }
+
+            TotalHoles = result.TotalHoles;
+            UpdatePreview(result.Coordinates);
+            ApplyGeneratedPointsToRecipe(result.Coordinates);
+            StatusMessage = "已生成环形喷丝板点集并应用到配方点位。";
         }
 
         private void ExportCoordinates()
