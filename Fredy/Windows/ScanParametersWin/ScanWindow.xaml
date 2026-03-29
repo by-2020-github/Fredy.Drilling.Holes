@@ -5,6 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:Fredy.Drilling.Holes.ViewModels"
         mc:Ignorable="d"
+        MaxHeight="1024" MaxWidth="1280"
         Title="分区扫描" Height="700" Width="1100" Background="#F0F0F0"
         d:DataContext="{d:DesignInstance Type=vm:ScanViewModel, IsDesignTimeCreatable=True}">
 
@@ -54,7 +55,13 @@
                         </Grid.RowDefinitions>
 
                         <TextBlock Grid.Row="0" Text="FOV大小(mm):" VerticalAlignment="Center"/>
-                        <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding Params.FovSize, UpdateSourceTrigger=PropertyChanged}" Margin="2"/>
+                        <TextBox Grid.Row="0"
+                                 Grid.Column="1"
+                                 Text="{Binding Params.FovSize}"
+                                 IsReadOnly="True"
+                                 IsHitTestVisible="False"
+                                 Background="#F3F3F3"
+                                 Margin="2"/>
 
                         <TextBlock Grid.Row="1" Text="扫描扩展(mm):" VerticalAlignment="Center"/>
                         <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Params.ScanExpand, UpdateSourceTrigger=PropertyChanged}" Margin="2"/>

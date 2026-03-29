@@ -1,5 +1,7 @@
-﻿using Fredy.Drilling.Holes.ViewModels;
+﻿using BLL;
+using Fredy.Drilling.Holes.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
+using HAL;
 using System.Windows;
 
 namespace Fredy.Drilling.Holes.Views
@@ -13,6 +15,38 @@ namespace Fredy.Drilling.Holes.Views
         {
             InitializeComponent();
             DataContext = App.ServiceProvider.GetRequiredService<ConfigViewModel>();
+        }
+
+        private void OpenNinePointCalibrationButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is not ConfigViewModel configViewModel)
+            {
+                return;
+            }
+
+            var motionService = App.ServiceProvider.GetService<IMotionService>();
+            var camera = App.ServiceProvider.GetService<ICamera>();
+            var viewModel = new NinePointCalibrationViewModel(motionService, camera)
+            {
+                ManualPixelSizeX = configViewModel.Camera.PixelSizeX,
+                ManualPixelSizeY = configViewModel.Camera.PixelSizeY
+            };
+
+            var window = new NinePointCalibrationWindow
+            {
+                Owner = this,
+                DataContext = viewModel,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner
+            };
+
+            var dialogResult = window.ShowDialog();
+            if (dialogResult != true || window.CalibrationResult is null)
+            {
+                return;
+            }
+
+            configViewModel.Camera.PixelSizeX = window.CalibrationResult.PixelSizeXUm;
+            configViewModel.Camera.PixelSizeY = window.CalibrationResult.PixelSizeYUm;
         }
     }
 }

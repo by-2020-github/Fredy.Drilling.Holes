@@ -304,22 +304,19 @@ namespace Fredy.Drilling.Holes.ViewModels
             }
 
             window.WindowStartupLocation = WindowStartupLocation.CenterScreen;
-
-            //var existedWindow = Application.Current?.Windows
-            //    .OfType<Window>()
-            //    .FirstOrDefault(x => x.GetType() == window.GetType());
-
-            //if (existedWindow is not null)
-            //{
-            //    existedWindow.WindowState = WindowState.Normal;
-            //    existedWindow.Activate();
-            //    _logger?.LogInformation("激活窗口: {WinName}", winName);
-            //    return;
-            //}
-
             window.Owner = Application.Current?.MainWindow;
-            window.ShowDialog();
-            _logger?.LogInformation("弹出窗口: {WinName}", winName);
+
+            SuspendCameraPreview();
+
+            try
+            {
+                window.ShowDialog();
+                _logger?.LogInformation("弹出窗口: {WinName}", winName);
+            }
+            finally
+            {
+                ResumeCameraPreview();
+            }
         }
 
         private bool FilterLogEntry(object item)

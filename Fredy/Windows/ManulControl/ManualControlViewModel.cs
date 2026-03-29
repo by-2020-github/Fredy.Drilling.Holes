@@ -6,8 +6,11 @@ using HAL;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.ObjectModel;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 
 namespace Fredy.Drilling.Holes.ViewModels
 {
@@ -17,12 +20,16 @@ namespace Fredy.Drilling.Holes.ViewModels
         private readonly IMotionService? _motionService;
         private readonly IIOCard? _ioCard;
         private readonly IHardwareStateService? _hardwareStateService;
+        private readonly ICamera? _camera;
+        private CancellationTokenSource? _cameraPreviewCancellationTokenSource;
+        private Task? _cameraPreviewTask;
         private bool _disposed;
 
         [ObservableProperty] private MachineStatus _machineStatus = new();
         [ObservableProperty] private double _jogStep = 10;
         [ObservableProperty] private int _canvasSize = 200;
         [ObservableProperty] private int _ringSize = 50;
+        [ObservableProperty] private ImageSource? _cameraPreviewImage;
 
         public ObservableCollection<double> JogStepOptions { get; } = new() { 0.01, 0.1, 1, 5, 10, 50 };
         public ObservableCollection<GpioItem> GpioIn { get; } = new();
@@ -33,18 +40,20 @@ namespace Fredy.Drilling.Holes.ViewModels
             InitializeCollections();
         }
 
-        public ManualControlViewModel(ILogger<ManualControlViewModel> logger, IMotionService motionService, IIOCard ioCard, IHardwareStateService hardwareStateService)
+        public ManualControlViewModel(ILogger<ManualControlViewModel> logger, IMotionService motionService, IIOCard ioCard, IHardwareStateService hardwareStateService, ICamera camera)
             : this()
         {
             _logger = logger;
             _motionService = motionService;
             _ioCard = ioCard;
             _hardwareStateService = hardwareStateService;
+            _camera = camera;
 
             InitializeCollections(hardwareStateService.InputCount, hardwareStateService.OutputCount);
             ApplySnapshot(hardwareStateService.CurrentState);
             _hardwareStateService.StateChanged += HardwareStateService_StateChanged;
             _ = _hardwareStateService.RefreshAsync();
+            StartCameraPreview();
             _logger.LogInformation("手动控制视图模型已初始化");
         }
 
@@ -170,6 +179,10 @@ namespace Fredy.Drilling.Holes.ViewModels
                 _hardwareStateService.StateChanged -= HardwareStateService_StateChanged;
             }
 
+            _cameraPreviewCancellationTokenSource?.Cancel();
+            _cameraPreviewCancellationTokenSource = null;
+            _cameraPreviewTask = null;
+
             _disposed = true;
             GC.SuppressFinalize(this);
         }
@@ -229,6 +242,72 @@ namespace Fredy.Drilling.Holes.ViewModels
             }
 
             _ = dispatcher.InvokeAsync(() => ApplySnapshot(e.State));
+        }
+
+        private void StartCameraPreview()
+        {
+            if (_camera is null)
+            {
+                return;
+            }
+
+            _cameraPreviewCancellationTokenSource?.Cancel();
+            _cameraPreviewCancellationTokenSource = new CancellationTokenSource();
+            _cameraPreviewTask = Task.Run(() => CameraPreviewLoopAsync(_cameraPreviewCancellationTokenSource.Token));
+        }
+
+        private async Task CameraPreviewLoopAsync(CancellationToken cancellationToken)
+        {
+            try
+            {
+                if (!_camera!.IsConnected)
+                {
+                    _camera.Open();
+                }
+
+                while (!cancellationToken.IsCancellationRequested)
+                {
+                    var frame = await _camera.GrabAsync().ConfigureAwait(false);
+                    var bitmap = CreateBitmapSource(frame);
+
+                    if (bitmap is not null)
+                    {
+                        await Application.Current.Dispatcher.InvokeAsync(() => CameraPreviewImage = bitmap);
+                    }
+
+                    await Task.Delay(100, cancellationToken).ConfigureAwait(false);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "手动界面相机预览异常");
+            }
+        }
+
+        private static BitmapSource? CreateBitmapSource(CameraArgs? frame)
+        {
+            if (frame?.Data is null || frame.Width <= 0 || frame.Height <= 0)
+            {
+                return null;
+            }
+
+            var pixelFormat = frame.Format switch
+            {
+                HAL.PixelFormat.Mono8 => PixelFormats.Gray8,
+                HAL.PixelFormat.RGB8 => PixelFormats.Rgb24,
+                HAL.PixelFormat.BGR8 => PixelFormats.Bgr24,
+                HAL.PixelFormat.RGBA8 => PixelFormats.Bgra32,
+                HAL.PixelFormat.BGRA8 => PixelFormats.Bgra32,
+                _ => PixelFormats.Bgr24
+            };
+
+            var stride = frame.Stride > 0 ? frame.Stride : ((frame.Width * pixelFormat.BitsPerPixel) + 7) / 8;
+            var bitmap = BitmapSource.Create(frame.Width, frame.Height, 96, 96, pixelFormat, null, frame.Data, stride);
+            bitmap.Freeze();
+            return bitmap;
         }
     }
 }

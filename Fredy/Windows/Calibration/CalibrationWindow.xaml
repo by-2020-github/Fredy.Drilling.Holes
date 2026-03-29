@@ -5,6 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:Fredy.Drilling.Holes.ViewModels"
         mc:Ignorable="d" x:Name="thisWin"
+        MaxHeight="1024" MaxWidth="1280"
         Title="校针" Height="650" Width="1000" Background="#F0F0F0"
         d:DataContext="{d:DesignInstance Type=vm:CalibrationViewModel, IsDesignTimeCreatable=True}">
 

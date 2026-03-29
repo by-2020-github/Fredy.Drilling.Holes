@@ -5,6 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
      xmlns:views="clr-namespace:Fredy.Drilling.Holes.Views"
         mc:Ignorable="d"
+        MaxHeight="1024" MaxWidth="1280"
         Title="冲孔软件" Height="1024" Width="1280">
     <Grid>
         <views:MainView></views:MainView>

@@ -7,11 +7,10 @@
          xmlns:local="clr-namespace:Fredy.Drilling.Holes.Windows.Recipe"
          xmlns:uc="clr-namespace:Fredy.Drilling.Holes.UserControls"
         mc:Ignorable="d"
-         Title="Recipe 管理"
+         Title="配方管理"
          Height="760"
          Width="1400"
-         MinHeight="620"
-         MinWidth="1100"
+MaxHeight="1024" MaxWidth="1280"
          Background="#F4F4F4">
     <Window.Resources>
         <converters:InverseBoolConverter x:Key="InverseBoolConverter"/>
@@ -24,7 +23,7 @@
             <ColumnDefinition Width="160"/>
         </Grid.ColumnDefinitions>
 
-        <GroupBox Header="所有 Recipe" Padding="8">
+        <GroupBox Header="所有配方" Padding="8">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
@@ -95,15 +94,15 @@
 
         <GroupBox Grid.Column="2" Header="操作" Padding="8">
             <StackPanel>
-                <Button Content="Load" Height="36" Margin="0,0,0,8" IsEnabled="{Binding IsEditing, Converter={StaticResource InverseBoolConverter}}" Click="LoadButton_Click"/>
-                <Button Content="Edit" Height="36" Margin="0,0,0,8" IsEnabled="{Binding CanEdit}" Click="EditButton_Click"/>
-                <Button Content="Save" Height="36" Margin="0,0,0,8" Background="#DFF0D8" IsEnabled="{Binding IsEditing}" Click="SaveButton_Click"/>
-                <Button Content="Cancel" Height="36" Margin="0,0,0,8" IsEnabled="{Binding IsEditing}" Click="CancelButton_Click"/>
-                <Button Content="Delete" Height="36" Margin="0,0,0,8" Background="#F2DEDE" IsEnabled="{Binding CanDelete}" Click="DeleteButton_Click"/>
-                <Button Content="Copy" Height="36" Margin="0,0,0,8" IsEnabled="{Binding CanCopy}" Click="CopyButton_Click"/>
-                <Button Content="New" Height="36" Margin="0,0,0,8" Background="#D9EDF7" IsEnabled="{Binding CanCreateNew}" Click="NewButton_Click"/>
+                <Button Content="加载" Height="36" Margin="0,0,0,8" IsEnabled="{Binding IsEditing, Converter={StaticResource InverseBoolConverter}}" Click="LoadButton_Click"/>
+                <Button Content="编辑" Height="36" Margin="0,0,0,8" IsEnabled="{Binding CanEdit}" Click="EditButton_Click"/>
+                <Button Content="保存" Height="36" Margin="0,0,0,8" Background="#DFF0D8" IsEnabled="{Binding IsEditing}" Click="SaveButton_Click"/>
+                <Button Content="取消" Height="36" Margin="0,0,0,8" IsEnabled="{Binding IsEditing}" Click="CancelButton_Click"/>
+                <Button Content="删除" Height="36" Margin="0,0,0,8" Background="#F2DEDE" IsEnabled="{Binding CanDelete}" Click="DeleteButton_Click"/>
+                <Button Content="复制" Height="36" Margin="0,0,0,8" IsEnabled="{Binding CanCopy}" Click="CopyButton_Click"/>
+                <Button Content="新建" Height="36" Margin="0,0,0,8" Background="#D9EDF7" IsEnabled="{Binding CanCreateNew}" Click="NewButton_Click"/>
                 <Separator Margin="0,8,0,8"/>
-                <Button Content="Close" Height="36" Click="CloseButton_Click"/>
+                <Button Content="关闭" Height="36" Click="CloseButton_Click"/>
             </StackPanel>
         </GroupBox>
     </Grid>

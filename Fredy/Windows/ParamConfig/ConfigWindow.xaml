@@ -6,6 +6,7 @@
         xmlns:vm="clr-namespace:Fredy.Drilling.Holes.ViewModels"
         xmlns:models="clr-namespace:Fredy.Drilling.Holes.Models"
         mc:Ignorable="d" x:Name="thisWin"
+        MaxHeight="1024" MaxWidth="1280"
         Title="参数配置" Height="750" Width="1200" Background="#F0F0F0"
         d:DataContext="{d:DesignInstance Type=vm:ConfigViewModel, IsDesignTimeCreatable=False}">
 
@@ -232,18 +233,27 @@
                         </GroupBox>
 
                         <GroupBox Header="像素尺寸" Background="#E2F0D9" Padding="10" Margin="0,0,0,10">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="120"/>
-                                    <ColumnDefinition Width="200"/>
-                                    <ColumnDefinition Width="120"/>
-                                    <ColumnDefinition Width="200"/>
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Text="像素尺寸 X (μm)" VerticalAlignment="Center"/>
-                                <TextBox Grid.Column="1" Text="{Binding Camera.PixelSizeX}" Margin="5,0,15,0"/>
-                                <TextBlock Grid.Column="2" Text="像素尺寸 Y (μm)" VerticalAlignment="Center"/>
-                                <TextBox Grid.Column="3" Text="{Binding Camera.PixelSizeY}" Margin="5,0,0,0"/>
-                            </Grid>
+                            <StackPanel>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="120"/>
+                                        <ColumnDefinition Width="200"/>
+                                        <ColumnDefinition Width="120"/>
+                                        <ColumnDefinition Width="200"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="像素尺寸 X (μm)" VerticalAlignment="Center"/>
+                                    <TextBox Grid.Column="1" Text="{Binding Camera.PixelSizeX}" Margin="5,0,15,0"/>
+                                    <TextBlock Grid.Column="2" Text="像素尺寸 Y (μm)" VerticalAlignment="Center"/>
+                                    <TextBox Grid.Column="3" Text="{Binding Camera.PixelSizeY}" Margin="5,0,0,0"/>
+                                </Grid>
+
+                                <Button Margin="0,10,0,0"
+                                        Height="34"
+                                        Width="140"
+                                        HorizontalAlignment="Left"
+                                        Content="打开九点标定"
+                                        Click="OpenNinePointCalibrationButton_Click"/>
+                            </StackPanel>
                         </GroupBox>
 
                         <GroupBox Header="视野尺寸" Background="#FCE4D6" Padding="10">

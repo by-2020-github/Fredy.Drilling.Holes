@@ -7,6 +7,7 @@
              xmlns:models="clr-namespace:Fredy.Drilling.Holes.Models"
              mc:Ignorable="d" Background="#F0F0F0"
              d:DesignHeight="700" d:DesignWidth="1100"
+        MaxHeight="1024" MaxWidth="1280"
              Title="手动控制"
              d:DataContext="{d:DesignInstance Type=vm:ManualControlViewModel, IsDesignTimeCreatable=True}">
 
@@ -121,7 +122,27 @@
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="100"/>
             </Grid.RowDefinitions>
-            <Border BorderBrush="Gray" BorderThickness="1" Background="#EAEAEA"/>
+            <Border x:Name="LiveVideo" BorderBrush="Gray" BorderThickness="1" Background="#EAEAEA">
+                <Grid>
+                    <Image Source="{Binding CameraPreviewImage}" Stretch="Uniform"/>
+                    <TextBlock Text="暂无相机图像"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               Foreground="Gray"
+                               FontSize="18">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding CameraPreviewImage}" Value="{x:Null}">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </Grid>
+            </Border>
 
             <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Bottom">
                 <Button Content="-" Width="60" Height="60" Background="#E0FFFF" Command="{Binding ChangeSizeCommand}" CommandParameter="Canvas-"/>
