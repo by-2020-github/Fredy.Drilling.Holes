@@ -363,7 +363,22 @@ namespace BLL
 
         #endregion
     }
+    /*
+     move xy  fast
 
+    move z slow  lift z  punch down  stop z  wait for z stop  check contact signal  calculate difference
+
+    检测表面
+        1 IO  read... slow speed: 200~500 -->  1plus/um 
+        2 接触 On  , 分离 Off 10um ,  
+
+
+    1分钟150~160个孔，平均每孔约0.375秒，考虑到加速、减速和等待时间，实际冲孔动作可能在0.2-0.3秒之间，剩余时间用于XY移动和其他操作。
+
+    2ms-->  6000um/s  --> 6um/ms  12um
+
+     
+     */
 
     public interface IHardwareController
     {

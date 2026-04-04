@@ -1,0 +1,102 @@
+<UserControl x:Class="Fredy.Drilling.Holes.Views.HkCameraControl"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    MinWidth="900"
+    MinHeight="560">
+    <Grid Margin="12">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="280" />
+        </Grid.ColumnDefinitions>
+
+        <Border Grid.Column="0" Margin="0,0,12,0" BorderBrush="#FF666666" BorderThickness="1" Background="#FF1E1E1E">
+            <Grid>
+                <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#FFB0B0B0" Text="图像显示区域" />
+                <Image x:Name="displayArea" Stretch="Uniform" />
+            </Grid>
+        </Border>
+
+        <StackPanel Grid.Column="1" Orientation="Vertical">
+            <GroupBox Header="设备" Margin="0,0,0,8">
+                <Grid Margin="8">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="8" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <ComboBox Grid.Row="0" x:Name="cbDeviceList" MinWidth="240" />
+                    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button x:Name="bnEnum" Width="75" Margin="0,0,8,0" Content="查找设备" />
+                        <Button x:Name="bnOpen" Width="75" Margin="0,0,8,0" Content="打开设备" />
+                        <Button x:Name="bnClose" Width="75" Content="关闭设备" IsEnabled="False" />
+                    </StackPanel>
+                </Grid>
+            </GroupBox>
+
+            <GroupBox Header="采集控制" Margin="0,0,0,8">
+                <Grid Margin="8">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="8" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="8" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <StackPanel Grid.Row="0" Orientation="Horizontal">
+                        <RadioButton x:Name="bnContinuesMode" Content="连续模式" Margin="0,0,16,0" IsEnabled="False" />
+                        <RadioButton x:Name="bnTriggerMode" Content="触发模式" IsEnabled="False" />
+                    </StackPanel>
+                    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Left">
+                        <Button x:Name="bnStartGrab" Width="90" Margin="0,0,8,0" Content="开始采集" IsEnabled="False" />
+                        <Button x:Name="bnStopGrab" Width="90" Content="停止采集" IsEnabled="False" />
+                    </StackPanel>
+                    <Grid Grid.Row="4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <CheckBox x:Name="cbSoftTrigger" Grid.Column="0" VerticalAlignment="Center" Content="软触发" IsEnabled="False" />
+                        <Button x:Name="bnTriggerExec" Grid.Column="1" Width="90" HorizontalAlignment="Right" Content="软触发一次" IsEnabled="False" />
+                    </Grid>
+                </Grid>
+            </GroupBox>
+
+            <GroupBox Header="参数" Margin="0,0,0,8">
+                <Grid Margin="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="72" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="8" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="8" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="12" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <Label Grid.Row="0" Grid.Column="0" VerticalAlignment="Center" Content="曝光" />
+                    <TextBox x:Name="tbExposure" Grid.Row="0" Grid.Column="1" IsEnabled="False" />
+                    <Label Grid.Row="2" Grid.Column="0" VerticalAlignment="Center" Content="增益" />
+                    <TextBox x:Name="tbGain" Grid.Row="2" Grid.Column="1" IsEnabled="False" />
+                    <Label Grid.Row="4" Grid.Column="0" VerticalAlignment="Center" Content="帧率" />
+                    <TextBox x:Name="tbFrameRate" Grid.Row="4" Grid.Column="1" IsEnabled="False" />
+                    <StackPanel Grid.Row="6" Grid.ColumnSpan="2" Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button x:Name="bnGetParam" Width="75" Margin="0,0,8,0" Content="获取参数" IsEnabled="False" />
+                        <Button x:Name="bnSetParam" Width="75" Content="设置参数" IsEnabled="False" />
+                    </StackPanel>
+                </Grid>
+            </GroupBox>
+
+            <GroupBox Header="图像保存">
+                <UniformGrid Margin="8" Columns="4">
+                    <Button x:Name="bnSaveBmp" Margin="0,0,8,0" Content="BMP" IsEnabled="False" />
+                    <Button x:Name="bnSaveJpg" Margin="0,0,8,0" Content="JPG" IsEnabled="False" />
+                    <Button x:Name="bnSaveTiff" Margin="0,0,8,0" Content="TIFF" IsEnabled="False" />
+                    <Button x:Name="bnSavePng" Content="PNG" IsEnabled="False" />
+                </UniformGrid>
+            </GroupBox>
+        </StackPanel>
+    </Grid>
+</UserControl>
