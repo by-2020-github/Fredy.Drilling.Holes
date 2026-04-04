@@ -1,5 +1,7 @@
 using MvCamCtrl.NET;
 using System;
+using System.Collections.Generic;
+using System.ComponentModel;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -15,6 +17,13 @@ namespace Fredy.Drilling.Holes.Views;
 
 public partial class HkCameraControl : UserControl
 {
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern IntPtr LoadLibrary(string lpFileName);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool FreeLibrary(IntPtr hModule);
+
     [DllImport("kernel32.dll", EntryPoint = "RtlMoveMemory", SetLastError = false)]
     private static extern void CopyMemory(IntPtr dest, IntPtr src, uint count);
 
@@ -69,20 +78,87 @@ public partial class HkCameraControl : UserControl
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
+        if (DesignerProperties.GetIsInDesignMode(this))
+        {
+            return;
+        }
+
         if (_sdkInitialized)
         {
             return;
         }
 
-        var ret = MyCamera.MV_CC_Initialize_NET();
-        if (ret != MyCamera.MV_OK)
+        try
         {
-            ShowError("初始化SDK失败", ret);
-            return;
+            //PrepareNativeLibrarySearchPath();
+
+            //var diagnoseMessage = DiagnoseHikvisionDlls();
+            //if (!string.IsNullOrWhiteSpace(diagnoseMessage))
+            //{
+            //    ShowError(diagnoseMessage, MyCamera.MV_E_LOAD_LIBRARY);
+            //    return;
+            //}
+
+            var ret = MyCamera.MV_CC_Initialize_NET();
+            if (ret != MyCamera.MV_OK)
+            {
+                if (ret == MyCamera.MV_E_LOAD_LIBRARY)
+                {
+                    ShowError($"初始化SDK失败: 0x{ret:X8}\n请确认 `MvCameraControl.dll` 及其依赖已放在程序根目录或 `DllImport` 目录。\n当前程序目录: {AppContext.BaseDirectory}", ret);
+                }
+                else
+                {
+                    ShowError("初始化SDK失败", ret);
+                }
+
+                return;
+            }
+
+            _sdkInitialized = true;
+            DeviceListAcq();
+        }
+        catch (DllNotFoundException ex)
+        {
+            ShowError($"初始化SDK失败，未找到海康运行库: {ex.Message}", MyCamera.MV_E_LOAD_LIBRARY);
+        }
+        catch (BadImageFormatException ex)
+        {
+            ShowError($"初始化SDK失败，运行库位数不匹配: {ex.Message}", MyCamera.MV_E_LOAD_LIBRARY);
+        }
+        catch (Exception ex)
+        {
+            ShowError($"初始化SDK异常: {ex.Message}", MyCamera.MV_E_UNKNOW);
+        }
+    }
+
+    private static void PrepareNativeLibrarySearchPath()
+    {
+        var baseDir = AppContext.BaseDirectory;
+        var candidates = new List<string>
+        {
+            baseDir,
+            Path.Combine(baseDir, "DllImport"),
+            Path.Combine(baseDir, "x64"),
+            Path.Combine(baseDir, "x86")
+        };
+
+        var path = Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
+        foreach (var dir in candidates)
+        {
+            if (!Directory.Exists(dir))
+            {
+                continue;
+            }
+
+            if (path.IndexOf(dir, StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                continue;
+            }
+
+            path = dir + ";" + path;
         }
 
-        _sdkInitialized = true;
-        DeviceListAcq();
+        Environment.SetEnvironmentVariable("PATH", path);
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
@@ -92,7 +168,14 @@ public partial class HkCameraControl : UserControl
 
         if (_sdkInitialized)
         {
-            MyCamera.MV_CC_Finalize_NET();
+            try
+            {
+                MyCamera.MV_CC_Finalize_NET();
+            }
+            catch
+            {
+            }
+
             _sdkInitialized = false;
         }
     }
@@ -104,14 +187,23 @@ public partial class HkCameraControl : UserControl
         _deviceList.nDeviceNum = 0;
         _deviceList.pDeviceInfo ??= new IntPtr[MyCamera.MV_MAX_DEVICE_NUM];
 
-        var nRet = MyCamera.MV_CC_EnumDevices_NET(
-            (uint)(MyCamera.MV_GIGE_DEVICE
-                | MyCamera.MV_USB_DEVICE
-                | MyCamera.MV_GENTL_GIGE_DEVICE
-                | MyCamera.MV_GENTL_CAMERALINK_DEVICE
-                | MyCamera.MV_GENTL_CXP_DEVICE
-                | MyCamera.MV_GENTL_XOF_DEVICE),
-            ref _deviceList);
+        int nRet;
+        try
+        {
+            nRet = MyCamera.MV_CC_EnumDevices_NET(
+                (uint)(MyCamera.MV_GIGE_DEVICE
+                    | MyCamera.MV_USB_DEVICE
+                    | MyCamera.MV_GENTL_GIGE_DEVICE
+                    | MyCamera.MV_GENTL_CAMERALINK_DEVICE
+                    | MyCamera.MV_GENTL_CXP_DEVICE
+                    | MyCamera.MV_GENTL_XOF_DEVICE),
+                ref _deviceList);
+        }
+        catch (Exception ex)
+        {
+            ShowError($"枚举设备异常: {ex.Message}", MyCamera.MV_E_UNKNOW);
+            return;
+        }
 
         if (nRet != MyCamera.MV_OK)
         {
@@ -758,5 +850,62 @@ public partial class HkCameraControl : UserControl
     {
         var text = errorCode == 0 ? message : $"{message}，错误码: 0x{errorCode:X8}";
         MessageBox.Show(text, "提示", MessageBoxButton.OK, errorCode == 0 ? MessageBoxImage.Information : MessageBoxImage.Warning);
+    }
+
+    private static string? DiagnoseHikvisionDlls()
+    {
+        var baseDir = AppContext.BaseDirectory;
+        var searchDirs = new List<string>
+        {
+            baseDir,
+            Path.Combine(baseDir, "DllImport"),
+            Path.Combine(baseDir, "x64"),
+            Path.Combine(baseDir, "x86")
+        };
+
+        var requiredDlls = new[]
+        {
+            "MvCameraControl.dll"
+        };
+
+        var missing = new List<string>();
+        var located = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var dll in requiredDlls)
+        {
+            var foundPath = searchDirs
+                .Where(Directory.Exists)
+                .Select(dir => Path.Combine(dir, dll))
+                .FirstOrDefault(File.Exists);
+
+            if (string.IsNullOrWhiteSpace(foundPath))
+            {
+                missing.Add(dll);
+                continue;
+            }
+
+            located[dll] = foundPath;
+        }
+
+        if (missing.Count > 0)
+        {
+            return "启动诊断：以下 DLL 缺失\n"
+                + string.Join("\n", missing.Select(x => $"- {x}"))
+                + $"\n\n程序目录: {baseDir}";
+        }
+
+        var nativePath = located["MvCameraControl.dll"];
+        var module = LoadLibrary(nativePath);
+        if (module == IntPtr.Zero)
+        {
+            var errorCode = Marshal.GetLastWin32Error();
+            return $"启动诊断：`MvCameraControl.dll` 文件存在但加载失败。\n"
+                 + $"- 路径: {nativePath}\n"
+                 + $"- Win32Error: {errorCode}\n"
+                 + "这通常表示其依赖库缺失（如 VC++ 运行库）或位数不匹配。";
+        }
+
+        FreeLibrary(module);
+        return null;
     }
 }

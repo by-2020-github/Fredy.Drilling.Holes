@@ -35,4 +35,11 @@
     <ProjectReference Include="..\Common\Common.csproj" />
     <ProjectReference Include="..\HAL\HAL.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\HAL\DllImport\**\*.*"
+          Link="%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest"
+          CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

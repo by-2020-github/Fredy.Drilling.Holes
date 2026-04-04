@@ -4,7 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:Fredy.Drilling.Holes.ViewModels"
-        xmlns:models="clr-namespace:Fredy.Drilling.Holes.Models"
+        xmlns:models="clr-namespace:Fredy.Drilling.Holes.Models" xmlns:views="clr-namespace:Fredy.Drilling.Holes.Views"
         mc:Ignorable="d" x:Name="thisWin"
         MaxHeight="1024" MaxWidth="1280"
         Title="参数配置" Height="750" Width="1200" Background="#F0F0F0"
@@ -197,6 +197,9 @@
                 </Grid>
             </TabItem>
 
+            <TabItem Header="相机调试">
+                <views:HkCameraControl></views:HkCameraControl>
+            </TabItem>
             <TabItem Header="相机参数">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="10">
