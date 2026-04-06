@@ -162,7 +162,9 @@
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,5">
                     <CheckBox Content="模拟冲孔" IsChecked="{Binding IsSimulate}" VerticalAlignment="Center" Foreground="Red" Margin="0,0,20,0"/>
                     <RadioButton Content="头道" IsChecked="{Binding IsFirstPass}" Margin="0,0,10,0"/>
-                    <RadioButton Content="二道" IsChecked="{Binding IsFirstPass, Converter={StaticResource InverseBoolConverter}}"/>
+                    <RadioButton Content="二道"
+                                 IsChecked="{Binding IsFirstPass, Converter={StaticResource InverseBoolConverter}}"
+                                 IsEnabled="{Binding CanSelectSecondPass}"/>
                 </StackPanel>
 
                 <UniformGrid Columns="2">

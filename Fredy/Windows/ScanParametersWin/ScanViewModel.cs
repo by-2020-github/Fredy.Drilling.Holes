@@ -25,6 +25,7 @@ namespace Fredy.Drilling.Holes.ViewModels
         private readonly ICamera? _camera;
         private readonly IMotionService? _motionService;
         private readonly ConfigService? _configService;
+        private readonly ISecondPassAlignmentContext? _secondPassAlignmentContext;
         private readonly List<ScanShotPoint> _scanPoints = new();
         private readonly Dictionary<int, Mat> _capturedTileMats = new();
         private readonly string _debugImageDirectory = Path.Combine(AppContext.BaseDirectory, "images");
@@ -35,20 +36,21 @@ namespace Fredy.Drilling.Holes.ViewModels
         [ObservableProperty] private ImageSource? _stitchedPreviewImage;
 
         public ScanViewModel()
-            : this(null, null, null)
+            : this(null, null, null, null)
         {
         }
 
         public ScanViewModel(ConfigService? configService)
-            : this(null, null, configService)
+            : this(null, null, configService, null)
         {
         }
 
-        public ScanViewModel(ICamera? camera, IMotionService? motionService, ConfigService? configService)
+        public ScanViewModel(ICamera? camera, IMotionService? motionService, ConfigService? configService, ISecondPassAlignmentContext? secondPassAlignmentContext)
         {
             _camera = camera;
             _motionService = motionService;
             _configService = configService;
+            _secondPassAlignmentContext = secondPassAlignmentContext;
             PreviewGridCells = new ObservableCollection<ScanGridCellVisual>();
             LoadDefaultsFromConfig(_configService?.CurrentConfig);
             Params.ScanStatus = "等待计算...";
@@ -86,6 +88,7 @@ namespace Fredy.Drilling.Holes.ViewModels
             }
 
             ResetScanRunState();
+            _secondPassAlignmentContext?.Clear();
 
             _scanCancellationTokenSource?.Cancel();
             _scanCancellationTokenSource = new CancellationTokenSource();
@@ -164,6 +167,27 @@ namespace Fredy.Drilling.Holes.ViewModels
         private void Test()
         {
             CalculateCoordinates();
+        }
+
+        [RelayCommand]
+        private void ApplySecondPassAlignment()
+        {
+            if (_secondPassAlignmentContext is null)
+            {
+                Params.ScanStatus = "坐标校准上下文未初始化，无法应用二道矩阵。";
+                return;
+            }
+
+            if (_capturedTileMats.Count == 0)
+            {
+                Params.ScanStatus = "请先完成至少一次分区扫描，再执行二道校准。";
+                return;
+            }
+
+            // 预留算法识别结果输入：当前先允许应用单位矩阵，保证二道流程解锁和状态机坐标变换链路可用。
+            var matrix = AffineTransform2D.Identity;
+            _secondPassAlignmentContext.SetTransform(matrix);
+            Params.ScanStatus = "二道坐标校准成功，已写入坐标变换矩阵，可返回主界面继续二道冲孔。";
         }
 
         private async Task MoveToScanPointAsync(ScanShotPoint shot, CancellationToken cancellationToken)

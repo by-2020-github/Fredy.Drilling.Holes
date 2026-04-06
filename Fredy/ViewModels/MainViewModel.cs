@@ -30,6 +30,7 @@ namespace Fredy.Drilling.Holes.ViewModels
         private readonly ICamera? _camera;
         private readonly RecipeService? _recipeService;
         private readonly IHardwareStateService? _hardwareStateService;
+        private readonly ISecondPassAlignmentContext? _secondPassAlignmentContext;
         private CancellationTokenSource? _cameraPreviewCancellationTokenSource;
         private Task? _cameraPreviewTask;
         private PunchStateMachine? _punchStateMachine;
@@ -44,6 +45,7 @@ namespace Fredy.Drilling.Holes.ViewModels
         [ObservableProperty] private bool _isSimulate;
         [ObservableProperty] private bool _isFirstPass = true;
         [ObservableProperty] private bool _onlyShowWarningsAndErrors;
+        private bool _canSelectSecondPass;
 
         private ImageSource? _currentCameraImage;
         private RecipeViewModel? _currentRecipeViewModel;
@@ -76,6 +78,12 @@ namespace Fredy.Drilling.Holes.ViewModels
 
         public bool CanUseCustomAction => !IsPunchingActive;
 
+        public bool CanSelectSecondPass
+        {
+            get => _canSelectSecondPass;
+            private set => SetProperty(ref _canSelectSecondPass, value);
+        }
+
         public bool ShowPausePunchingButton => !IsPunchingPaused;
 
         public bool ShowContinuePunchingButton => IsPunchingPaused;
@@ -86,6 +94,7 @@ namespace Fredy.Drilling.Holes.ViewModels
             FilteredLogs = CollectionViewSource.GetDefaultView(Logs);
             FilteredLogs.Filter = FilterLogEntry;
             Status.PropertyChanged += Status_PropertyChanged;
+            CanSelectSecondPass = false;
         }
 
         public MainViewModel(
@@ -94,7 +103,8 @@ namespace Fredy.Drilling.Holes.ViewModels
             ILogger<MainViewModel> logger,
             RecipeService recipeService,
             ICamera camera,
-            IHardwareStateService hardwareStateService)
+            IHardwareStateService hardwareStateService,
+            ISecondPassAlignmentContext secondPassAlignmentContext)
         {
             _logStore = logStore;
             _logExportService = logExportService;
@@ -102,10 +112,13 @@ namespace Fredy.Drilling.Holes.ViewModels
             _recipeService = recipeService;
             _camera = camera;
             _hardwareStateService = hardwareStateService;
+            _secondPassAlignmentContext = secondPassAlignmentContext;
             Logs = logStore.Entries;
             FilteredLogs = CollectionViewSource.GetDefaultView(Logs);
             FilteredLogs.Filter = FilterLogEntry;
             Status.PropertyChanged += Status_PropertyChanged;
+            _secondPassAlignmentContext.AlignmentChanged += SecondPassAlignmentContext_AlignmentChanged;
+            CanSelectSecondPass = _secondPassAlignmentContext.IsReady;
             ApplyHardwareState(hardwareStateService.CurrentState);
             _hardwareStateService.StateChanged += HardwareStateService_StateChanged;
             _ = _hardwareStateService.RefreshAsync();
@@ -120,9 +133,25 @@ namespace Fredy.Drilling.Holes.ViewModels
             FilteredLogs.Refresh();
         }
 
+        partial void OnIsFirstPassChanged(bool value)
+        {
+            if (!value && !CanSelectSecondPass)
+            {
+                IsFirstPass = true;
+            }
+
+            NotifyProcessCommandStateChanged();
+        }
+
         [RelayCommand(CanExecute = nameof(CanStartPunching))]
         private async Task StartPunchingAsync()
         {
+            if (!IsFirstPass && !CanSelectSecondPass)
+            {
+                _logger?.LogWarning("二道冲孔前请先完成分区扫描并应用坐标校准矩阵");
+                return;
+            }
+
             if (CurrentRecipeViewModel?.PunchPoints is not { Count: > 0 } punchPoints)
             {
                 _logger?.LogWarning("未加载有效配方，无法启动冲孔流程");
@@ -150,6 +179,15 @@ namespace Fredy.Drilling.Holes.ViewModels
                 int idx = Math.Clamp(holeIndex - 1, 0, punchPoints.Count - 1);
                 var p = punchPoints[idx];
                 return (p.X, p.Y);
+            };
+            _punchStateMachine.HoleCoordinateTransformer = (x, y) =>
+            {
+                if (IsFirstPass || _secondPassAlignmentContext is null || !_secondPassAlignmentContext.IsReady)
+                {
+                    return (x, y);
+                }
+
+                return _secondPassAlignmentContext.Transform.Transform(x, y);
             };
             // Debug模拟使用Mock硬件执行完整流程，避免跳过补偿计算与审计可视化
             _punchStateMachine.IsSimulationChecked = false;
@@ -575,6 +613,17 @@ namespace Fredy.Drilling.Holes.ViewModels
             Status.IsCameraConnected = state.IsCameraConnected;
         }
 
+        private void SecondPassAlignmentContext_AlignmentChanged(object? sender, EventArgs e)
+        {
+            CanSelectSecondPass = _secondPassAlignmentContext?.IsReady == true;
+            if (!CanSelectSecondPass)
+            {
+                IsFirstPass = true;
+            }
+
+            NotifyProcessCommandStateChanged();
+        }
+
         public void SuspendCameraPreview()
         {
             _isCameraPreviewSuspended = true;
@@ -679,6 +728,7 @@ namespace Fredy.Drilling.Holes.ViewModels
         private bool CanStartPunching()
         {
             return CurrentRecipeViewModel?.PunchPoints.Count > 0
+                && (IsFirstPass || CanSelectSecondPass)
                 && !IsPunchingActive;
         }
 
@@ -731,6 +781,11 @@ namespace Fredy.Drilling.Holes.ViewModels
             if (_hardwareStateService is not null)
             {
                 _hardwareStateService.StateChanged -= HardwareStateService_StateChanged;
+            }
+
+            if (_secondPassAlignmentContext is not null)
+            {
+                _secondPassAlignmentContext.AlignmentChanged -= SecondPassAlignmentContext_AlignmentChanged;
             }
 
             _cameraPreviewCancellationTokenSource?.Cancel();

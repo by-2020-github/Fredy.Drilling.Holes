@@ -89,6 +89,7 @@ namespace Fredy.Drilling.Holes
             services.AddSingleton<IIOCard, IOCardSimulator>();
             services.AddSingleton<IMotionService, MotionManager>();
             services.AddSingleton<IHardwareStateService, HardwareStateService>();
+            services.AddSingleton<ISecondPassAlignmentContext, SecondPassAlignmentContext>();
             services.AddSingleton(_ => new PathManager(AppContext.BaseDirectory));
             services.AddSingleton<RecipeService>();
             services.AddSingleton<ConfigService>();

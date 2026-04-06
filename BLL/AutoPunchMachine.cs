@@ -141,6 +141,8 @@ namespace BLL
         private readonly List<SurfaceSample> _surfaceSamples = new();
         private double _currentTargetX;
         private double _currentTargetY;
+        private double _rawTargetX;
+        private double _rawTargetY;
 
         private readonly record struct SurfaceSample(double X, double Y, double SurfaceZ);
         private readonly record struct CompensationResult(
@@ -154,6 +156,7 @@ namespace BLL
 
         // 由外部提供孔位索引对应的目标坐标
         public Func<int, (double X, double Y)>? HoleCoordinateResolver { get; set; }
+        public Func<double, double, (double X, double Y)>? HoleCoordinateTransformer { get; set; }
 
         public PunchStateMachine(IHardwareController hardware)
         {
@@ -214,6 +217,8 @@ namespace BLL
             _surfaceSamples.Clear();
             _currentTargetX = 0.0;
             _currentTargetY = 0.0;
+            _rawTargetX = 0.0;
+            _rawTargetY = 0.0;
             Log($"[系统] 开始{(type == PunchProcessType.FirstPass ? "头道" : "二道")}冲孔流程...");
             CurrentState = PunchState.ReadCoordinate;
         }
@@ -270,12 +275,31 @@ namespace BLL
                     if (HoleCoordinateResolver != null)
                     {
                         var point = HoleCoordinateResolver(CurrentHoleIndex);
-                        _currentTargetX = point.X;
-                        _currentTargetY = point.Y;
-                        Log($"第 {CurrentHoleIndex} 孔目标坐标: X={_currentTargetX:F4}, Y={_currentTargetY:F4}");
+                        _rawTargetX = point.X;
+                        _rawTargetY = point.Y;
+
+                        var transformed = point;
+                        if (ProcessType == PunchProcessType.SecondPass && HoleCoordinateTransformer is not null)
+                        {
+                            transformed = HoleCoordinateTransformer(point.X, point.Y);
+                        }
+
+                        _currentTargetX = transformed.X;
+                        _currentTargetY = transformed.Y;
+
+                        if (ProcessType == PunchProcessType.SecondPass)
+                        {
+                            Log($"第 {CurrentHoleIndex} 孔二道坐标: 原始(X={_rawTargetX:F4}, Y={_rawTargetY:F4}) -> 变换后(X={_currentTargetX:F4}, Y={_currentTargetY:F4})");
+                        }
+                        else
+                        {
+                            Log($"第 {CurrentHoleIndex} 孔目标坐标: X={_currentTargetX:F4}, Y={_currentTargetY:F4}");
+                        }
                     }
                     else
                     {
+                        _rawTargetX = 0.0;
+                        _rawTargetY = 0.0;
                         _currentTargetX = 0.0;
                         _currentTargetY = 0.0;
                     }
@@ -287,13 +311,13 @@ namespace BLL
                     if (IsSimulationChecked)
                     {
                         Log("模拟冲孔模式：移动到该孔，跳过实际冲孔。");
-                        Hardware.MoveXY();
+                        Hardware.MoveXY(_currentTargetX, _currentTargetY);
                         CurrentState = PunchState.CheckFinish;
                     }
                     else
                     {
                         Log("移动到该孔...");
-                        Hardware.MoveXY();
+                        Hardware.MoveXY(_currentTargetX, _currentTargetY);
                         CurrentState++;
                     }
                     break;
@@ -359,7 +383,7 @@ namespace BLL
                     if (CurrentHoleIndex == 1 && _firstHoleSurfaceDetected)
                     {
                         Log("首孔探测完成，回到首孔目标位置准备冲孔...");
-                        Hardware.MoveXY();
+                        Hardware.MoveXY(_currentTargetX, _currentTargetY);
                         _firstHoleSurfaceDetected = false;
                     }
 
@@ -573,7 +597,7 @@ namespace BLL
 
     public interface IHardwareController
     {
-        void MoveXY();
+        void MoveXY(double targetX, double targetY);
         void MoveXYToOffset(double offsetX, double offsetY);
         void FastMoveZ(double distance = 0.0);
         void SlowMoveZ(double distance = 0.0);
@@ -601,10 +625,10 @@ namespace BLL
             return true;
         }
 
-        public void MoveXY()
+        public void MoveXY(double targetX, double targetY)
         {
             // 封装底层 adt8940_move(x, y) 等函数
-            Console.WriteLine("ADT8940A1: 发送XY运动指令");
+            Console.WriteLine($"ADT8940A1: 发送XY运动指令 X={targetX:F4}, Y={targetY:F4}");
         }
 
         public void MoveXYToOffset(double offsetX, double offsetY)
@@ -635,7 +659,8 @@ namespace BLL
 
         public bool Initialize() => true;
 
-        public void MoveXY() => Console.WriteLine("Mock: 模拟XY走位...");
+        public void MoveXY(double targetX, double targetY)
+            => Console.WriteLine($"Mock: 模拟XY走位 X={targetX:F4}, Y={targetY:F4}");
 
         public void MoveXYToOffset(double offsetX, double offsetY)
             => Console.WriteLine($"Mock: 模拟XY偏移走位 offsetX={offsetX}, offsetY={offsetY}");
@@ -680,7 +705,7 @@ namespace BLL
     /// </summary>
     public class HardwareSimulation : IHardwareController
     {
-        public void MoveXY() { /* 调用 ADT8940A1 走位 */ }
+        public void MoveXY(double targetX, double targetY) { /* 调用 ADT8940A1 走位 */ }
         public void MoveXYToOffset(double offsetX, double offsetY) { /* 调用 ADT8940A1 偏移走位 */ }
         public void FastMoveZ(double distance = 0.0) { /* Z轴快速下探 */ }
         public void SlowMoveZ(double distance = 0.0) { /* Z轴慢速下探 */ }
