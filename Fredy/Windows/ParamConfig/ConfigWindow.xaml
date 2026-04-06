@@ -263,9 +263,47 @@
                                 <TextBox Grid.Column="3" Text="{Binding Camera.FovHeight}" Margin="5,0,0,0"/>
                             </Grid>
                         </GroupBox>
-                    </StackPanel>
-                </ScrollViewer>
-            </TabItem>
+
+                        <GroupBox Header="分区扫描检测参数" Background="#E8F4FF" Padding="10" Margin="0,10,0,0">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="140"/>
+                                    <ColumnDefinition Width="120"/>
+                                    <ColumnDefinition Width="140"/>
+                                    <ColumnDefinition Width="120"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="32"/>
+                                    <RowDefinition Height="32"/>
+                                    <RowDefinition Height="32"/>
+                                    <RowDefinition Height="32"/>
+                                </Grid.RowDefinitions>
+
+                                <CheckBox Grid.Row="0" Grid.ColumnSpan="2"
+                                          Content="使用明场检测"
+                                          IsChecked="{Binding ScanUseBrightFieldDetector}"
+                                          VerticalAlignment="Center"/>
+
+                                <TextBlock Grid.Row="1" Text="最小面积" VerticalAlignment="Center"/>
+                                <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding ScanDetectMinArea}" Margin="5,0,15,0"/>
+                                <TextBlock Grid.Row="1" Grid.Column="2" Text="最大面积" VerticalAlignment="Center"/>
+                                <TextBox Grid.Row="1" Grid.Column="3" Text="{Binding ScanDetectMaxArea}" Margin="5,0,0,0"/>
+
+                                <TextBlock Grid.Row="2" Text="阈值" VerticalAlignment="Center"/>
+                                <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding ScanDetectThreshold}" Margin="5,0,15,0"/>
+                                <TextBlock Grid.Row="2" Grid.Column="2" Text="圆度(0~1)" VerticalAlignment="Center"/>
+                                <TextBox Grid.Row="2" Grid.Column="3" Text="{Binding ScanDetectCircularity}" Margin="5,0,0,0"/>
+
+                                <TextBlock Grid.Row="3" Text="形态学核大小" VerticalAlignment="Center"/>
+                                <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding ScanDetectMorphologySize}" Margin="5,0,15,0"/>
+                                <TextBlock Grid.Row="3" Grid.Column="2" Text="去重容差(mm)" VerticalAlignment="Center"/>
+                                <TextBox Grid.Row="3" Grid.Column="3" Text="{Binding ScanDeduplicateToleranceMm}" Margin="5,0,0,0"/>
+
+                            </Grid>
+                        </GroupBox>
+                     </StackPanel>
+                 </ScrollViewer>
+             </TabItem>
 
             <TabItem Header="一道探测参数">
                 <Grid Margin="10">

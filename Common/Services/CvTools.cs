@@ -24,7 +24,40 @@ public class DetectionResult : IDisposable
 
 public class CircleDetector
 {
-  
+    public DetectionResult Process(Mat src, int minArea = 2, int maxArea = 500, int threshold = 120, double circularity = 0.5)
+    {
+        var result = new DetectionResult();
+        result.ResultImage = src.Clone();
+        result.Config = $"DarkField - Area:[{minArea}-{maxArea}], Threshold:{threshold}, Circularity:{circularity}";
+
+        using var gray = new Mat();
+        using var binary = new Mat();
+
+        Cv2.CvtColor(src, gray, ColorConversionCodes.BGR2GRAY);
+        Cv2.Threshold(gray, binary, threshold, 255, ThresholdTypes.Binary);
+
+        result.Circles = ProcessContours(binary, result.ResultImage, minArea, maxArea, circularity, Scalar.Lime);
+        return result;
+    }
+
+    public DetectionResult ProcessBrightField(Mat src, int minArea = 2, int maxArea = 500, int threshold = 100, double circularity = 0.6, int morphologySize = 15)
+    {
+        var result = new DetectionResult();
+        result.ResultImage = src.Clone();
+        result.Config = $"BrightField - Area:[{minArea}-{maxArea}], Threshold:{threshold}, Circularity:{circularity}, MorphSize:{morphologySize}";
+
+        using var gray = new Mat();
+        using var preprocessed = new Mat();
+        using var binary = new Mat();
+
+        Cv2.CvtColor(src, gray, ColorConversionCodes.BGR2GRAY);
+        using var element = Cv2.GetStructuringElement(MorphShapes.Ellipse, new Size(morphologySize, morphologySize));
+        Cv2.MorphologyEx(gray, preprocessed, MorphTypes.BlackHat, element);
+        Cv2.Threshold(preprocessed, binary, threshold, 255, ThresholdTypes.Binary);
+
+        result.Circles = ProcessContours(binary, result.ResultImage, minArea, maxArea, circularity, Scalar.Red);
+        return result;
+    }
     /// <summary>
     /// 处理通用暗场图像检测圆孔 (如第一张图)
     /// 原理：简单阈值使小孔变白，背景变黑。
@@ -37,21 +70,7 @@ public class CircleDetector
     public DetectionResult Process(string path, int minArea = 2, int maxArea = 500, int threshold = 120, double circularity = 0.5)
     {
         using var src = new Mat(path, ImreadModes.Color);
-        var result = new DetectionResult();
-        result.ResultImage = src.Clone();
-        result.Config = $"DarkField - Area:[{minArea}-{maxArea}], Threshold:{threshold}, Circularity:{circularity}";
-
-        using var gray = new Mat();
-        using var binary = new Mat();
-
-        // 1. 预处理
-        Cv2.CvtColor(src, gray, ColorConversionCodes.BGR2GRAY);
-        Cv2.Threshold(gray, binary, threshold, 255, ThresholdTypes.Binary);
-
-        // 2. 轮廓提取与筛选
-        result.Circles = ProcessContours(binary, result.ResultImage, minArea, maxArea, circularity, Scalar.Lime); // 使用绿色
-
-        return result;
+        return Process(src, minArea, maxArea, threshold, circularity);
     }
 
     /// <summary>
@@ -67,29 +86,9 @@ public class CircleDetector
     public DetectionResult ProcessBrightField(string path, int minArea = 2, int maxArea = 500, int threshold = 100, double circularity = 0.6, int morphologySize = 15)
     {
         using var src = new Mat(path, ImreadModes.Color);
-        var result = new DetectionResult();
-        result.ResultImage = src.Clone();
-        result.Config = $"BrightField - Area:[{minArea}-{maxArea}], Threshold:{threshold}, Circularity:{circularity}, MorphSize:{morphologySize}";
-
-        using var gray = new Mat();
-        using var preprocessed = new Mat();
-        using var binary = new Mat();
-
-        // 1. 灰度化
-        Cv2.CvtColor(src, gray, ColorConversionCodes.BGR2GRAY);
-
-        // 2. 黑帽变换 (突显暗斑，消除纹理)
-        using var element = Cv2.GetStructuringElement(MorphShapes.Ellipse, new Size(morphologySize, morphologySize));
-        Cv2.MorphologyEx(gray, preprocessed, MorphTypes.BlackHat, element);
-
-        // 3. 简单阈值提取小孔
-        Cv2.Threshold(preprocessed, binary, threshold, 255, ThresholdTypes.Binary);
-
-        // 4. 轮廓提取与筛选
-        result.Circles = ProcessContours(binary, result.ResultImage, minArea, maxArea, circularity, Scalar.Red); // 使用蓝色
-
-        return result;
+        return ProcessBrightField(src, minArea, maxArea, threshold, circularity, morphologySize);
     }
+
     public DetectionResult ProcessBrightFieldDebug(string path, int minArea = 1, int maxArea = 100, int threshold = 30, double circularity = 0.2)
     {
         using var src = new Mat(path, ImreadModes.Color);

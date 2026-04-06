@@ -86,6 +86,14 @@ namespace Fredy.Drilling.Holes.ViewModels
 
         [ObservableProperty] private int _secondPassOffsetThreshold = 35;
 
+        [ObservableProperty] private bool _scanUseBrightFieldDetector = true;
+        [ObservableProperty] private int _scanDetectMinArea = 3;
+        [ObservableProperty] private int _scanDetectMaxArea = 600;
+        [ObservableProperty] private int _scanDetectThreshold = 95;
+        [ObservableProperty] private double _scanDetectCircularity = 0.5;
+        [ObservableProperty] private int _scanDetectMorphologySize = 13;
+        [ObservableProperty] private double _scanDeduplicateToleranceMm = 0.08;
+
         public ObservableCollection<DetectionRingItem> DetectionRingItems { get; } = new();
 
         public ObservableCollection<SecondPassDetectionItem> SecondPassDetectionItems { get; } = new();
@@ -219,7 +227,14 @@ namespace Fredy.Drilling.Holes.ViewModels
                 SecondPassDetectionItems = SecondPassDetectionItems
                     .OrderBy(x => x.Index)
                     .Select(CloneSecondPassDetectionItem)
-                    .ToList()
+                    .ToList(),
+                ScanUseBrightFieldDetector = ScanUseBrightFieldDetector,
+                ScanDetectMinArea = ScanDetectMinArea,
+                ScanDetectMaxArea = ScanDetectMaxArea,
+                ScanDetectThreshold = ScanDetectThreshold,
+                ScanDetectCircularity = ScanDetectCircularity,
+                ScanDetectMorphologySize = ScanDetectMorphologySize,
+                ScanDeduplicateToleranceMm = ScanDeduplicateToleranceMm
             };
         }
 
@@ -266,6 +281,13 @@ namespace Fredy.Drilling.Holes.ViewModels
 
             DetectionOffsetThreshold = config.DetectionOffsetThreshold;
             SecondPassOffsetThreshold = config.SecondPassOffsetThreshold;
+            ScanUseBrightFieldDetector = config.ScanUseBrightFieldDetector;
+            ScanDetectMinArea = config.ScanDetectMinArea;
+            ScanDetectMaxArea = config.ScanDetectMaxArea;
+            ScanDetectThreshold = config.ScanDetectThreshold;
+            ScanDetectCircularity = config.ScanDetectCircularity;
+            ScanDetectMorphologySize = config.ScanDetectMorphologySize;
+            ScanDeduplicateToleranceMm = config.ScanDeduplicateToleranceMm;
 
             ReplaceDetectionRingItems(config.DetectionRingItems);
             ReplaceSecondPassDetectionItems(config.SecondPassDetectionItems);
@@ -453,6 +475,13 @@ namespace Fredy.Drilling.Holes.ViewModels
 
             AddIfChanged(lines, "一道探测偏移阈值", _originalConfig.DetectionOffsetThreshold, current.DetectionOffsetThreshold);
             AddIfChanged(lines, "二道探测偏移阈值", _originalConfig.SecondPassOffsetThreshold, current.SecondPassOffsetThreshold);
+            AddIfChanged(lines, "扫描检测-明场模式", _originalConfig.ScanUseBrightFieldDetector, current.ScanUseBrightFieldDetector);
+            AddIfChanged(lines, "扫描检测-最小面积", _originalConfig.ScanDetectMinArea, current.ScanDetectMinArea);
+            AddIfChanged(lines, "扫描检测-最大面积", _originalConfig.ScanDetectMaxArea, current.ScanDetectMaxArea);
+            AddIfChanged(lines, "扫描检测-阈值", _originalConfig.ScanDetectThreshold, current.ScanDetectThreshold);
+            AddIfChanged(lines, "扫描检测-圆度", _originalConfig.ScanDetectCircularity, current.ScanDetectCircularity);
+            AddIfChanged(lines, "扫描检测-形态学核", _originalConfig.ScanDetectMorphologySize, current.ScanDetectMorphologySize);
+            AddIfChanged(lines, "扫描检测-去重容差(mm)", _originalConfig.ScanDeduplicateToleranceMm, current.ScanDeduplicateToleranceMm);
 
             AddDetectionListDiff(lines, "一道", _originalConfig.DetectionRingItems, current.DetectionRingItems);
             AddSecondPassListDiff(lines, "二道", _originalConfig.SecondPassDetectionItems, current.SecondPassDetectionItems);

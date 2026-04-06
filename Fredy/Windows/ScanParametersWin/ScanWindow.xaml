@@ -10,6 +10,7 @@
         d:DataContext="{d:DesignInstance Type=vm:ScanViewModel, IsDesignTimeCreatable=True}">
 
     <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
         <Style x:Key="GridCellPresenterStyle" TargetType="ContentPresenter">
             <Setter Property="Canvas.Left" Value="{Binding Left}"/>
             <Setter Property="Canvas.Top" Value="{Binding Top}"/>
@@ -86,12 +87,57 @@
                         <Button Content="停止扫描" Height="42" Margin="5,0,0,0" Command="{Binding StopScanCommand}"/>
                     </UniformGrid>
 
+                    <GroupBox Header="检测参数" Margin="0,12,0,0" Padding="8">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="90"/>
+                                <ColumnDefinition Width="70"/>
+                                <ColumnDefinition Width="90"/>
+                                <ColumnDefinition Width="70"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="30"/>
+                                <RowDefinition Height="30"/>
+                                <RowDefinition Height="30"/>
+                                <RowDefinition Height="34"/>
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Text="最小面积" VerticalAlignment="Center"/>
+                            <TextBox Grid.Column="1" Text="{Binding Params.DetectMinArea, UpdateSourceTrigger=PropertyChanged}" Margin="4,0,8,0"/>
+                            <TextBlock Grid.Column="2" Text="最大面积" VerticalAlignment="Center"/>
+                            <TextBox Grid.Column="3" Text="{Binding Params.DetectMaxArea, UpdateSourceTrigger=PropertyChanged}" Margin="4,0,0,0"/>
+
+                            <TextBlock Grid.Row="1" Text="阈值" VerticalAlignment="Center"/>
+                            <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Params.DetectThreshold, UpdateSourceTrigger=PropertyChanged}" Margin="4,0,8,0"/>
+                            <TextBlock Grid.Row="1" Grid.Column="2" Text="圆度" VerticalAlignment="Center"/>
+                            <TextBox Grid.Row="1" Grid.Column="3" Text="{Binding Params.DetectCircularity, UpdateSourceTrigger=PropertyChanged}" Margin="4,0,0,0"/>
+
+                            <TextBlock Grid.Row="2" Text="形态学核" VerticalAlignment="Center"/>
+                            <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding Params.DetectMorphologySize, UpdateSourceTrigger=PropertyChanged}" Margin="4,0,8,0"/>
+                            <TextBlock Grid.Row="2" Grid.Column="2" Text="去重容差" VerticalAlignment="Center"/>
+                            <TextBox Grid.Row="2" Grid.Column="3" Text="{Binding Params.DeduplicateToleranceMm, UpdateSourceTrigger=PropertyChanged}" Margin="4,0,0,0"/>
+
+                            <Button Grid.Row="3"
+                                    Grid.Column="2"
+                                    Grid.ColumnSpan="2"
+                                    Margin="4,4,0,0"
+                                    Content="保存检测参数"
+                                    Command="{Binding SaveDetectionParamsCommand}"/>
+                        </Grid>
+                    </GroupBox>
+
+                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                        <CheckBox Content="明场检测" IsChecked="{Binding Params.UseBrightFieldDetector}" VerticalAlignment="Center"/>
+                        <Button Content="导入图片测试" Margin="12,0,0,0" Padding="10,2" Command="{Binding TestDetectionFromFileCommand}"/>
+                        <Button Content="拍一张测试" Margin="8,0,0,0" Padding="10,2" Command="{Binding TestDetectionFromCameraCommand}"/>
+                    </StackPanel>
+
                     <Button Content="识别并应用二道坐标校准"
-                            Height="40"
-                            Margin="0,12,0,0"
-                            Background="#6A5ACD"
-                            Foreground="White"
-                            Command="{Binding ApplySecondPassAlignmentCommand}"/>
+                             Height="40"
+                             Margin="0,12,0,0"
+                             Background="#6A5ACD"
+                             Foreground="White"
+                             Command="{Binding ApplySecondPassAlignmentCommand}"/>
                 </StackPanel>
 
                 <StackPanel Grid.Row="2" Margin="0,10">
@@ -125,6 +171,7 @@
                               Height="{Binding PreviewCanvasSize}"
                               HorizontalAlignment="Center"
                               VerticalAlignment="Center"
+                              Visibility="{Binding ShowGridOverlay, Converter={StaticResource BoolToVisibilityConverter}}"
                               Opacity="0.2"
                               ItemsSource="{Binding PreviewGridCells}"
                               ItemContainerStyle="{StaticResource GridCellPresenterStyle}">

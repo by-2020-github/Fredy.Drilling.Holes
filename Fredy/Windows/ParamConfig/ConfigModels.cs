@@ -83,6 +83,20 @@ namespace Fredy.Drilling.Holes.Models
 
         public int SecondPassOffsetThreshold { get; set; } = 35;
 
+        public bool ScanUseBrightFieldDetector { get; set; } = true;
+
+        public int ScanDetectMinArea { get; set; } = 3;
+
+        public int ScanDetectMaxArea { get; set; } = 600;
+
+        public int ScanDetectThreshold { get; set; } = 95;
+
+        public double ScanDetectCircularity { get; set; } = 0.5;
+
+        public int ScanDetectMorphologySize { get; set; } = 13;
+
+        public double ScanDeduplicateToleranceMm { get; set; } = 0.08;
+
         private static List<DetectionRingItem> CreateDefaultDetectionRingItems()
         {
             var items = new List<DetectionRingItem>();

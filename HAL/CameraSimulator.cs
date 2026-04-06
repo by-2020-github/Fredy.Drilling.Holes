@@ -51,12 +51,12 @@ namespace HAL
                  HersheyFonts.HersheyComplex, 2.0, Scalar.White, 3);
                 Cv2.PutText(canvas, DateTime.Now.ToString("HH:mm:ss.fff"), new Point(50, 200),
                     HersheyFonts.HersheyComplex, 1.5, Scalar.Green, 2);
-                var pointCount = _random.Next(80, 260);
+                var pointCount = _random.Next(10, 20);
                 for (int i = 0; i < pointCount; i++)
                 {
                     var x = _random.Next(0, _width);
                     var y = _random.Next(0, _height);
-                    var radius = _random.Next(1, 5);
+                    var radius = _random.Next(20, 100);
                     Cv2.Circle(canvas, new Point(x, y), radius, Scalar.White, -1, LineTypes.AntiAlias);
                 }
 
