@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.Input;
 using Fredy.Drilling.Holes.Models;
 using Fredy.Drilling.Holes.Services;
 using Fredy.Drilling.Holes.Views;
+using Fredy.Drilling.Holes.Windows.PunchAudit;
 using Fredy.Drilling.Holes.Windows.Recipe;
 using HAL;
 using Microsoft.Extensions.Logging;
@@ -36,6 +37,8 @@ namespace Fredy.Drilling.Holes.ViewModels
         private Task? _punchingTask;
         private bool _disposed;
         private bool _isCameraPreviewSuspended;
+        private PunchProcessAuditViewModel? _punchAuditViewModel;
+        private PunchAuditWindow? _punchAuditWindow;
 
         [ObservableProperty] private MachineStatus _status = new();
         [ObservableProperty] private bool _isSimulate;
@@ -136,15 +139,24 @@ namespace Fredy.Drilling.Holes.ViewModels
 
             Status.PunchedHoles = 0;
             CurrentRecipeViewModel.UpdateCompletedCount(0);
+            ShowPunchAuditWindow(CurrentRecipeViewModel, IsSimulate, IsFirstPass);
 
             _punchingCancellationTokenSource?.Cancel();
             _punchingCancellationTokenSource = new CancellationTokenSource();
 
             _punchStateMachine = CreatePunchStateMachine();
-            _punchStateMachine.IsSimulationChecked = IsSimulate;
-            _punchStateMachine.IsDetectionEnabled = !IsSimulate;
+            _punchStateMachine.HoleCoordinateResolver = holeIndex =>
+            {
+                int idx = Math.Clamp(holeIndex - 1, 0, punchPoints.Count - 1);
+                var p = punchPoints[idx];
+                return (p.X, p.Y);
+            };
+            // Debug模拟使用Mock硬件执行完整流程，避免跳过补偿计算与审计可视化
+            _punchStateMachine.IsSimulationChecked = false;
+            _punchStateMachine.IsDetectionEnabled = true;
             _punchStateMachine.StateChanged += PunchStateMachine_StateChanged;
             _punchStateMachine.MessageReported += PunchStateMachine_MessageReported;
+            _punchStateMachine.CompensationSelected += PunchStateMachine_CompensationSelected;
             NotifyProcessCommandStateChanged();
 
             var processType = IsFirstPass ? PunchProcessType.FirstPass : PunchProcessType.SecondPass;
@@ -165,6 +177,8 @@ namespace Fredy.Drilling.Holes.ViewModels
                 {
                     _punchStateMachine.StateChanged -= PunchStateMachine_StateChanged;
                     _punchStateMachine.MessageReported -= PunchStateMachine_MessageReported;
+                    _punchStateMachine.CompensationSelected -= PunchStateMachine_CompensationSelected;
+                    _punchAuditViewModel?.SetCompletionStatus(_punchStateMachine.CompletionStatus);
                 }
 
                 _punchingCancellationTokenSource?.Dispose();
@@ -448,7 +462,8 @@ namespace Fredy.Drilling.Holes.ViewModels
                     }
 
                     punchStateMachine.ExecuteNextStep(processType);
-                    await Task.Delay(50, cancellationToken);
+                    int stepDelayMs = IsSimulate ? Random.Shared.Next(100, 200) : 50;
+                    await Task.Delay(stepDelayMs, cancellationToken);
                 }
 
                 if (punchStateMachine.CompletionStatus is PunchCompletionStatus.AbnormalFinished or PunchCompletionStatus.Cancelled)
@@ -458,6 +473,7 @@ namespace Fredy.Drilling.Holes.ViewModels
 
                 point.Complete = true;
                 Status.PunchedHoles = index + 1;
+                _punchAuditViewModel?.MarkHoleCompleted(index + 1);
 
                 if (punchStateMachine.CurrentState == PunchState.Finished)
                 {
@@ -485,11 +501,13 @@ namespace Fredy.Drilling.Holes.ViewModels
         private void PunchStateMachine_StateChanged(object? sender, StateChangedEventArgs e)
         {
             NotifyProcessCommandStateChanged();
+            _punchAuditViewModel?.OnStateChanged(e);
             _logger?.LogInformation("状态切换: {OldState} -> {NewState}, 当前孔位索引: {HoleIndex}", e.OldState, e.NewState, e.CurrentHoleIndex);
         }
 
         private void PunchStateMachine_MessageReported(object? sender, MessageEventArgs e)
         {
+            _punchAuditViewModel?.OnMessage(e);
             if (e.IsAlarm)
             {
                 _logger?.LogWarning("{Message}", e.Message);
@@ -497,6 +515,38 @@ namespace Fredy.Drilling.Holes.ViewModels
             }
 
             _logger?.LogInformation("{Message}", e.Message);
+        }
+
+        private void PunchStateMachine_CompensationSelected(object? sender, CompensationSelectedEventArgs e)
+        {
+            _punchAuditViewModel?.OnCompensationSelected(e);
+            _logger?.LogInformation("孔位#{HoleIndex}补偿={Compensation}, 最近邻距离={Distance}, 采样点数量={SampleCount}",
+                e.HoleIndex,
+                e.Compensation,
+                e.NearestDistance,
+                e.SampleCount);
+        }
+
+        private void ShowPunchAuditWindow(RecipeViewModel recipeViewModel, bool isSimulation, bool isFirstPass)
+        {
+            _punchAuditViewModel ??= new PunchProcessAuditViewModel();
+            _punchAuditViewModel.Initialize(recipeViewModel, isSimulation, isFirstPass);
+
+            if (_punchAuditWindow is null || !_punchAuditWindow.IsLoaded)
+            {
+                _punchAuditWindow = new PunchAuditWindow(_punchAuditViewModel)
+                {
+                    Owner = Application.Current?.MainWindow,
+                    WindowStartupLocation = WindowStartupLocation.CenterOwner
+                };
+                _punchAuditWindow.Closed += (_, _) => _punchAuditWindow = null;
+                _punchAuditWindow.Show();
+            }
+            else
+            {
+                _punchAuditWindow.DataContext = _punchAuditViewModel;
+                _punchAuditWindow.Activate();
+            }
         }
 
         private void HardwareStateService_StateChanged(object? sender, HardwareStateChangedEventArgs e)
@@ -684,6 +734,10 @@ namespace Fredy.Drilling.Holes.ViewModels
             }
 
             _cameraPreviewCancellationTokenSource?.Cancel();
+            if (_punchAuditWindow is { IsLoaded: true })
+            {
+                _punchAuditWindow.Close();
+            }
             GC.SuppressFinalize(this);
         }
     }
