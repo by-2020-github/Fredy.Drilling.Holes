@@ -34,8 +34,7 @@ namespace Fredy.Drilling.Holes.Models
         [ObservableProperty] private double _pixelSizeY = 3.45;
         [ObservableProperty] private int _fovWidth = 2000;
         [ObservableProperty] private int _fovHeight = 2000;
-        [ObservableProperty] private int _resolutionWidth = 2448;
-        [ObservableProperty] private int _resolutionHeight = 2048;
+        [ObservableProperty] private string _saveDirectory = string.Empty;
     }
 
     public class AppConfig

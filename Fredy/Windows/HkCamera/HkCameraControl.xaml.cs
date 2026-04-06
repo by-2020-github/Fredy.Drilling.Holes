@@ -1,3 +1,6 @@
+using Fredy.Drilling.Holes.Models;
+using Fredy.Drilling.Holes.ViewModels;
+using Microsoft.Win32;
 using MvCamCtrl.NET;
 using System;
 using System.Collections.Generic;
@@ -56,6 +59,8 @@ public partial class HkCameraControl : UserControl
         bnEnum.Click += (_, _) => DeviceListAcq();
         bnOpen.Click += BnOpen_Click;
         bnClose.Click += BnClose_Click;
+        bnBrowseSaveFolder.Click += BnBrowseSaveFolder_Click;
+        tbSaveDirectory.LostKeyboardFocus += TbSaveDirectory_LostKeyboardFocus;
 
         bnContinuesMode.Checked += BnContinuesMode_Checked;
         bnTriggerMode.Checked += BnTriggerMode_Checked;
@@ -115,6 +120,7 @@ public partial class HkCameraControl : UserControl
             }
 
             _sdkInitialized = true;
+            LoadSaveDirectoryFromConfig();
             DeviceListAcq();
         }
         catch (DllNotFoundException ex)
@@ -223,6 +229,30 @@ public partial class HkCameraControl : UserControl
         }
     }
 
+    private void BnBrowseSaveFolder_Click(object? sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFolderDialog
+        {
+            Title = "选择默认保存文件夹"
+        };
+
+        if (!string.IsNullOrWhiteSpace(tbSaveDirectory.Text) && Directory.Exists(tbSaveDirectory.Text))
+        {
+            dialog.InitialDirectory = tbSaveDirectory.Text;
+        }
+
+        if (dialog.ShowDialog() == true)
+        {
+            tbSaveDirectory.Text = dialog.FolderName;
+            PersistSaveDirectoryToConfig();
+        }
+    }
+
+    private void TbSaveDirectory_LostKeyboardFocus(object? sender, RoutedEventArgs e)
+    {
+        PersistSaveDirectoryToConfig();
+    }
+
     private void BnOpen_Click(object? sender, RoutedEventArgs e)
     {
         if (_deviceList.nDeviceNum == 0 || cbDeviceList.SelectedIndex < 0)
@@ -270,6 +300,8 @@ public partial class HkCameraControl : UserControl
         bnContinuesMode.IsChecked = true;
         SetCtrlWhenOpen();
         ReadParam();
+        UpdateCurrentDeviceInfo(device);
+        SyncOpenedCameraToConfig(device);
     }
 
     private void BnClose_Click(object? sender, RoutedEventArgs e)
@@ -480,6 +512,7 @@ public partial class HkCameraControl : UserControl
             _camera = null;
         }
 
+        ClearCurrentDeviceInfo();
         SetCtrlWhenClose();
     }
 
@@ -616,6 +649,22 @@ public partial class HkCameraControl : UserControl
             return;
         }
 
+        string? savePath;
+        try
+        {
+            savePath = GetSavePath(extension);
+        }
+        catch (Exception ex)
+        {
+            ShowError($"保存路径无效: {ex.Message}", 0);
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(savePath))
+        {
+            return;
+        }
+
         lock (_frameLock)
         {
             if (_lastFrameInfo.nFrameLen == 0 || _lastFrameBuffer == IntPtr.Zero)
@@ -635,7 +684,7 @@ public partial class HkCameraControl : UserControl
                 nQuality = imageType == MyCamera.MV_SAVE_IAMGE_TYPE.MV_Image_Jpeg ? 80u : 0u,
                 iMethodValue = 2,
                 nRes = new uint[8],
-                pImagePath = BuildSavePath(extension)
+                pImagePath = savePath
             };
 
             var nRet = _camera.MV_CC_SaveImageToFile_NET(ref saveParam);
@@ -646,13 +695,214 @@ public partial class HkCameraControl : UserControl
             }
         }
 
-        ShowError("保存成功", 0);
+        ShowError($"保存成功\n{savePath}", 0);
     }
 
-    private static string BuildSavePath(string extension)
+    private string? GetSavePath(string extension)
     {
-        var fileName = $"Image_{DateTime.Now:yyyyMMdd_HHmmss_fff}{extension}";
-        return Path.Combine(AppContext.BaseDirectory, fileName);
+        var timestampFileName = BuildTimestampedFileName(extension);
+        var defaultDirectory = tbSaveDirectory.Text?.Trim();
+
+        if (!string.IsNullOrWhiteSpace(defaultDirectory))
+        {
+            Directory.CreateDirectory(defaultDirectory);
+            return Path.Combine(defaultDirectory, timestampFileName);
+        }
+
+        var dialog = new SaveFileDialog
+        {
+            Title = "保存图像",
+            FileName = timestampFileName,
+            DefaultExt = extension,
+            AddExtension = true,
+            OverwritePrompt = true,
+            Filter = BuildImageFilter(extension)
+        };
+
+        if (dialog.ShowDialog() != true)
+        {
+            return null;
+        }
+
+        var selectedDirectory = Path.GetDirectoryName(dialog.FileName);
+        if (!string.IsNullOrWhiteSpace(selectedDirectory))
+        {
+            tbSaveDirectory.Text = selectedDirectory;
+            PersistSaveDirectoryToConfig();
+        }
+
+        return dialog.FileName;
+    }
+
+    private static string BuildTimestampedFileName(string extension)
+    {
+        return $"{DateTime.Now:yyyyMMdd_HHmmss_fff}{extension}";
+    }
+
+    private static string BuildImageFilter(string extension)
+    {
+        return extension.ToLowerInvariant() switch
+        {
+            ".bmp" => "BMP 图像|*.bmp|所有文件|*.*",
+            ".jpg" => "JPEG 图像|*.jpg|所有文件|*.*",
+            ".tif" => "TIFF 图像|*.tif|所有文件|*.*",
+            ".png" => "PNG 图像|*.png|所有文件|*.*",
+            _ => "图像文件|*.*"
+        };
+    }
+
+    private void SyncOpenedCameraToConfig(MyCamera.MV_CC_DEVICE_INFO device)
+    {
+        if (DataContext is not ConfigViewModel viewModel)
+        {
+            return;
+        }
+
+        var detectedCamera = BuildDetectedCameraConfig(device, viewModel.Camera);
+        viewModel.ApplyDetectedCamera(detectedCamera);
+    }
+
+    private void LoadSaveDirectoryFromConfig()
+    {
+        if (DataContext is ConfigViewModel viewModel)
+        {
+            tbSaveDirectory.Text = viewModel.Camera.SaveDirectory;
+        }
+    }
+
+    private void PersistSaveDirectoryToConfig()
+    {
+        if (DataContext is ConfigViewModel viewModel)
+        {
+            viewModel.ApplyCameraSaveDirectory(tbSaveDirectory.Text);
+        }
+    }
+
+    private CameraConfig BuildDetectedCameraConfig(MyCamera.MV_CC_DEVICE_INFO device, CameraConfig currentCamera)
+    {
+        var width = GetCameraIntValue("Width", currentCamera.FovWidth);
+        var height = GetCameraIntValue("Height", currentCamera.FovHeight);
+
+        return new CameraConfig
+        {
+            CameraType = GetCameraType(device),
+            ConnectionString = GetCameraConnectionString(device),
+            PixelSizeX = currentCamera.PixelSizeX,
+            PixelSizeY = currentCamera.PixelSizeY,
+            FovWidth = width,
+            FovHeight = height,
+            SaveDirectory = currentCamera.SaveDirectory
+        };
+    }
+
+    private int GetCameraIntValue(string key, int fallback)
+    {
+        if (_camera is null)
+        {
+            return fallback;
+        }
+
+        var value = new MyCamera.MVCC_INTVALUE_EX();
+        return _camera.MV_CC_GetIntValueEx_NET(key, ref value) == MyCamera.MV_OK && value.nCurValue > 0
+            ? (int)value.nCurValue
+            : fallback;
+    }
+
+    private static string GetCameraType(MyCamera.MV_CC_DEVICE_INFO device)
+    {
+        return device.nTLayerType switch
+        {
+            MyCamera.MV_GIGE_DEVICE => "海康 GigE",
+            MyCamera.MV_USB_DEVICE => "海康 USB",
+            _ => "海康 GigE"
+        };
+    }
+
+    private string GetCameraConnectionString(MyCamera.MV_CC_DEVICE_INFO device)
+    {
+        if (device.nTLayerType == MyCamera.MV_GIGE_DEVICE)
+        {
+            var info = (MyCamera.MV_GIGE_DEVICE_INFO_EX)MyCamera.ByteToStruct(device.SpecialInfo.stGigEInfo, typeof(MyCamera.MV_GIGE_DEVICE_INFO_EX));
+            return $"GigE://{FormatIpAddress(info.nCurrentIp)};Serial={info.chSerialNumber}";
+        }
+
+        if (device.nTLayerType == MyCamera.MV_USB_DEVICE)
+        {
+            var info = (MyCamera.MV_USB3_DEVICE_INFO_EX)MyCamera.ByteToStruct(device.SpecialInfo.stUsb3VInfo, typeof(MyCamera.MV_USB3_DEVICE_INFO_EX));
+            return $"USB://{info.chSerialNumber}";
+        }
+
+        return cbDeviceList.SelectedItem?.ToString() ?? "Unknown";
+    }
+
+    private static string FormatIpAddress(uint ipAddress)
+    {
+        var b1 = (ipAddress & 0xff000000) >> 24;
+        var b2 = (ipAddress & 0x00ff0000) >> 16;
+        var b3 = (ipAddress & 0x0000ff00) >> 8;
+        var b4 = ipAddress & 0x000000ff;
+        return $"{b1}.{b2}.{b3}.{b4}";
+    }
+
+    private void UpdateCurrentDeviceInfo(MyCamera.MV_CC_DEVICE_INFO device)
+    {
+        txtDeviceModel.Text = GetDeviceModel(device);
+        txtDeviceSerial.Text = GetDeviceSerial(device);
+        txtDeviceIp.Text = GetDeviceIp(device);
+        txtDeviceConnection.Text = GetCameraConnectionString(device);
+    }
+
+    private void ClearCurrentDeviceInfo()
+    {
+        txtDeviceModel.Text = "-";
+        txtDeviceSerial.Text = "-";
+        txtDeviceIp.Text = "-";
+        txtDeviceConnection.Text = "-";
+    }
+
+    private static string GetDeviceModel(MyCamera.MV_CC_DEVICE_INFO device)
+    {
+        if (device.nTLayerType == MyCamera.MV_GIGE_DEVICE)
+        {
+            var info = (MyCamera.MV_GIGE_DEVICE_INFO_EX)MyCamera.ByteToStruct(device.SpecialInfo.stGigEInfo, typeof(MyCamera.MV_GIGE_DEVICE_INFO_EX));
+            return $"{info.chManufacturerName} {info.chModelName}".Trim();
+        }
+
+        if (device.nTLayerType == MyCamera.MV_USB_DEVICE)
+        {
+            var info = (MyCamera.MV_USB3_DEVICE_INFO_EX)MyCamera.ByteToStruct(device.SpecialInfo.stUsb3VInfo, typeof(MyCamera.MV_USB3_DEVICE_INFO_EX));
+            return $"{info.chManufacturerName} {info.chModelName}".Trim();
+        }
+
+        return "-";
+    }
+
+    private static string GetDeviceSerial(MyCamera.MV_CC_DEVICE_INFO device)
+    {
+        if (device.nTLayerType == MyCamera.MV_GIGE_DEVICE)
+        {
+            var info = (MyCamera.MV_GIGE_DEVICE_INFO_EX)MyCamera.ByteToStruct(device.SpecialInfo.stGigEInfo, typeof(MyCamera.MV_GIGE_DEVICE_INFO_EX));
+            return info.chSerialNumber;
+        }
+
+        if (device.nTLayerType == MyCamera.MV_USB_DEVICE)
+        {
+            var info = (MyCamera.MV_USB3_DEVICE_INFO_EX)MyCamera.ByteToStruct(device.SpecialInfo.stUsb3VInfo, typeof(MyCamera.MV_USB3_DEVICE_INFO_EX));
+            return info.chSerialNumber;
+        }
+
+        return "-";
+    }
+
+    private static string GetDeviceIp(MyCamera.MV_CC_DEVICE_INFO device)
+    {
+        if (device.nTLayerType == MyCamera.MV_GIGE_DEVICE)
+        {
+            var info = (MyCamera.MV_GIGE_DEVICE_INFO_EX)MyCamera.ByteToStruct(device.SpecialInfo.stGigEInfo, typeof(MyCamera.MV_GIGE_DEVICE_INFO_EX));
+            return FormatIpAddress(info.nCurrentIp);
+        }
+
+        return "-";
     }
 
     private void EnsureGrabBuffer(uint required)

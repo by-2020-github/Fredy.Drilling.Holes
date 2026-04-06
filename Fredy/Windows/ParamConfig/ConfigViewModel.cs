@@ -103,15 +103,33 @@ namespace Fredy.Drilling.Holes.ViewModels
         {
             try
             {
-                _configService.SaveWithArchive(BuildConfig());
-                _originalConfig = BuildConfig();
-                RefreshModifiedParametersInfo();
-                StatusMessage = "配置已保存，并已更新运行时配置。";
+                PersistCurrentConfig("配置已保存，并已更新运行时配置。");
             }
             catch (Exception ex)
             {
                 StatusMessage = $"保存失败：{ex.Message}";
             }
+        }
+
+        public void ApplyDetectedCamera(CameraConfig detectedCamera)
+        {
+            ArgumentNullException.ThrowIfNull(detectedCamera);
+
+            Camera.CameraType = detectedCamera.CameraType;
+            Camera.ConnectionString = detectedCamera.ConnectionString;
+            Camera.PixelSizeX = detectedCamera.PixelSizeX;
+            Camera.PixelSizeY = detectedCamera.PixelSizeY;
+            Camera.FovWidth = detectedCamera.FovWidth;
+            Camera.FovHeight = detectedCamera.FovHeight;
+            Camera.SaveDirectory = detectedCamera.SaveDirectory;
+
+            PersistCurrentConfig($"已同步相机配置：{detectedCamera.CameraType} {detectedCamera.FovWidth}x{detectedCamera.FovHeight}");
+        }
+
+        public void ApplyCameraSaveDirectory(string? saveDirectory)
+        {
+            Camera.SaveDirectory = saveDirectory?.Trim() ?? string.Empty;
+            PersistCurrentConfig("已更新默认保存目录。");
         }
 
         [RelayCommand]
@@ -174,8 +192,7 @@ namespace Fredy.Drilling.Holes.ViewModels
                     PixelSizeY = Camera.PixelSizeY,
                     FovWidth = Camera.FovWidth,
                     FovHeight = Camera.FovHeight,
-                    ResolutionWidth = Camera.ResolutionWidth,
-                    ResolutionHeight = Camera.ResolutionHeight
+                    SaveDirectory = Camera.SaveDirectory
                 },
                 XyDrive = CloneMotionParams(XyDrive),
                 ZAxisBase = CloneMotionParams(ZAxisBase),
@@ -224,8 +241,7 @@ namespace Fredy.Drilling.Holes.ViewModels
                 PixelSizeY = config.Camera.PixelSizeY,
                 FovWidth = config.Camera.FovWidth,
                 FovHeight = config.Camera.FovHeight,
-                ResolutionWidth = config.Camera.ResolutionWidth,
-                ResolutionHeight = config.Camera.ResolutionHeight
+                SaveDirectory = config.Camera.SaveDirectory
             };
 
             XyDrive = CloneMotionParams(config.XyDrive);
@@ -256,6 +272,14 @@ namespace Fredy.Drilling.Holes.ViewModels
 
             SubscribeNestedPropertyChanged();
             RefreshModifiedParametersInfo();
+        }
+
+        private void PersistCurrentConfig(string successMessage)
+        {
+            _configService.SaveWithArchive(BuildConfig());
+            _originalConfig = BuildConfig();
+            RefreshModifiedParametersInfo();
+            StatusMessage = successMessage;
         }
 
         protected override void OnPropertyChanged(PropertyChangedEventArgs e)
@@ -404,8 +428,6 @@ namespace Fredy.Drilling.Holes.ViewModels
             AddIfChanged(lines, "像素尺寸Y", _originalConfig.Camera.PixelSizeY, current.Camera.PixelSizeY);
             AddIfChanged(lines, "视野宽", _originalConfig.Camera.FovWidth, current.Camera.FovWidth);
             AddIfChanged(lines, "视野高", _originalConfig.Camera.FovHeight, current.Camera.FovHeight);
-            AddIfChanged(lines, "分辨率宽", _originalConfig.Camera.ResolutionWidth, current.Camera.ResolutionWidth);
-            AddIfChanged(lines, "分辨率高", _originalConfig.Camera.ResolutionHeight, current.Camera.ResolutionHeight);
 
             AddMotionDiff(lines, "XY", _originalConfig.XyDrive, current.XyDrive);
             AddMotionDiff(lines, "Z轴基础", _originalConfig.ZAxisBase, current.ZAxisBase);

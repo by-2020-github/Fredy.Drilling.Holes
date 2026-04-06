@@ -89,13 +89,56 @@
                 </Grid>
             </GroupBox>
 
-            <GroupBox Header="图像保存">
-                <UniformGrid Margin="8" Columns="4">
-                    <Button x:Name="bnSaveBmp" Margin="0,0,8,0" Content="BMP" IsEnabled="False" />
-                    <Button x:Name="bnSaveJpg" Margin="0,0,8,0" Content="JPG" IsEnabled="False" />
-                    <Button x:Name="bnSaveTiff" Margin="0,0,8,0" Content="TIFF" IsEnabled="False" />
-                    <Button x:Name="bnSavePng" Content="PNG" IsEnabled="False" />
-                </UniformGrid>
+            <GroupBox Header="图像保存" Margin="0,0,0,8">
+                <Grid Margin="8">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="8" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock VerticalAlignment="Center" Text="默认目录" />
+                        <TextBox x:Name="tbSaveDirectory" Grid.Column="1" Margin="8,0" />
+                        <Button x:Name="bnBrowseSaveFolder" Grid.Column="2" Width="52" Content="浏览" />
+                    </Grid>
+                    <UniformGrid Grid.Row="2" Columns="4">
+                        <Button x:Name="bnSaveBmp" Margin="0,0,8,0" Content="BMP" IsEnabled="False" />
+                        <Button x:Name="bnSaveJpg" Margin="0,0,8,0" Content="JPG" IsEnabled="False" />
+                        <Button x:Name="bnSaveTiff" Margin="0,0,8,0" Content="TIFF" IsEnabled="False" />
+                        <Button x:Name="bnSavePng" Content="PNG" IsEnabled="False" />
+                    </UniformGrid>
+                </Grid>
+            </GroupBox>
+
+            <GroupBox Header="当前设备信息">
+                <Grid Margin="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="56" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="6" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="6" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="6" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <TextBlock Text="型号" />
+                    <TextBlock x:Name="txtDeviceModel" Grid.Column="1" Text="-" TextWrapping="Wrap" />
+                    <TextBlock Grid.Row="2" Text="序列号" />
+                    <TextBlock x:Name="txtDeviceSerial" Grid.Row="2" Grid.Column="1" Text="-" TextWrapping="Wrap" />
+                    <TextBlock Grid.Row="4" Text="IP" />
+                    <TextBlock x:Name="txtDeviceIp" Grid.Row="4" Grid.Column="1" Text="-" TextWrapping="Wrap" />
+                    <TextBlock Grid.Row="6" Text="连接" />
+                    <TextBlock x:Name="txtDeviceConnection" Grid.Row="6" Grid.Column="1" Text="-" TextWrapping="Wrap" />
+                </Grid>
             </GroupBox>
         </StackPanel>
     </Grid>

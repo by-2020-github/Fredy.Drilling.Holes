@@ -211,27 +211,17 @@
                                     <ColumnDefinition Width="120"/>
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                </Grid.RowDefinitions>
-
                                 <TextBlock Text="相机类型" VerticalAlignment="Center"/>
                                 <ComboBox Grid.Column="1"
                                           ItemsSource="{Binding CameraTypes}"
                                           SelectedItem="{Binding Camera.CameraType}"
-                                          Margin="5,0,15,8"/>
+                                          Margin="5,0,15,0"/>
                                 <TextBlock Grid.Column="2" Text="连接字符串" VerticalAlignment="Center"/>
                                 <ComboBox Grid.Column="3"
                                           ItemsSource="{Binding CameraConnectionOptions}"
                                           Text="{Binding Camera.ConnectionString, UpdateSourceTrigger=PropertyChanged}"
                                           IsEditable="True"
-                                          Margin="5,0,0,8"/>
-
-                                <TextBlock Grid.Row="1" Text="分辨率宽度" VerticalAlignment="Center"/>
-                                <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Camera.ResolutionWidth}" Margin="5,0,15,0"/>
-                                <TextBlock Grid.Row="1" Grid.Column="2" Text="分辨率高度" VerticalAlignment="Center"/>
-                                <TextBox Grid.Row="1" Grid.Column="3" Text="{Binding Camera.ResolutionHeight}" Margin="5,0,0,0"/>
+                                          Margin="5,0,0,0"/>
                             </Grid>
                         </GroupBox>
 
