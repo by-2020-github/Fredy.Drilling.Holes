@@ -29,9 +29,7 @@ namespace Fredy.Drilling.Holes.ViewModels
         new[]
         {
             "模拟运动控制卡",
-            "雷赛运动控制卡",
-            "固高运动控制卡",
-            "PCI 运动控制卡"
+            "ADT8940",
         };
 
         public IReadOnlyList<string> MotionConnectionOptions { get; } =

@@ -4,7 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:Fredy.Drilling.Holes.ViewModels"
-        xmlns:models="clr-namespace:Fredy.Drilling.Holes.Models" xmlns:views="clr-namespace:Fredy.Drilling.Holes.Views"
+        xmlns:models="clr-namespace:Fredy.Drilling.Holes.Models" xmlns:views="clr-namespace:Fredy.Drilling.Holes.Views" xmlns:usercontrols="clr-namespace:Fredy.Drilling.Holes.UserControls"
         mc:Ignorable="d" x:Name="thisWin"
         MaxHeight="1024" MaxWidth="1280"
         Title="参数配置" Height="750" Width="1200" Background="#F0F0F0"
@@ -17,7 +17,10 @@
         </Grid.ColumnDefinitions>
 
         <TabControl Grid.Column="0">
-            <TabItem Header="运动参数设置">
+            <TabItem Header="运动卡调试">
+                <usercontrols:MotionDebugControl></usercontrols:MotionDebugControl>
+            </TabItem>
+                <TabItem Header="运动参数设置">
                 <Grid Margin="10">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>

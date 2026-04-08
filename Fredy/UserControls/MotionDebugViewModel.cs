@@ -1,0 +1,482 @@
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using HAL;
+using System;
+using System.Collections.ObjectModel;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows;
+
+namespace Fredy.Drilling.Holes.UserControls
+{
+    public sealed partial class MotionDebugViewModel : ObservableObject, IDisposable
+    {
+        private const string MotionSimulatorType = nameof(MotionSimulator);
+        private const string MotionAdt8940Type = nameof(MotionAdt8940);
+        private static readonly TimeSpan PositionRefreshInterval = TimeSpan.FromMilliseconds(250);
+
+        private CancellationTokenSource? _refreshCancellationTokenSource;
+        private Task? _refreshTask;
+        private IMoton? _motion;
+        private bool _disposed;
+        private bool _refreshFailureReported;
+        private long _lastNativeCallSequence;
+
+        public MotionDebugViewModel()
+        {
+            MotionTypes = [MotionSimulatorType, MotionAdt8940Type];
+            StartRefreshLoop();
+            AddLog("调试面板已就绪，请先初始化控制器。");
+        }
+
+        public ObservableCollection<string> MotionTypes { get; }
+
+        public ObservableCollection<string> Logs { get; } = new();
+
+        public IMoton? CurrentMotion => _motion;
+
+        public bool IsMotionAdt8940Selected => string.Equals(SelectedMotionType, MotionAdt8940Type, StringComparison.Ordinal);
+
+        private string _selectedMotionType = MotionSimulatorType;
+        private int _cardNo;
+        private int _startSpeed = 100;
+        private int _driveSpeed = 9000;
+        private int _acceleration = 1250;
+        private int _homeSearchSpeed = 3000;
+        private int _homeApproachSpeed = 700;
+        private int _axisNo = 1;
+        private double _absolutePosition;
+        private double _relativeDistance = 10d;
+        private bool _waitForCompletion = true;
+        private bool _autoRefreshPosition = true;
+        private bool _isInitialized;
+        private double _currentPosition;
+        private string _statusMessage = "请选择控制器并执行初始化。";
+
+        public string SelectedMotionType
+        {
+            get => _selectedMotionType;
+            set
+            {
+                if (SetProperty(ref _selectedMotionType, value))
+                {
+                    OnPropertyChanged(nameof(IsMotionAdt8940Selected));
+                }
+            }
+        }
+
+        public int CardNo
+        {
+            get => _cardNo;
+            set => SetProperty(ref _cardNo, value);
+        }
+
+        public int StartSpeed
+        {
+            get => _startSpeed;
+            set => SetProperty(ref _startSpeed, value);
+        }
+
+        public int DriveSpeed
+        {
+            get => _driveSpeed;
+            set => SetProperty(ref _driveSpeed, value);
+        }
+
+        public int Acceleration
+        {
+            get => _acceleration;
+            set => SetProperty(ref _acceleration, value);
+        }
+
+        public int HomeSearchSpeed
+        {
+            get => _homeSearchSpeed;
+            set => SetProperty(ref _homeSearchSpeed, value);
+        }
+
+        public int HomeApproachSpeed
+        {
+            get => _homeApproachSpeed;
+            set => SetProperty(ref _homeApproachSpeed, value);
+        }
+
+        public int AxisNo
+        {
+            get => _axisNo;
+            set
+            {
+                if (SetProperty(ref _axisNo, value) && AutoRefreshPosition && IsInitialized)
+                {
+                    _ = RefreshPositionCoreAsync(CancellationToken.None);
+                }
+            }
+        }
+
+        public double AbsolutePosition
+        {
+            get => _absolutePosition;
+            set => SetProperty(ref _absolutePosition, value);
+        }
+
+        public double RelativeDistance
+        {
+            get => _relativeDistance;
+            set => SetProperty(ref _relativeDistance, value);
+        }
+
+        public bool WaitForCompletion
+        {
+            get => _waitForCompletion;
+            set => SetProperty(ref _waitForCompletion, value);
+        }
+
+        public bool AutoRefreshPosition
+        {
+            get => _autoRefreshPosition;
+            set
+            {
+                if (SetProperty(ref _autoRefreshPosition, value) && value && IsInitialized)
+                {
+                    _ = RefreshPositionCoreAsync(CancellationToken.None);
+                }
+            }
+        }
+
+        public bool IsInitialized
+        {
+            get => _isInitialized;
+            set => SetProperty(ref _isInitialized, value);
+        }
+
+        public double CurrentPosition
+        {
+            get => _currentPosition;
+            set => SetProperty(ref _currentPosition, value);
+        }
+
+        public string StatusMessage
+        {
+            get => _statusMessage;
+            set => SetProperty(ref _statusMessage, value);
+        }
+
+        [RelayCommand(AllowConcurrentExecutions = false)]
+        private async Task InitializeAsync()
+        {
+            try
+            {
+                DisposeMotion();
+                _lastNativeCallSequence = 0;
+                _motion = CreateMotion();
+                _refreshFailureReported = false;
+                IsInitialized = true;
+                await RefreshPositionCoreAsync(CancellationToken.None).ConfigureAwait(true);
+                AppendNativeCallLogs();
+                SetStatus($"{SelectedMotionType} 初始化成功。");
+            }
+            catch (Exception ex)
+            {
+                AppendNativeCallLogs();
+                DisposeMotion();
+                IsInitialized = false;
+                CurrentPosition = 0;
+                SetError("初始化", ex);
+            }
+        }
+
+        [RelayCommand]
+        private void ResetController()
+        {
+            AppendNativeCallLogs();
+            DisposeMotion();
+            _refreshFailureReported = false;
+            _lastNativeCallSequence = 0;
+            IsInitialized = false;
+            CurrentPosition = 0;
+            StatusMessage = "控制器已释放。";
+            AddLog(StatusMessage);
+        }
+
+        [RelayCommand(AllowConcurrentExecutions = false)]
+        private Task RefreshPositionAsync()
+        {
+            return ExecuteMotionAsync(
+                motion => RefreshPositionCoreAsync(CancellationToken.None),
+                "读取位置成功。",
+                "读取位置",
+                refreshPositionAfterExecute: false);
+        }
+
+        [RelayCommand(AllowConcurrentExecutions = false)]
+        private Task EnableAxisAsync()
+        {
+            return ExecuteMotionAsync(
+                motion => motion.EnableAsync(AxisNo),
+                $"轴 {AxisNo} 已使能。",
+                $"使能轴 {AxisNo}");
+        }
+
+        [RelayCommand(AllowConcurrentExecutions = false)]
+        private Task DisableAxisAsync()
+        {
+            return ExecuteMotionAsync(
+                motion => motion.DisableAsync(AxisNo),
+                $"轴 {AxisNo} 已禁用。",
+                $"禁用轴 {AxisNo}");
+        }
+
+        [RelayCommand(AllowConcurrentExecutions = false)]
+        private Task HomeAxisAsync()
+        {
+            return ExecuteMotionAsync(
+                motion => motion.HomeAsync(AxisNo, WaitForCompletion),
+                $"轴 {AxisNo} 回零命令已发送。",
+                $"轴 {AxisNo} 回零",
+                refreshPositionAfterExecute: WaitForCompletion);
+        }
+
+        [RelayCommand(AllowConcurrentExecutions = false)]
+        private Task MoveAbsoluteAsync()
+        {
+            return ExecuteMotionAsync(
+                motion => motion.MoveAbsoluteAsync(AxisNo, AbsolutePosition, WaitForCompletion),
+                $"轴 {AxisNo} 绝对移动到 {AbsolutePosition:F3}。",
+                $"轴 {AxisNo} 绝对移动",
+                refreshPositionAfterExecute: WaitForCompletion);
+        }
+
+        [RelayCommand(AllowConcurrentExecutions = false)]
+        private Task MoveRelativeAsync()
+        {
+            return ExecuteMotionAsync(
+                motion => motion.MoveRelativeAsync(AxisNo, RelativeDistance, WaitForCompletion),
+                $"轴 {AxisNo} 相对移动 {RelativeDistance:F3}。",
+                $"轴 {AxisNo} 相对移动",
+                refreshPositionAfterExecute: WaitForCompletion);
+        }
+
+        [RelayCommand(AllowConcurrentExecutions = false)]
+        private Task StopAxisAsync()
+        {
+            return ExecuteMotionAsync(
+                motion => motion.StopAsync(AxisNo),
+                $"轴 {AxisNo} 已减速停止。",
+                $"停止轴 {AxisNo}");
+        }
+
+        [RelayCommand(AllowConcurrentExecutions = false)]
+        private Task EmergencyStopAxisAsync()
+        {
+            return ExecuteMotionAsync(
+                motion => motion.EmergencyStopAsync(AxisNo),
+                $"轴 {AxisNo} 已急停。",
+                $"急停轴 {AxisNo}");
+        }
+
+        [RelayCommand]
+        private void ClearLog()
+        {
+            Logs.Clear();
+            MarkCurrentNativeLogsAsConsumed();
+            AddLog("日志已清空。");
+        }
+
+        public void Dispose()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _refreshCancellationTokenSource?.Cancel();
+            _refreshCancellationTokenSource?.Dispose();
+            _refreshCancellationTokenSource = null;
+            _refreshTask = null;
+            AppendNativeCallLogs();
+            DisposeMotion();
+            _disposed = true;
+            GC.SuppressFinalize(this);
+        }
+
+        private IMoton CreateMotion()
+        {
+            return IsMotionAdt8940Selected
+                ? new MotionAdt8940(CardNo, StartSpeed, DriveSpeed, Acceleration, HomeSearchSpeed, HomeApproachSpeed)
+                : new MotionSimulator();
+        }
+
+        private async Task ExecuteMotionAsync(Func<IMoton, Task> action, string successMessage, string actionName, bool refreshPositionAfterExecute = true)
+        {
+            if (_motion is null || !IsInitialized)
+            {
+                StatusMessage = "请先初始化控制器。";
+                AddLog(StatusMessage);
+                return;
+            }
+
+            try
+            {
+                await action(_motion).ConfigureAwait(true);
+                if (refreshPositionAfterExecute)
+                {
+                    await RefreshPositionCoreAsync(CancellationToken.None).ConfigureAwait(true);
+                }
+
+                AppendNativeCallLogs();
+                SetStatus(successMessage);
+            }
+            catch (Exception ex)
+            {
+                AppendNativeCallLogs();
+                SetError(actionName, ex);
+            }
+        }
+
+        private async Task RefreshPositionCoreAsync(CancellationToken cancellationToken)
+        {
+            if (_motion is null || !IsInitialized)
+            {
+                return;
+            }
+
+            var position = await _motion.GetPositionAsync(AxisNo, cancellationToken).ConfigureAwait(false);
+            await UpdateOnUiThreadAsync(() =>
+            {
+                CurrentPosition = position;
+                AppendNativeCallLogs();
+            }).ConfigureAwait(false);
+        }
+
+        private void DisposeMotion()
+        {
+            if (_motion is IDisposable disposable)
+            {
+                disposable.Dispose();
+            }
+
+            _motion = null;
+        }
+
+        private void AppendNativeCallLogs()
+        {
+            if (_motion is not MotionAdt8940 motionAdt8940)
+            {
+                return;
+            }
+
+            var records = motionAdt8940.NativeCallRecords;
+            foreach (var record in records)
+            {
+                if (record.SequenceId <= _lastNativeCallSequence)
+                {
+                    continue;
+                }
+
+                _lastNativeCallSequence = record.SequenceId;
+                Logs.Add($"[{record.Timestamp:HH:mm:ss.fff}] [ADT8940] {(record.IsSuccess ? "OK" : "FAIL")} | {record.Operation} | Code={record.ResultCode?.ToString() ?? "N/A"} | {record.Message}");
+            }
+
+            while (Logs.Count > 200)
+            {
+                Logs.RemoveAt(0);
+            }
+        }
+
+        private void MarkCurrentNativeLogsAsConsumed()
+        {
+            if (_motion is not MotionAdt8940 motionAdt8940)
+            {
+                _lastNativeCallSequence = 0;
+                return;
+            }
+
+            var records = motionAdt8940.NativeCallRecords;
+            _lastNativeCallSequence = records.Length > 0 ? records[^1].SequenceId : 0;
+        }
+
+        private void StartRefreshLoop()
+        {
+            _refreshCancellationTokenSource?.Cancel();
+            _refreshCancellationTokenSource?.Dispose();
+            _refreshCancellationTokenSource = new CancellationTokenSource();
+            _refreshTask = Task.Run(() => RefreshLoopAsync(_refreshCancellationTokenSource.Token));
+        }
+
+        private async Task RefreshLoopAsync(CancellationToken cancellationToken)
+        {
+            using var timer = new PeriodicTimer(PositionRefreshInterval);
+
+            try
+            {
+                while (await timer.WaitForNextTickAsync(cancellationToken).ConfigureAwait(false))
+                {
+                    if (!AutoRefreshPosition || _motion is null || !IsInitialized)
+                    {
+                        continue;
+                    }
+
+                    try
+                    {
+                        await RefreshPositionCoreAsync(cancellationToken).ConfigureAwait(false);
+                        _refreshFailureReported = false;
+                    }
+                    catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                    {
+                        break;
+                    }
+                    catch (Exception ex)
+                    {
+                        if (_refreshFailureReported)
+                        {
+                            continue;
+                        }
+
+                        _refreshFailureReported = true;
+                        await UpdateOnUiThreadAsync(() =>
+                        {
+                            StatusMessage = $"后台位置刷新失败: {ex.Message}";
+                            AddLog(StatusMessage);
+                        }).ConfigureAwait(false);
+                    }
+                }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+            }
+        }
+
+        private void SetStatus(string message)
+        {
+            StatusMessage = message;
+            AddLog(message);
+        }
+
+        private void SetError(string actionName, Exception ex)
+        {
+            StatusMessage = $"{actionName}失败: {ex.Message}";
+            AddLog(StatusMessage);
+        }
+
+        private void AddLog(string message)
+        {
+            Logs.Add($"[{DateTime.Now:HH:mm:ss}] {message}");
+            while (Logs.Count > 200)
+            {
+                Logs.RemoveAt(0);
+            }
+        }
+
+        private static Task UpdateOnUiThreadAsync(Action action)
+        {
+            var dispatcher = Application.Current?.Dispatcher;
+            if (dispatcher is null || dispatcher.CheckAccess())
+            {
+                action();
+                return Task.CompletedTask;
+            }
+
+            return dispatcher.InvokeAsync(action).Task;
+        }
+    }
+}

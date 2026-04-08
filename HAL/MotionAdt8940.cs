@@ -1,6 +1,7 @@
 ﻿using Demo;
 using System;
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -8,11 +9,21 @@ namespace HAL
 {
     public class MotionAdt8940 : IMoton
     {
+        public readonly record struct NativeCallRecord(
+            long SequenceId,
+            DateTime Timestamp,
+            string Operation,
+            int? ResultCode,
+            string Message,
+            bool IsSuccess);
+
         private delegate int NativeCallWithValue(out int value);
 
         private static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(20);
+        private const int MaxNativeCallRecordCount = 500;
 
         private readonly ConcurrentDictionary<int, bool> _axisEnabled = new();
+        private readonly ConcurrentQueue<NativeCallRecord> _nativeCallRecords = new();
         private readonly object _syncRoot = new();
         private readonly int _cardNo;
         private readonly int _startSpeed;
@@ -21,6 +32,10 @@ namespace HAL
         private readonly int _homeSearchSpeed;
         private readonly int _homeApproachSpeed;
         private bool _initialized;
+        private int _nativeCallRecordCount;
+        private long _nativeCallSequence;
+
+        public NativeCallRecord[] NativeCallRecords => _nativeCallRecords.ToArray();
 
         public MotionAdt8940(
             int cardNo = 0,
@@ -202,7 +217,10 @@ namespace HAL
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                var status = adt8940a1.adt8940a1_GetHomeStatus_Ex(_cardNo, axisNo);
+                var status = ExecuteNativeWithRawResult(
+                    () => adt8940a1.adt8940a1_GetHomeStatus_Ex(_cardNo, axisNo),
+                    $"Get home status for axis {axisNo}");
+
                 if (status == 0)
                 {
                     ResetPosition(axisNo);
@@ -265,7 +283,10 @@ namespace HAL
                     return;
                 }
 
-                var result = adt8940a1.adt8940a1_initial();
+                var result = ExecuteNativeWithRawResult(
+                    () => adt8940a1.adt8940a1_initial(),
+                    "Initialize ADT8940");
+
                 if (result <= 0)
                 {
                     throw new InvalidOperationException($"Initialize ADT8940 failed with code {result}.");
@@ -304,11 +325,12 @@ namespace HAL
             }
         }
 
-        private static void ExecuteNative(Func<int> action, string operation)
+        private void ExecuteNative(Func<int> action, string operation)
         {
             try
             {
                 var result = action();
+                RecordNativeCall(operation, result, result == 0 ? "调用成功。" : "调用返回失败码。", result == 0);
                 if (result != 0)
                 {
                     throw new InvalidOperationException($"{operation} failed with code {result}.");
@@ -316,21 +338,24 @@ namespace HAL
             }
             catch (DllNotFoundException ex)
             {
+                RecordNativeCallException(operation, ex);
                 throw new InvalidOperationException("ADT8940 driver library 8940A1m.dll was not found.", ex);
             }
             catch (EntryPointNotFoundException ex)
             {
+                RecordNativeCallException(operation, ex);
                 throw new InvalidOperationException("ADT8940 driver entry point was not found.", ex);
             }
         }
 
-        private static void ExecuteNative(NativeCallWithValue action, string operation, out int value)
+        private void ExecuteNative(NativeCallWithValue action, string operation, out int value)
         {
             value = default;
 
             try
             {
                 var result = action(out value);
+                RecordNativeCall(operation, result, $"调用返回值: {value}", result == 0);
                 if (result != 0)
                 {
                     throw new InvalidOperationException($"{operation} failed with code {result}.");
@@ -338,12 +363,61 @@ namespace HAL
             }
             catch (DllNotFoundException ex)
             {
+                RecordNativeCallException(operation, ex);
                 throw new InvalidOperationException("ADT8940 driver library 8940A1m.dll was not found.", ex);
             }
             catch (EntryPointNotFoundException ex)
             {
+                RecordNativeCallException(operation, ex);
                 throw new InvalidOperationException("ADT8940 driver entry point was not found.", ex);
             }
+        }
+
+        private int ExecuteNativeWithRawResult(Func<int> action, string operation)
+        {
+            try
+            {
+                var result = action();
+                RecordNativeCall(operation, result, $"调用返回状态: {result}", result >= 0);
+                return result;
+            }
+            catch (DllNotFoundException ex)
+            {
+                RecordNativeCallException(operation, ex);
+                throw new InvalidOperationException("ADT8940 driver library 8940A1m.dll was not found.", ex);
+            }
+            catch (EntryPointNotFoundException ex)
+            {
+                RecordNativeCallException(operation, ex);
+                throw new InvalidOperationException("ADT8940 driver entry point was not found.", ex);
+            }
+        }
+
+        private void RecordNativeCall(string operation, int? resultCode, string message, bool isSuccess)
+        {
+            var sequenceId = Interlocked.Increment(ref _nativeCallSequence);
+            var record = new NativeCallRecord(
+                sequenceId,
+                DateTime.Now,
+                operation,
+                resultCode,
+                message,
+                isSuccess);
+
+            _nativeCallRecords.Enqueue(record);
+            Interlocked.Increment(ref _nativeCallRecordCount);
+
+            while (_nativeCallRecordCount > MaxNativeCallRecordCount && _nativeCallRecords.TryDequeue(out _))
+            {
+                Interlocked.Decrement(ref _nativeCallRecordCount);
+            }
+
+            Debug.WriteLine($"[{record.Timestamp:HH:mm:ss.fff}] [ADT8940] Seq={record.SequenceId} | {record.Operation} | Code={record.ResultCode?.ToString() ?? "N/A"} | Success={record.IsSuccess} | {record.Message}");
+        }
+
+        private void RecordNativeCallException(string operation, Exception exception)
+        {
+            RecordNativeCall(operation, null, exception.Message, false);
         }
     }
 }
