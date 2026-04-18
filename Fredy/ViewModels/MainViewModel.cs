@@ -674,7 +674,7 @@ namespace Fredy.Drilling.Holes.ViewModels
                     var frame = await _camera.GrabAsync().ConfigureAwait(false);
                     var bitmap = CreateBitmapSource(frame);
 
-                    if (bitmap is not null)
+                    if (bitmap is not null && Application.Current is not null)
                     {
                         await Application.Current.Dispatcher.InvokeAsync(() => CurrentCameraImage = bitmap);
                     }
