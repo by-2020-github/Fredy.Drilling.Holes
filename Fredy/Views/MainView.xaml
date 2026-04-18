@@ -156,6 +156,7 @@
                 <Button Content="参数配置" Style="{StaticResource NavButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="Config"/>
                 <Button Content="分区扫描" Style="{StaticResource NavButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="PartScan"/>
                 <Button Content="配方编辑" Style="{StaticResource NavButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="RecipeWin"/>
+                <Button Content="位置校准" Style="{StaticResource NavButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="Calibration"/>
             </UniformGrid>
 
             <StackPanel Margin="0,10">

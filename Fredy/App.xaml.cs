@@ -83,16 +83,41 @@ namespace Fredy.Drilling.Holes
 
         private void ConfigureServices(IServiceCollection services, IAppLogStore logStore)
         {
-            //注册硬件
-            services.AddSingleton<ICamera, CameraSimulator>();
-            services.AddSingleton<IMoton, MotionSimulator>();
-            services.AddSingleton<IIOCard, IOCardSimulator>();
+            var configService = new ConfigService();
+            services.AddSingleton(configService);
+            var config = configService.CurrentConfig;
+
+            // 注册硬件 - 相机
+            if (config.Camera.CameraType == "模拟相机")
+            {
+                services.AddSingleton<ICamera, CameraSimulator>();
+            }
+            else
+            {
+                services.AddSingleton<ICamera, HkCamera>();
+            }
+
+            // 注册硬件 - 运动控制与 IO
+            if (config.MotionController.ControllerType == "ADT8940")
+            {
+                services.AddSingleton<MotionAdt8940>();
+                services.AddSingleton<IMoton>(sp => sp.GetRequiredService<MotionAdt8940>());
+                services.AddSingleton<IIOCard>(sp => sp.GetRequiredService<MotionAdt8940>());
+                services.AddSingleton<IHardwareController, Adt8940Controller>();
+            }
+            else
+            {
+                services.AddSingleton<IMoton, MotionSimulator>();
+                services.AddSingleton<IIOCard, IOCardSimulator>();
+                services.AddSingleton<IHardwareController, MockHardwareController>();
+            }
+
+            // 注册 BLL 的相关服务
             services.AddSingleton<IMotionService, MotionManager>();
             services.AddSingleton<IHardwareStateService, HardwareStateService>();
             services.AddSingleton<ISecondPassAlignmentContext, SecondPassAlignmentContext>();
             services.AddSingleton(_ => new PathManager(AppContext.BaseDirectory));
             services.AddSingleton<RecipeService>();
-            services.AddSingleton<ConfigService>();
 
             services.AddSingleton(logStore);
             services.AddSingleton<IAppLogStore>(logStore);
