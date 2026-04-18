@@ -10,6 +10,8 @@ namespace BLL
     {
         private readonly IMoton _motion;
 
+        public IMoton Hardware => _motion;
+
         public AxisParam XAxis { get; private set; } = new(1, 0, 0, 0);
         public AxisParam YAxis { get; private set; } = new(2, 0, 0, 0);
         public AxisParam ZAxis { get; private set; } = new(3, 0, 0, 0);
@@ -122,19 +124,6 @@ namespace BLL
         public Task MoveZAsync(double position, double velocity, bool wait = true, CancellationToken cancellationToken = default)
         {
             return MoveAxisAsync(ZAxis, position, velocity, wait, cancellationToken, axis => ZAxis = axis);
-        }
-
-        public void MoveToPunchPoint(PunchPoint punchPoint)
-        {
-            ExecuteSync(MoveToPunchPointAsync(punchPoint));
-        }
-
-        public async Task MoveToPunchPointAsync(PunchPoint punchPoint, CancellationToken cancellationToken = default)
-        {
-            ArgumentNullException.ThrowIfNull(punchPoint);
-
-            await MoveXAsync(punchPoint.X, XAxis.Velocity, true, cancellationToken).ConfigureAwait(false);
-            await MoveYAsync(punchPoint.Y, YAxis.Velocity, true, cancellationToken).ConfigureAwait(false);
         }
 
         public void StopAll()

@@ -7,6 +7,8 @@ namespace BLL
 {
     public interface IMotionService
     {
+        IMoton Hardware { get; }
+
         AxisParam XAxis { get; }
         AxisParam YAxis { get; }
         AxisParam ZAxis { get; }
@@ -33,9 +35,6 @@ namespace BLL
 
         void MoveZ(double position, double velocity, bool wait = true);
         Task MoveZAsync(double position, double velocity, bool wait = true, CancellationToken cancellationToken = default);
-
-        void MoveToPunchPoint(PunchPoint punchPoint);
-        Task MoveToPunchPointAsync(PunchPoint punchPoint, CancellationToken cancellationToken = default);
 
         void StopAll();
         Task StopAllAsync();

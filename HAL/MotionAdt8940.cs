@@ -1,13 +1,14 @@
 ﻿using Demo;
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace HAL
 {
-    public class MotionAdt8940 : IMoton
+    public class MotionAdt8940 : IMoton, IIOCard
     {
         public readonly record struct NativeCallRecord(
             long SequenceId,
@@ -171,6 +172,134 @@ namespace HAL
         {
             EnsureAxisReady(axisNo);
             ExecuteNative(() => adt8940a1.adt8940a1_dec_stop(_cardNo, axisNo), $"Stop axis {axisNo}");
+            return Task.CompletedTask;
+        }
+
+        public int InputCount => 40;
+
+        public int OutputCount => 16;
+
+        public Task<bool> ReadInputAsync(int portNo, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            EnsureInitialized();
+
+            var result = ExecuteNativeWithRawResult(
+                () => adt8940a1.adt8940a1_read_bit(_cardNo, portNo),
+                $"Read input {portNo}");
+
+            if (result < 0)
+            {
+                throw new InvalidOperationException($"Read input {portNo} failed with code {result}.");
+            }
+
+            return Task.FromResult(result > 0);
+        }
+
+        public async Task<IReadOnlyDictionary<int, bool>> ReadInputsAsync(int[] portNos, CancellationToken cancellationToken = default)
+        {
+            var results = new Dictionary<int, bool>(portNos.Length);
+            foreach (var portNo in portNos)
+            {
+                results[portNo] = await ReadInputAsync(portNo, cancellationToken).ConfigureAwait(false);
+            }
+            return results;
+        }
+
+        public Task<bool> ReadOutputAsync(int portNo, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            EnsureInitialized();
+
+            var result = ExecuteNativeWithRawResult(
+                () => adt8940a1.adt8940a1_get_out(_cardNo, portNo),
+                $"Read output {portNo}");
+
+            if (result < 0)
+            {
+                throw new InvalidOperationException($"Read output {portNo} failed with code {result}.");
+            }
+
+            return Task.FromResult(result > 0);
+        }
+
+        public async Task<IReadOnlyDictionary<int, bool>> ReadOutputsAsync(int[] portNos, CancellationToken cancellationToken = default)
+        {
+            var results = new Dictionary<int, bool>(portNos.Length);
+            foreach (var portNo in portNos)
+            {
+                results[portNo] = await ReadOutputAsync(portNo, cancellationToken).ConfigureAwait(false);
+            }
+            return results;
+        }
+
+        public Task WriteOutputAsync(int portNo, bool value, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            EnsureInitialized();
+
+            ExecuteNative(
+                () => adt8940a1.adt8940a1_write_bit(_cardNo, portNo, value ? 1 : 0),
+                $"Write output {portNo} to {value}");
+
+            return Task.CompletedTask;
+        }
+
+        public async Task WriteOutputsAsync(IReadOnlyDictionary<int, bool> outputs, CancellationToken cancellationToken = default)
+        {
+            foreach (var kvp in outputs)
+            {
+                await WriteOutputAsync(kvp.Key, kvp.Value, cancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        public Task ClearLockStatusAsync(int axisNo, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            EnsureAxisReady(axisNo);
+
+            ExecuteNative(
+                () => adt8940a1.adt8940a1_clr_lock_status(_cardNo, axisNo),
+                $"Clear lock status for axis {axisNo}");
+
+            return Task.CompletedTask;
+        }
+
+        public Task<double> GetLockPositionAsync(int axisNo, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            EnsureAxisReady(axisNo);
+
+            ExecuteNative(
+                (out int pos) => adt8940a1.adt8940a1_get_lock_position(_cardNo, axisNo, out pos),
+                $"Get lock position for axis {axisNo}",
+                out var position);
+
+            return Task.FromResult((double)position);
+        }
+
+        public Task<bool> GetLockStatusAsync(int axisNo, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            EnsureAxisReady(axisNo);
+
+            ExecuteNative(
+                (out int status) => adt8940a1.adt8940a1_get_lock_status(_cardNo, axisNo, out status),
+                $"Get lock status for axis {axisNo}",
+                out var lockStatus);
+
+            return Task.FromResult(lockStatus != 0);
+        }
+
+        public Task SetLockPositionModeAsync(int axisNo, int mode, int regi, int logical, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            EnsureAxisReady(axisNo);
+
+            ExecuteNative(
+                () => adt8940a1.adt8940a1_set_lock_position(_cardNo, axisNo, mode, regi, logical),
+                $"Set lock position mode for axis {axisNo}");
+
             return Task.CompletedTask;
         }
 
