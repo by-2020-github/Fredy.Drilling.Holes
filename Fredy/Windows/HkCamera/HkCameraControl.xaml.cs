@@ -560,7 +560,7 @@ public partial class HkCameraControl : UserControl
                 continue;
             }
 
-            Dispatcher.Invoke(() => displayArea.Source = bitmap);
+            Dispatcher.Invoke(() => displayArea.ImageSource = bitmap);
         }
     }
 

@@ -15,14 +15,14 @@ namespace Common.Tools
             SetRuntimePath(runtimePath);
         }
 
-        public static string RuntimePath { get; private set; }
-        public static string RecipePath { get; private set; }
+        public static string RuntimePath { get; private set; } = string.Empty;
+        public static string RecipePath { get; private set; } = string.Empty;
 
-        public static string ConfigPath { get; private set; }
+        public static string ConfigPath { get; private set; } = string.Empty;
 
-        public static string ResultPath { get; private set; }
+        public static string ResultPath { get; private set; } = string.Empty;
 
-        public static string LogPath { get; private set; }
+        public static string LogPath { get; private set; } = string.Empty;
 
         public static void SetRuntimePath(string runtimePath)
         {

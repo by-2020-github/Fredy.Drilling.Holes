@@ -1,9 +1,12 @@
 ﻿using BLL;
+using Common.Tools;
+using Common.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Fredy.Drilling.Holes.Models;
 using HAL;
 using Microsoft.Extensions.Logging;
+using OpenCvSharp;
 using System;
 using System.Collections.ObjectModel;
 using System.Threading;
@@ -29,7 +32,15 @@ namespace Fredy.Drilling.Holes.ViewModels
         [ObservableProperty] private double _jogStep = 10;
         [ObservableProperty] private int _canvasSize = 200;
         [ObservableProperty] private int _ringSize = 50;
-        [ObservableProperty] private ImageSource? _cameraPreviewImage;
+        [ObservableProperty] private OpenCvSharp.Mat? _cameraPreviewMat;
+
+        [ObservableProperty] private double _punchX;
+        [ObservableProperty] private double _punchY;
+        [ObservableProperty] private double _cameraX;
+        [ObservableProperty] private double _cameraY;
+        [ObservableProperty] private double _offsetX;
+        [ObservableProperty] private double _offsetY;
+        [ObservableProperty] private bool _enableVisionAssist;
 
         public ObservableCollection<double> JogStepOptions { get; } = new() { 0.01, 0.1, 1, 5, 10, 50 };
         public ObservableCollection<GpioItem> GpioIn { get; } = new();
@@ -162,6 +173,33 @@ namespace Fredy.Drilling.Holes.ViewModels
         }
 
         [RelayCommand]
+        private void MarkPunchPosition()
+        {
+            if (_hardwareStateService is null) return;
+            PunchX = _hardwareStateService.CurrentState.X;
+            PunchY = _hardwareStateService.CurrentState.Y;
+            _logger?.LogInformation("记录冲针坐标: X={PunchX}, Y={PunchY}", PunchX, PunchY);
+        }
+
+        [RelayCommand]
+        private void MarkCameraPosition()
+        {
+            if (_hardwareStateService is null) return;
+            CameraX = _hardwareStateService.CurrentState.X;
+            CameraY = _hardwareStateService.CurrentState.Y;
+            _logger?.LogInformation("记录相机坐标: X={CameraX}, Y={CameraY}", CameraX, CameraY);
+        }
+
+        [RelayCommand]
+        private void CalculateAndSaveOffset()
+        {
+            OffsetX = CameraX - PunchX;
+            OffsetY = CameraY - PunchY;
+            _logger?.LogInformation("计算 Offset 结果: OffsetX={OffsetX}, OffsetY={OffsetY}", OffsetX, OffsetY);
+            MessageBox.Show($"计算结果: \nOffsetX: {OffsetX:F3} \nOffsetY: {OffsetY:F3}\n(当前仅显示，未存入配置)", "计算完成", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
+        [RelayCommand]
         private void ChangeSize(string typeAndDelta)
         {
             _logger?.LogInformation("调整画面参数: {TypeAndDelta}", typeAndDelta);
@@ -268,11 +306,43 @@ namespace Fredy.Drilling.Holes.ViewModels
                 while (!cancellationToken.IsCancellationRequested)
                 {
                     var frame = await _camera.GrabAsync().ConfigureAwait(false);
-                    var bitmap = CreateBitmapSource(frame);
+                    if (frame is null || frame.Data is null) continue;
 
-                    if (bitmap is not null)
+                    var mat = Tools.VisionUIHelper.CameraArgsToMat(frame);
+                    if (mat.Empty())
                     {
-                        await Application.Current.Dispatcher.InvokeAsync(() => CameraPreviewImage = bitmap);
+                        mat.Dispose();
+                        continue;
+                    }
+
+                    if (EnableVisionAssist)
+                    {
+                        var detector = new Common.Services.CircleDetector();
+                        using var resultMat = new OpenCvSharp.Mat();
+                        if (mat.Channels() == 1)
+                        {
+                            OpenCvSharp.Cv2.CvtColor(mat, resultMat, OpenCvSharp.ColorConversionCodes.GRAY2BGR);
+                        }
+                        else
+                        {
+                            mat.CopyTo(resultMat);
+                        }
+
+                        using var result = detector.ProcessBrightField(resultMat, minArea: 50, maxArea: 100000, threshold: 100, circularity: 0.6);
+                        if (result?.ResultImage != null && !result.ResultImage.Empty())
+                        {
+                            var newMat = result.ResultImage.Clone();
+                            var oldMat = CameraPreviewMat;
+                            await Application.Current.Dispatcher.InvokeAsync(() => CameraPreviewMat = newMat);
+                            oldMat?.Dispose();
+                        }
+                        mat.Dispose();
+                    }
+                    else
+                    {
+                        var oldMat = CameraPreviewMat;
+                        await Application.Current.Dispatcher.InvokeAsync(() => CameraPreviewMat = mat);
+                        oldMat?.Dispose();
                     }
 
                     await Task.Delay(100, cancellationToken).ConfigureAwait(false);
@@ -287,27 +357,5 @@ namespace Fredy.Drilling.Holes.ViewModels
             }
         }
 
-        private static BitmapSource? CreateBitmapSource(CameraArgs? frame)
-        {
-            if (frame?.Data is null || frame.Width <= 0 || frame.Height <= 0)
-            {
-                return null;
-            }
-
-            var pixelFormat = frame.Format switch
-            {
-                HAL.PixelFormat.Mono8 => PixelFormats.Gray8,
-                HAL.PixelFormat.RGB8 => PixelFormats.Rgb24,
-                HAL.PixelFormat.BGR8 => PixelFormats.Bgr24,
-                HAL.PixelFormat.RGBA8 => PixelFormats.Bgra32,
-                HAL.PixelFormat.BGRA8 => PixelFormats.Bgra32,
-                _ => PixelFormats.Bgr24
-            };
-
-            var stride = frame.Stride > 0 ? frame.Stride : ((frame.Width * pixelFormat.BitsPerPixel) + 7) / 8;
-            var bitmap = BitmapSource.Create(frame.Width, frame.Height, 96, 96, pixelFormat, null, frame.Data, stride);
-            bitmap.Freeze();
-            return bitmap;
-        }
     }
 }

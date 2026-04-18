@@ -45,19 +45,25 @@ namespace HAL
 
             _frameCounter++;
 
-            using (Mat canvas = new Mat(_height, _width, MatType.CV_8UC3, new Scalar(64, 64, 64)))
+            // 1. 将背景调亮（比如亮灰色，模拟明场反光）
+            using (Mat canvas = new Mat(_height, _width, MatType.CV_8UC3, new Scalar(200, 200, 200)))
             {
                 Cv2.PutText(canvas, $"Simulated Frame: {++_frameCounter}", new Point(50, 100),
-                 HersheyFonts.HersheyComplex, 2.0, Scalar.White, 3);
+                 HersheyFonts.HersheyComplex, 2.0, Scalar.Black, 3);
                 Cv2.PutText(canvas, DateTime.Now.ToString("HH:mm:ss.fff"), new Point(50, 200),
-                    HersheyFonts.HersheyComplex, 1.5, Scalar.Green, 2);
+                    HersheyFonts.HersheyComplex, 1.5, Scalar.DarkGreen, 2);
+
                 var pointCount = _random.Next(10, 20);
                 for (int i = 0; i < pointCount; i++)
                 {
                     var x = _random.Next(0, _width);
                     var y = _random.Next(0, _height);
-                    var radius = _random.Next(20, 100);
-                    Cv2.Circle(canvas, new Point(x, y), radius, Scalar.White, -1, LineTypes.AntiAlias);
+
+                    // 2. 将半径改小（直径尽量控制在 15 像素以内，比如半径设定为 3~7）
+                    var radius = _random.Next(10, 15);
+
+                    // 3. 画“黑色的暗孔”来符合 BlackHat 黑帽算法的要求
+                    Cv2.Circle(canvas, new Point(x, y), radius, Scalar.Black, -1, LineTypes.AntiAlias);
                 }
 
                 // 2. 将 Mat 转换为 CameraArgs 需要的原始数据

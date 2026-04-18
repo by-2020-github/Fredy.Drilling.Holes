@@ -143,6 +143,7 @@ namespace Fredy.Drilling.Holes
             services.AddTransient<DetectionViewModel>();
             services.AddTransient<PunchingCompensationViewModel>();
             services.AddTransient<SecondPassDetectionViewModel>();
+            services.AddTransient<CalibrationViewModel>();
 
             services.AddSingleton<MainWindow>();
         }

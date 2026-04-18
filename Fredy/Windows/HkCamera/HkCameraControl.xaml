@@ -1,6 +1,7 @@
 <UserControl x:Class="Fredy.Drilling.Holes.Views.HkCameraControl"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:uc="clr-namespace:Fredy.Drilling.Holes.UserControls"
     MinWidth="900"
     MinHeight="560">
     <Grid Margin="12">
@@ -11,8 +12,7 @@
 
         <Border Grid.Column="0" Margin="0,0,12,0" BorderBrush="#FF666666" BorderThickness="1" Background="#FF1E1E1E">
             <Grid>
-                <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#FFB0B0B0" Text="图像显示区域" />
-                <Image x:Name="displayArea" Stretch="Uniform" />
+                <uc:CameraViewerControl x:Name="displayArea" />
             </Grid>
         </Border>
 

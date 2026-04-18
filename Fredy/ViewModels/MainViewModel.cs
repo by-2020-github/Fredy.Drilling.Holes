@@ -327,7 +327,7 @@ namespace Fredy.Drilling.Holes.ViewModels
                 selectedRecipeName = RecipeNames[0];
             }
 
-            Status.WorkpieceType = selectedRecipeName;
+            Status.WorkpieceType = selectedRecipeName ?? "unknown";
             LoadSelectedRecipe();
             _logger?.LogInformation("已刷新配方列表，共 {RecipeCount} 个", RecipeNames.Count);
         }

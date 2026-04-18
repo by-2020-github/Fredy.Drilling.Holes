@@ -97,6 +97,16 @@ namespace Fredy.Drilling.Holes.Models
 
         public double ScanDeduplicateToleranceMm { get; set; } = 0.08;
 
+        public double CircleMinRadius { get; set; } = 15;
+
+        public double CircleMaxRadius { get; set; } = 25;
+
+        public double CircleParam1 { get; set; } = 50;
+
+        public double CircleParam2 { get; set; } = 25;
+
+        public bool CircleIsDarkTarget { get; set; } = true;
+
         private static List<DetectionRingItem> CreateDefaultDetectionRingItems()
         {
             var items = new List<DetectionRingItem>();

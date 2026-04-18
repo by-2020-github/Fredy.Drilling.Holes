@@ -12,9 +12,9 @@ namespace BLL
     public class PunchStateMachine
     {
         // 声明暴露给UI的事件
-        public event EventHandler<StateChangedEventArgs> StateChanged;
-        public event EventHandler<MessageEventArgs> MessageReported;
-        public event EventHandler<CompensationSelectedEventArgs> CompensationSelected;
+        public event EventHandler<StateChangedEventArgs>? StateChanged;
+        public event EventHandler<MessageEventArgs>? MessageReported;
+        public event EventHandler<CompensationSelectedEventArgs>? CompensationSelected;
 
         private PunchState _currentState = PunchState.Finished;
         private PunchState _stateBeforePause = PunchState.Finished;

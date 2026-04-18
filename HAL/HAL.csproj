@@ -11,10 +11,4 @@
     <PackageReference Include="OpenCvSharp4.runtime.win" Version="4.13.0.20260302" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Reference Include="MvCameraControl.Net">
-      <HintPath>DllImport\MvCameraControl.Net.dll</HintPath>
-    </Reference>
-  </ItemGroup>
-
 </Project>

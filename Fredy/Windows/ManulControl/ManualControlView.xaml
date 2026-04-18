@@ -5,6 +5,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
              xmlns:vm="clr-namespace:Fredy.Drilling.Holes.ViewModels"
              xmlns:models="clr-namespace:Fredy.Drilling.Holes.Models"
+             xmlns:uc="clr-namespace:Fredy.Drilling.Holes.UserControls"
              mc:Ignorable="d" Background="#F0F0F0"
              d:DesignHeight="700" d:DesignWidth="1100"
         MaxHeight="1024" MaxWidth="1280"
@@ -38,7 +39,6 @@
                 <TextBlock Text="点动步距：" FontSize="22" FontWeight="Bold" VerticalAlignment="Center"/>
                 <ComboBox Width="200" Height="40" FontSize="20" ItemsSource="{Binding JogStepOptions}" SelectedItem="{Binding JogStep}"/>
             </StackPanel>
-            <Button Content="冲测试孔" Width="140" Height="45" HorizontalAlignment="Left" FontSize="18" Command="{Binding TestPunchCommand}"/>
 
             <GroupBox Header="GPIO_IN" Margin="0,15">
                 <ItemsControl ItemsSource="{Binding GpioIn}">
@@ -115,6 +115,48 @@
                     <Button Content="Z轴回零" Width="100" Margin="50,5,0,5" Command="{Binding HomeAxisCommand}" CommandParameter="Z"/>
                 </StackPanel>
             </Grid>
+
+            <GroupBox Header="坐标偏差校准 (Offset)" Margin="0,15" Background="#F8F8F8">
+                <StackPanel Margin="5">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="1.5*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="1.5*"/>
+                        </Grid.ColumnDefinitions>
+                        <Button Content="1. 记录冲针" FontSize="16" Height="40" Margin="5" Command="{Binding MarkPunchPositionCommand}"/>
+                        <Button Grid.Column="1" Content="打孔" FontSize="16" Height="40" Margin="5" Command="{Binding TestPunchCommand}" Background="#FFDDDD"/>
+                        <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="10,0,0,0">
+                            <TextBlock Text="{Binding PunchX, StringFormat=X: {0:F3}}"/>
+                            <TextBlock Text="{Binding PunchY, StringFormat=Y: {0:F3}}"/>
+                        </StackPanel>
+                    </Grid>
+                    <Grid Margin="0,5">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="1.5*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="1.5*"/>
+                        </Grid.ColumnDefinitions>
+                        <Button Content="2. 记录相机" FontSize="16" Height="40" Margin="5" Command="{Binding MarkCameraPositionCommand}"/>
+                        <CheckBox Grid.Column="1" Content="视觉辅助" VerticalAlignment="Center" HorizontalAlignment="Center" IsChecked="{Binding EnableVisionAssist}"/>
+                        <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="10,0,0,0">
+                            <TextBlock Text="{Binding CameraX, StringFormat=X: {0:F3}}"/>
+                            <TextBlock Text="{Binding CameraY, StringFormat=Y: {0:F3}}"/>
+                        </StackPanel>
+                    </Grid>
+                    <Grid Margin="0,5">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="2.5*"/>
+                            <ColumnDefinition Width="1.5*"/>
+                        </Grid.ColumnDefinitions>
+                        <Button Content="3. 计算并应用 Offset" FontSize="18" FontWeight="Bold" Height="45" Margin="5" Background="#8EB933" Command="{Binding CalculateAndSaveOffsetCommand}"/>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="10,0,0,0">
+                            <TextBlock Text="{Binding OffsetX, StringFormat=dX: {0:F3}}" FontWeight="Bold" Foreground="Red" FontSize="16"/>
+                            <TextBlock Text="{Binding OffsetY, StringFormat=dY: {0:F3}}" FontWeight="Bold" Foreground="Red" FontSize="16"/>
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+            </GroupBox>
         </StackPanel>
 
         <Grid Grid.Column="1" Margin="10,0,0,0">
@@ -123,25 +165,7 @@
                 <RowDefinition Height="100"/>
             </Grid.RowDefinitions>
             <Border x:Name="LiveVideo" BorderBrush="Gray" BorderThickness="1" Background="#EAEAEA">
-                <Grid>
-                    <Image Source="{Binding CameraPreviewImage}" Stretch="Uniform"/>
-                    <TextBlock Text="暂无相机图像"
-                               HorizontalAlignment="Center"
-                               VerticalAlignment="Center"
-                               Foreground="Gray"
-                               FontSize="18">
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock">
-                                <Setter Property="Visibility" Value="Collapsed"/>
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding CameraPreviewImage}" Value="{x:Null}">
-                                        <Setter Property="Visibility" Value="Visible"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
-                </Grid>
+                <uc:CameraViewerControl ImageMat="{Binding CameraPreviewMat}" />
             </Border>
 
             <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Bottom">

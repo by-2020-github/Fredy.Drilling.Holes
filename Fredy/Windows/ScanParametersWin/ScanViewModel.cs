@@ -1,4 +1,4 @@
-﻿using BLL;
+using BLL;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Fredy.Drilling.Holes.Models;
@@ -44,7 +44,7 @@ namespace Fredy.Drilling.Holes.ViewModels
         private int _lastMatchedPointCount;
 
         [ObservableProperty] private ScanParameters _params = new();
-        [ObservableProperty] private ImageSource? _stitchedPreviewImage;
+        [ObservableProperty] private OpenCvSharp.Mat? _stitchedPreviewMat;
         [ObservableProperty] private bool _showGridOverlay = true;
 
         public ScanViewModel()
@@ -305,7 +305,9 @@ namespace Fredy.Drilling.Holes.ViewModels
                     Cv2.Circle(preview, center, 2, Scalar.Red, -1);
                 }
 
-                StitchedPreviewImage = ConvertMatToBitmapSource(preview);
+                var oldMat = StitchedPreviewMat;
+                StitchedPreviewMat = preview.Clone();
+                oldMat?.Dispose();
                 Params.ScanStatus = $"{sourceName}检测完成：识别圆孔 {detection.Circles.Count} 个。";
             }
             catch (Exception ex)
@@ -880,42 +882,6 @@ namespace Fredy.Drilling.Holes.ViewModels
              return bgr;
          }
 
-         private static BitmapSource ConvertMatToBitmapSource(Mat mat)
-         {
-             Mat bgrMat = mat;
-             if (mat.Type() == MatType.CV_8UC1)
-             {
-                 bgrMat = new Mat();
-                 Cv2.CvtColor(mat, bgrMat, ColorConversionCodes.GRAY2BGR);
-             }
-
-             try
-             {
-                 var stride = (int)bgrMat.Step();
-                 var bufferSize = stride * bgrMat.Rows;
-                 var bitmap = BitmapSource.Create(
-                     bgrMat.Width,
-                     bgrMat.Height,
-                     96,
-                     96,
-                     PixelFormats.Bgr24,
-                     null,
-                     bgrMat.Data,
-                     bufferSize,
-                     stride);
-
-                 bitmap.Freeze();
-                 return bitmap;
-             }
-             finally
-             {
-                 if (!ReferenceEquals(bgrMat, mat))
-                 {
-                     bgrMat.Dispose();
-                 }
-             }
-         }
-
          private void ResetScanRunState()
          {
              foreach (var cell in PreviewGridCells)
@@ -1110,9 +1076,11 @@ namespace Fredy.Drilling.Holes.ViewModels
                  }
              }
 
-             SaveDebugStitchedMatIfNeeded(stitched);
-             StitchedPreviewImage = ConvertMatToBitmapSource(stitched);
-         }
+            SaveDebugStitchedMatIfNeeded(stitched);
+            var oldMat = StitchedPreviewMat;
+            StitchedPreviewMat = stitched.Clone();
+            oldMat?.Dispose();
+        }
 
          private void SaveDebugStitchedMatIfNeeded(Mat stitched)
          {
@@ -1130,3 +1098,5 @@ namespace Fredy.Drilling.Holes.ViewModels
          private readonly record struct ScanShotPoint(double X, double Y, int Row, int Column, int ShotIndex);
     }
 }
+
+

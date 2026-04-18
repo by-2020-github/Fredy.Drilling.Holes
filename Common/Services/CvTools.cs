@@ -11,14 +11,18 @@ public class DetectionResult : IDisposable
 {
     public int Count => Circles.Count;
     public List<CircleSegment> Circles { get; set; } = new List<CircleSegment>();
-    public Mat ResultImage { get; set; }
-    public Mat BinaryImage { get; set; } // 新增：保存中间二值化结果
-    public string Config { get; set; }
+    public Mat? ResultImage { get; set; }
+    public Mat? BinaryImage { get; set; } // 二值化
+    public Mat? EdgesImage { get; set; } // 边缘
+    public Mat? ContoursImage { get; set; } // 轮廓
+    public string Config { get; set; } = string.Empty;
 
     public void Dispose()
     {
         ResultImage?.Dispose();
         BinaryImage?.Dispose();
+        EdgesImage?.Dispose();
+        ContoursImage?.Dispose();
     }
 }
 
@@ -31,12 +35,56 @@ public class CircleDetector
         result.Config = $"DarkField - Area:[{minArea}-{maxArea}], Threshold:{threshold}, Circularity:{circularity}";
 
         using var gray = new Mat();
-        using var binary = new Mat();
+        result.BinaryImage = new Mat();
 
         Cv2.CvtColor(src, gray, ColorConversionCodes.BGR2GRAY);
-        Cv2.Threshold(gray, binary, threshold, 255, ThresholdTypes.Binary);
+        Cv2.Threshold(gray, result.BinaryImage, threshold, 255, ThresholdTypes.Binary);
 
-        result.Circles = ProcessContours(binary, result.ResultImage, minArea, maxArea, circularity, Scalar.Lime);
+        result.Circles = ProcessContours(result.BinaryImage, result, minArea, maxArea, circularity, Scalar.Lime);
+        return result;
+    }
+
+    public DetectionResult ProcessMetalHoles(Mat src, bool isDarkHole = true, int minRadius = 15, int maxRadius = 25, double param1 = 50, double param2 = 25)
+    {
+        var result = new DetectionResult();
+        result.ResultImage = src.Clone();
+        result.Config = $"MetalHoles - Target:{(isDarkHole?"Dark":"Light")}, Radius:[{minRadius}-{maxRadius}], P1:{param1}, P2:{param2}";
+
+        using var gray = new Mat();
+        Cv2.CvtColor(src, gray, ColorConversionCodes.BGR2GRAY);
+
+        using var blurred = new Mat();
+        Cv2.MedianBlur(gray, blurred, 5);
+
+        using var clahe = Cv2.CreateCLAHE(2.0, new Size(8, 8));
+        using var enhanced = new Mat();
+        clahe.Apply(blurred, enhanced);
+
+        result.BinaryImage = new Mat();
+        var thresholdType = isDarkHole ? ThresholdTypes.BinaryInv : ThresholdTypes.Binary;
+        Cv2.AdaptiveThreshold(enhanced, result.BinaryImage, 255, AdaptiveThresholdTypes.GaussianC, thresholdType, 11, 2);
+
+        using var kernel = Mat.Ones(3, 3, MatType.CV_8UC1);
+        using var clean = new Mat();
+        Cv2.MorphologyEx(result.BinaryImage, clean, MorphTypes.Open, kernel);
+
+        result.EdgesImage = clean.Clone();
+
+        var circles = Cv2.HoughCircles(clean, HoughModes.Gradient, 1.2, 30, param1, param2, minRadius, maxRadius);
+        
+        result.Circles = new List<CircleSegment>();
+        var targetImage = result.ResultImage;
+
+        foreach (var c in circles)
+        {
+            var center = new Point2f((float)Math.Round(c.Center.X), (float)Math.Round(c.Center.Y));
+            var radius = (float)Math.Round(c.Radius);
+            result.Circles.Add(new CircleSegment(center, radius));
+            Cv2.Circle(targetImage, (Point)center, (int)radius, Scalar.Lime, 2);
+        }
+
+        result.ContoursImage = targetImage.Clone();
+
         return result;
     }
 
@@ -48,14 +96,15 @@ public class CircleDetector
 
         using var gray = new Mat();
         using var preprocessed = new Mat();
-        using var binary = new Mat();
-
+        
         Cv2.CvtColor(src, gray, ColorConversionCodes.BGR2GRAY);
         using var element = Cv2.GetStructuringElement(MorphShapes.Ellipse, new Size(morphologySize, morphologySize));
         Cv2.MorphologyEx(gray, preprocessed, MorphTypes.BlackHat, element);
-        Cv2.Threshold(preprocessed, binary, threshold, 255, ThresholdTypes.Binary);
+        
+        result.BinaryImage = new Mat();
+        Cv2.Threshold(preprocessed, result.BinaryImage, threshold, 255, ThresholdTypes.Binary);
 
-        result.Circles = ProcessContours(binary, result.ResultImage, minArea, maxArea, circularity, Scalar.Red);
+        result.Circles = ProcessContours(result.BinaryImage, result, minArea, maxArea, circularity, Scalar.Red);
         return result;
     }
     /// <summary>
@@ -144,32 +193,42 @@ public class CircleDetector
     /// <summary>
     /// 通用的轮廓提取和筛选逻辑
     /// </summary>
-    private List<CircleSegment> ProcessContours(Mat binary, Mat resultImage, int minArea, int maxArea, double circularity, Scalar drawColor)
+    private List<CircleSegment> ProcessContours(Mat binary, DetectionResult result, int minArea, int maxArea, double circularity, Scalar drawColor)
     {
         var detectedCircles = new List<CircleSegment>();
-        Cv2.FindContours(binary, out var contours, out _, RetrievalModes.External, ContourApproximationModes.ApproxSimple);
+        result.EdgesImage = new Mat();
+        Cv2.Canny(binary, result.EdgesImage, 50, 150);
 
-        foreach (var contour in contours)
+        Cv2.FindContours(result.EdgesImage, out var contours, out _, RetrievalModes.External, ContourApproximationModes.ApproxNone);
+
+        result.ContoursImage = Mat.Zeros(binary.Size(), MatType.CV_8UC3);
+
+        for (int i = 0; i < contours.Length; i++)
         {
+            var contour = contours[i];
             double area = Cv2.ContourArea(contour);
 
-            // 面积筛选
+            // Draw all contours originally obtained for debug
+            Cv2.DrawContours(result.ContoursImage, contours, i, Scalar.Yellow, 1);
+
             if (area >= minArea && area <= maxArea)
             {
                 double perimeter = Cv2.ArcLength(contour, true);
                 if (perimeter <= 0) continue;
 
-                // 圆度筛选
                 double c = (4 * Math.PI * area) / (perimeter * perimeter);
                 if (c >= circularity)
                 {
-                    // 获取外接圆
                     Cv2.MinEnclosingCircle(contour, out var center, out float radius);
-
                     detectedCircles.Add(new CircleSegment(center, radius));
 
-                    // 绘图
-                    Cv2.Circle(resultImage, (Point)center, (int)radius, drawColor, 1);
+                    if (result.ResultImage != null)
+                    {
+                        Cv2.Circle(result.ResultImage, (Point)center, (int)radius, drawColor, 1);
+                    }
+                    
+                    // Highlight the found circles in the contours image as well
+                    Cv2.DrawContours(result.ContoursImage, contours, i, Scalar.Lime, 2);
                 }
             }
         }

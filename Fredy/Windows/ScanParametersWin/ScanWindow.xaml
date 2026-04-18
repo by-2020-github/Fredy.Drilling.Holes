@@ -3,8 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:vm="clr-namespace:Fredy.Drilling.Holes.ViewModels"
-        mc:Ignorable="d"
+        xmlns:vm="clr-namespace:Fredy.Drilling.Holes.ViewModels"        xmlns:uc="clr-namespace:Fredy.Drilling.Holes.UserControls"        mc:Ignorable="d"
         MaxHeight="1024" MaxWidth="1280"
         Title="分区扫描" Height="700" Width="1100" Background="#F0F0F0"
         d:DataContext="{d:DesignInstance Type=vm:ScanViewModel, IsDesignTimeCreatable=True}">
@@ -165,7 +164,7 @@
 
         <Border Grid.Column="1" Background="#111111" Margin="8" Padding="8">
             <Grid>
-                <Image Source="{Binding StitchedPreviewImage}" Stretch="Uniform"/>
+                <uc:CameraViewerControl ImageMat="{Binding StitchedPreviewMat}" />
 
                 <ItemsControl Width="{Binding PreviewCanvasSize}"
                               Height="{Binding PreviewCanvasSize}"

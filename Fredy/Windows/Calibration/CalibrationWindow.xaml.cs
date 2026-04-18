@@ -10,18 +10,28 @@ using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using System.Windows.Shapes;
+using System;
+using System.Windows;
+using Fredy.Drilling.Holes.ViewModels;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Fredy.Drilling.Holes.Views
 {
-    /// <summary>
-    /// CalibrationWindow.xaml 的交互逻辑
-    /// </summary>
     public partial class CalibrationWindow : Window
     {
         public CalibrationWindow()
         {
             InitializeComponent();
+            DataContext = App.ServiceProvider.GetRequiredService<CalibrationViewModel>();
+        }
+
+        protected override void OnClosed(EventArgs e)
+        {
+            base.OnClosed(e);
+            if (DataContext is IDisposable disposable)
+            {
+                disposable.Dispose();
+            }
         }
     }
 }
