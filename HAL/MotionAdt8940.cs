@@ -120,7 +120,16 @@ namespace HAL
             ConfigureHome(axisNo);
             ExecuteNative(() => adt8940a1.adt8940a1_HomeProcess_Ex(_cardNo, axisNo), $"Home axis {axisNo}");
 
-            return wait ? WaitForHomeAsync(axisNo, cancellationToken) : Task.CompletedTask;
+            if (wait)
+            {
+                return WaitForHomeAsync(axisNo, cancellationToken);
+            }
+            else
+            {
+                // 如果不等待，依然需要启动后台监控并在完成时重置轴的位置
+                _ = WaitForHomeAsync(axisNo, cancellationToken);
+                return Task.CompletedTask;
+            }
         }
 
         public Task MoveAbsoluteAsync(int axisNo, double position, bool wait, CancellationToken cancellationToken = default)
@@ -149,16 +158,8 @@ namespace HAL
             EnsureAxisReady(axisNo);
             EnsureAxisEnabled(axisNo);
 
-            ConfigureMotion(axisNo);
-
-            var pulseDistance = ToPulse(distance);
-            if (pulseDistance == 0)
-            {
-                return Task.CompletedTask;
-            }
-
-            ExecuteNative(() => adt8940a1.adt8940a1_pmove(_cardNo, axisNo, pulseDistance), $"Move relative axis {axisNo}");
-            return wait ? WaitForAxisStopAsync(axisNo, cancellationToken) : Task.CompletedTask;
+            var currentPulse = GetCommandPosition(axisNo);
+            return MoveAbsoluteAsync(axisNo, currentPulse + distance, wait, cancellationToken);
         }
 
         public Task StopAllAsync(int[] axisNos)
@@ -193,46 +194,62 @@ namespace HAL
 
         private async Task WaitForAxisStopAsync(int axisNo, CancellationToken cancellationToken)
         {
-            while (true)
+            try
             {
-                cancellationToken.ThrowIfCancellationRequested();
-
-                ExecuteNative(
-                    (out int status) => adt8940a1.adt8940a1_get_status(_cardNo, axisNo, out status),
-                    $"Get status for axis {axisNo}",
-                    out var motionStatus);
-
-                if (motionStatus == 0)
+                while (true)
                 {
-                    return;
-                }
+                    cancellationToken.ThrowIfCancellationRequested();
 
-                await Task.Delay(PollInterval, cancellationToken).ConfigureAwait(false);
+                    ExecuteNative(
+                        (out int status) => adt8940a1.adt8940a1_get_status(_cardNo, axisNo, out status),
+                        $"Get status for axis {axisNo}",
+                        out var motionStatus);
+
+                    if (motionStatus == 0)
+                    {
+                        return;
+                    }
+
+                    await Task.Delay(PollInterval, cancellationToken).ConfigureAwait(false);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                _ = StopAsync(axisNo);
+                throw;
             }
         }
 
         private async Task WaitForHomeAsync(int axisNo, CancellationToken cancellationToken)
         {
-            while (true)
+            try
             {
-                cancellationToken.ThrowIfCancellationRequested();
-
-                var status = ExecuteNativeWithRawResult(
-                    () => adt8940a1.adt8940a1_GetHomeStatus_Ex(_cardNo, axisNo),
-                    $"Get home status for axis {axisNo}");
-
-                if (status == 0)
+                while (true)
                 {
-                    ResetPosition(axisNo);
-                    return;
-                }
+                    cancellationToken.ThrowIfCancellationRequested();
 
-                if (status < 0)
-                {
-                    throw new InvalidOperationException($"Home axis {axisNo} failed with status code {status}.");
-                }
+                    var status = ExecuteNativeWithRawResult(
+                        () => adt8940a1.adt8940a1_GetHomeStatus_Ex(_cardNo, axisNo),
+                        $"Get home status for axis {axisNo}");
 
-                await Task.Delay(PollInterval, cancellationToken).ConfigureAwait(false);
+                    if (status == 0)
+                    {
+                        ResetPosition(axisNo);
+                        return;
+                    }
+
+                    if (status < 0)
+                    {
+                        throw new InvalidOperationException($"Home axis {axisNo} failed with status code {status}.");
+                    }
+
+                    await Task.Delay(PollInterval, cancellationToken).ConfigureAwait(false);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                _ = StopAsync(axisNo);
+                throw;
             }
         }
 
