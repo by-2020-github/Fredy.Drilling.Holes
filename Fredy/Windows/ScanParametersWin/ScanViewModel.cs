@@ -40,6 +40,7 @@ namespace Fredy.Drilling.Holes.ViewModels
         private CancellationTokenSource? _scanCancellationTokenSource;
         private int _debugRenderIndex;
         private AffineTransform2D _pendingAlignmentTransform = AffineTransform2D.Identity;
+        private IReadOnlyDictionary<int, (double X, double Y)> _pendingMatchedPoints = new Dictionary<int, (double X, double Y)>();
         private bool _hasPendingAlignmentTransform;
         private int _lastMatchedPointCount;
 
@@ -331,7 +332,7 @@ namespace Fredy.Drilling.Holes.ViewModels
                 return;
             }
 
-            _secondPassAlignmentContext.SetTransform(_pendingAlignmentTransform);
+            _secondPassAlignmentContext.SetTransform(_pendingAlignmentTransform, _pendingMatchedPoints);
             Params.ScanStatus = $"二道坐标校准成功，已写入坐标变换矩阵（匹配点 {_lastMatchedPointCount}），可返回主界面继续二道冲孔。";
         }
 
@@ -412,16 +413,17 @@ namespace Fredy.Drilling.Holes.ViewModels
                 return;
             }
 
-            if (!TryEstimateTransform(recipePoints, _detectedHoleCoordinates, out var transform, out var matchedCount))
+            if (!TryEstimateTransform(recipePoints, _detectedHoleCoordinates, out var transform, out var matchedIndexMap))
             {
                 Params.ScanStatus = $"扫描完成，检测候选 {_detectedHoleCandidates.Count} 个、去重后 {_detectedHoleCoordinates.Count} 个；与配方[{recipeName}]自动匹配失败，无法生成坐标矩阵。";
                 return;
             }
 
             _pendingAlignmentTransform = transform;
+            _pendingMatchedPoints = matchedIndexMap;
             _hasPendingAlignmentTransform = true;
-            _lastMatchedPointCount = matchedCount;
-            Params.ScanStatus = $"扫描完成，候选 {_detectedHoleCandidates.Count} 个，去重后 {_detectedHoleCoordinates.Count} 个；与配方[{recipeName}]匹配 {matchedCount} 个，已计算坐标变换矩阵。";
+            _lastMatchedPointCount = matchedIndexMap.Count;
+            Params.ScanStatus = $"扫描完成，候选 {_detectedHoleCandidates.Count} 个，去重后 {_detectedHoleCoordinates.Count} 个；与配方[{recipeName}]匹配 {matchedIndexMap.Count} 个，已计算坐标变换矩阵。";
         }
 
         private bool TryGetRecipePoints(out List<Point2d> recipePoints, out string recipeName)
@@ -490,10 +492,11 @@ namespace Fredy.Drilling.Holes.ViewModels
             IReadOnlyList<Point2d> recipePoints,
             IReadOnlyList<Point2d> detectedPoints,
             out AffineTransform2D transform,
-            out int matchedCount)
+            out IReadOnlyDictionary<int, (double X, double Y)> matchedIndexMap)
         {
             transform = AffineTransform2D.Identity;
-            matchedCount = 0;
+            matchedIndexMap = new Dictionary<int, (double X, double Y)>();
+            int matchedCount = 0;
 
             if (recipePoints.Count < 3 || detectedPoints.Count < 3)
             {
@@ -505,6 +508,7 @@ namespace Fredy.Drilling.Holes.ViewModels
             transform = new AffineTransform2D(1, 0, 0, 1, detectedCentroid.X - recipeCentroid.X, detectedCentroid.Y - recipeCentroid.Y);
 
             double maxMatchDistance = EstimateInitialMatchDistance(recipePoints);
+            List<PointPair> finalPairs = new();
 
             for (int iter = 0; iter < 6; iter++)
             {
@@ -527,18 +531,34 @@ namespace Fredy.Drilling.Holes.ViewModels
                 if (filteredPairs.Count >= 3 && TrySolveAffine(filteredPairs, out var refined))
                 {
                     transform = refined;
+                    finalPairs = filteredPairs;
                     matchedCount = filteredPairs.Count;
                 }
                 else
                 {
                     transform = solved;
+                    finalPairs = pairs;
                     matchedCount = pairs.Count;
                 }
 
                 maxMatchDistance = Math.Max(0.06, maxMatchDistance * 0.85);
             }
 
-            return matchedCount >= 3;
+            if (matchedCount >= 3)
+            {
+                var map = new Dictionary<int, (double X, double Y)>();
+                foreach (var pair in finalPairs)
+                {
+                    if (pair.SourceIndex >= 0)
+                    {
+                        map[pair.SourceIndex] = (pair.Target.X, pair.Target.Y);
+                    }
+                }
+                matchedIndexMap = map;
+                return true;
+            }
+
+            return false;
         }
 
         private static List<PointPair> BuildPairs(
@@ -550,8 +570,9 @@ namespace Fredy.Drilling.Holes.ViewModels
             var pairs = new List<PointPair>();
             var used = new HashSet<int>();
 
-            foreach (var source in recipePoints)
+            for (int sourceIdx = 0; sourceIdx < recipePoints.Count; sourceIdx++)
             {
+                var source = recipePoints[sourceIdx];
                 var mapped = transform.Transform(source.X, source.Y);
                 int nearestIndex = -1;
                 double nearestDistance = double.MaxValue;
@@ -574,7 +595,7 @@ namespace Fredy.Drilling.Holes.ViewModels
                 if (nearestIndex >= 0 && nearestDistance <= maxDistance)
                 {
                     used.Add(nearestIndex);
-                    pairs.Add(new PointPair(source, detectedPoints[nearestIndex]));
+                    pairs.Add(new PointPair(source, detectedPoints[nearestIndex], sourceIdx));
                 }
             }
 
@@ -798,7 +819,7 @@ namespace Fredy.Drilling.Holes.ViewModels
             }
         }
 
-        private readonly record struct PointPair(Point2d Source, Point2d Target);
+        private readonly record struct PointPair(Point2d Source, Point2d Target, int SourceIndex = -1);
  
          private async Task MoveToScanPointAsync(ScanShotPoint shot, CancellationToken cancellationToken)
          {

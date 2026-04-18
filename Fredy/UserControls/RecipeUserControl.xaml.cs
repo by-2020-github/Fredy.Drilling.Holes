@@ -29,6 +29,8 @@ namespace Fredy.Drilling.Holes.UserControls
         private const double MapPadding = 24;
         private static readonly Brush CompletedBrush = Brushes.ForestGreen;
         private static readonly Brush PendingBrush = Brushes.Gray;
+        private static readonly Brush MatchedPendingBrush = Brushes.DodgerBlue;
+        private static readonly Brush UnmatchedBrush = Brushes.Red;
 
         public static readonly DependencyProperty RecipeViewModelProperty = DependencyProperty.Register(
             nameof(RecipeViewModel),
@@ -81,18 +83,41 @@ namespace Fredy.Drilling.Holes.UserControls
             }
 
             var drawableRadius = (MapSize / 2) - MapPadding;
+            var isFirstPass = RecipeViewModel.IsFirstPass;
+            var matchedPoints = RecipeViewModel.MatchedPoints;
 
-            foreach (var point in punchPoints)
+            for (int i = 0; i < punchPoints.Count; i++)
             {
-                var centerX = (MapSize / 2) + ((point.X / RecipeViewModel.Radius) * drawableRadius);
-                var centerY = (MapSize / 2) - ((point.Y / RecipeViewModel.Radius) * drawableRadius);
+                var point = punchPoints[i];
+                double renderX = point.X;
+                double renderY = point.Y;
+                Brush fill = point.Complete ? CompletedBrush : PendingBrush;
+                string statusText = point.Complete ? "已完成" : "未完成";
+
+                if (!isFirstPass)
+                {
+                    if (matchedPoints is not null && matchedPoints.TryGetValue(i, out var mp))
+                    {
+                        renderX = mp.X;
+                        renderY = mp.Y;
+                        fill = point.Complete ? CompletedBrush : MatchedPendingBrush;
+                    }
+                    else
+                    {
+                        fill = UnmatchedBrush;
+                        statusText = "未匹配 (跳过)";
+                    }
+                }
+
+                var centerX = (MapSize / 2) + ((renderX / RecipeViewModel.Radius) * drawableRadius);
+                var centerY = (MapSize / 2) - ((renderY / RecipeViewModel.Radius) * drawableRadius);
 
                 DisplayPoints.Add(new RecipePointVisual
                 {
                     Left = centerX - (PointSize / 2),
                     Top = centerY - (PointSize / 2),
-                    Fill = point.Complete ? CompletedBrush : PendingBrush,
-                    ToolTip = $"圈:{point.RingNumber} 序号:{point.SequenceIndex} 坐标:({point.X:N3}, {point.Y:N3}) 状态:{(point.Complete ? "已完成" : "未完成")}"
+                    Fill = fill,
+                    ToolTip = $"圈:{point.RingNumber} 序号:{point.SequenceIndex} 坐标:({renderX:N3}, {renderY:N3}) 状态:{statusText}"
                 });
             }
         }

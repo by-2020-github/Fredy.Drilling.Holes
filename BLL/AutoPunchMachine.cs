@@ -131,7 +131,28 @@ namespace BLL
             CurrentState = resumeState;
             Log($"[系统] 冲孔流程继续，当前孔位: {CurrentHoleIndex}");
         }
+        public void SkipCurrentHole()
+        {
+            if (CurrentState == PunchState.Finished || CurrentState == PunchState.Paused)
+            {
+                return;
+            }
 
+            Log($"[系统] 跳过未检测到的孔位: 第 {CurrentHoleIndex} 孔");
+
+            if (IsLastHole)
+            {
+                Log("所有孔位加工完毕！");
+                CurrentHoleIndex = 1;
+                CompletionStatus = PunchCompletionStatus.NormalFinished;
+                EndProcess();
+            }
+            else
+            {
+                CurrentHoleIndex++;
+                CurrentState = PunchState.ReadCoordinate;
+            }
+        }
         public void CancelProcess()
         {
             if (CurrentState == PunchState.Finished)

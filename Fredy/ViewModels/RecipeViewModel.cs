@@ -115,6 +115,8 @@ namespace Fredy.Drilling.Holes.ViewModels
         private PunchPointViewModel? _selectedPunchPoint;
         private int _detectionOffsetThreshold;
         private int _secondPassOffsetThreshold;
+        private bool _isFirstPass = true;
+        private IReadOnlyDictionary<int, (double X, double Y)>? _matchedPoints;
 
         public RecipeViewModel(Recipe recipe)
         {
@@ -235,6 +237,18 @@ namespace Fredy.Drilling.Holes.ViewModels
                     RemoveSelectedPunchPointCommand.NotifyCanExecuteChanged();
                 }
             }
+        }
+
+        public bool IsFirstPass
+        {
+            get => _isFirstPass;
+            set => SetProperty(ref _isFirstPass, value);
+        }
+
+        public IReadOnlyDictionary<int, (double X, double Y)>? MatchedPoints
+        {
+            get => _matchedPoints;
+            set => SetProperty(ref _matchedPoints, value);
         }
 
         public RecipeProcessParameters ProcessParameters { get; }

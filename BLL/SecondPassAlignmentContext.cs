@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace BLL
 {
@@ -24,8 +25,9 @@ namespace BLL
     {
         bool IsReady { get; }
         AffineTransform2D Transform { get; }
+        IReadOnlyDictionary<int, (double X, double Y)> MatchedPoints { get; }
         event EventHandler? AlignmentChanged;
-        void SetTransform(AffineTransform2D transform);
+        void SetTransform(AffineTransform2D transform, IReadOnlyDictionary<int, (double X, double Y)> matchedPoints);
         void Clear();
     }
 
@@ -35,11 +37,14 @@ namespace BLL
 
         public AffineTransform2D Transform { get; private set; } = AffineTransform2D.Identity;
 
+        public IReadOnlyDictionary<int, (double X, double Y)> MatchedPoints { get; private set; } = new Dictionary<int, (double X, double Y)>();
+
         public event EventHandler? AlignmentChanged;
 
-        public void SetTransform(AffineTransform2D transform)
+        public void SetTransform(AffineTransform2D transform, IReadOnlyDictionary<int, (double X, double Y)> matchedPoints)
         {
             Transform = transform;
+            MatchedPoints = matchedPoints;
             IsReady = true;
             AlignmentChanged?.Invoke(this, EventArgs.Empty);
         }
@@ -47,6 +52,7 @@ namespace BLL
         public void Clear()
         {
             Transform = AffineTransform2D.Identity;
+            MatchedPoints = new Dictionary<int, (double X, double Y)>();
             IsReady = false;
             AlignmentChanged?.Invoke(this, EventArgs.Empty);
         }
