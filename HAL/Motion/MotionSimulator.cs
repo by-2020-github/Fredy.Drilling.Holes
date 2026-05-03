@@ -12,6 +12,22 @@ namespace HAL
         private static readonly TimeSpan UpdateInterval = TimeSpan.FromMilliseconds(20);
 
         private readonly ConcurrentDictionary<int, AxisState> _axes = new();
+        private readonly ConcurrentDictionary<int, AxisParam> _axisParams = new();
+
+        public void ConfigureAxis(AxisParam axis)
+        {
+            _axisParams[axis.AxisNo] = axis;
+        }
+
+        public void ConfigureAxes(params AxisParam[] axes)
+        {
+            ArgumentNullException.ThrowIfNull(axes);
+
+            for (var i = 0; i < axes.Length; i++)
+            {
+                ConfigureAxis(axes[i]);
+            }
+        }
 
         public Task DisableAllAsync(int[] axisNos)
         {

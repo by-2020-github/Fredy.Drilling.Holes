@@ -13,6 +13,17 @@ namespace Fredy.Drilling.Holes.Models
         [ObservableProperty] private int _pulseEquivalent; // 脉冲当量
     }
 
+    public partial class AxisParamConfig : ObservableObject
+    {
+        [ObservableProperty] private int _axisNo;
+        [ObservableProperty] private double _velocity;
+        [ObservableProperty] private double _acceleration;
+        [ObservableProperty] private double _deceleration;
+        [ObservableProperty] private double? _leftLimit;
+        [ObservableProperty] private double? _rightLimit;
+        [ObservableProperty] private double _pulsesPerMillimeter = 1d;
+    }
+
     // 端口项 (编号 + 低电平取反)
     public partial class PortItem : ObservableObject
     {
@@ -50,6 +61,12 @@ namespace Fredy.Drilling.Holes.Models
         public MotionParams FirstPass { get; set; } = new();
 
         public MotionParams SecondPass { get; set; } = new();
+
+        public AxisParamConfig XAxis { get; set; } = new() { AxisNo = 1, PulsesPerMillimeter = 1d };
+
+        public AxisParamConfig YAxis { get; set; } = new() { AxisNo = 2, PulsesPerMillimeter = 1d };
+
+        public AxisParamConfig ZAxis { get; set; } = new() { AxisNo = 3, PulsesPerMillimeter = 1d };
 
         public double FastMovePos { get; set; } = -22.0;
 

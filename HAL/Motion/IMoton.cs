@@ -9,10 +9,17 @@ namespace HAL
         int AxisNo,
         double Velocity,
         double Acceleration,
-        double Deceleration);
+        double Deceleration,
+        double? LeftLimit = null,
+        double? RightLimit = null,
+        double PulsesPerMillimeter = 1d);
 
     public interface IMoton
     {
+        void ConfigureAxis(AxisParam axis);
+
+        void ConfigureAxes(params AxisParam[] axes);
+
         Task MoveAbsoluteAsync(int axisNo, double position, bool wait, CancellationToken cancellationToken = default);
 
         Task MoveRelativeAsync(int axisNo, double distance, bool wait, CancellationToken cancellationToken = default);

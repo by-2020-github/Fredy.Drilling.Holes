@@ -37,6 +37,7 @@ namespace Fredy.Drilling.Holes
                 ConfigureServices(serviceCollection, logStore);
 
                 ServiceProvider = serviceCollection.BuildServiceProvider();
+                InitializeMotionService();
                 InitializeRecipeService();
 
                 LogStartupInformation();
@@ -159,6 +160,29 @@ namespace Fredy.Drilling.Holes
             var recipeService = ServiceProvider.GetRequiredService<RecipeService>();
             var recipeCount = recipeService.Recipes.Count;
             Log.Information("RecipeService 初始化完成，已加载 {RecipeCount} 个配方", recipeCount);
+        }
+
+        private static void InitializeMotionService()
+        {
+            var config = ServiceProvider.GetRequiredService<ConfigService>().CurrentConfig;
+            var motionService = ServiceProvider.GetRequiredService<IMotionService>();
+
+            motionService.ConfigureAxes(
+                BuildAxisParam(config.XAxis),
+                BuildAxisParam(config.YAxis),
+                BuildAxisParam(config.ZAxis));
+        }
+
+        private static AxisParam BuildAxisParam(Models.AxisParamConfig axisConfig)
+        {
+            return new AxisParam(
+                axisConfig.AxisNo,
+                axisConfig.Velocity,
+                axisConfig.Acceleration,
+                axisConfig.Deceleration,
+                axisConfig.LeftLimit,
+                axisConfig.RightLimit,
+                axisConfig.PulsesPerMillimeter > 0 ? axisConfig.PulsesPerMillimeter : 1d);
         }
 
         private static void LogStartupInformation()

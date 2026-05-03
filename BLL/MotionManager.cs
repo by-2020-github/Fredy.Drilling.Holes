@@ -19,6 +19,7 @@ namespace BLL
         public MotionManager(IMoton motion)
         {
             _motion = motion ?? throw new ArgumentNullException(nameof(motion));
+            _motion.ConfigureAxes(XAxis, YAxis, ZAxis);
         }
 
         public MotionManager(IMoton motion, AxisParam xAxis, AxisParam yAxis, AxisParam zAxis)
@@ -32,13 +33,26 @@ namespace BLL
             XAxis = xAxis;
             YAxis = yAxis;
             ZAxis = zAxis;
+            _motion.ConfigureAxes(XAxis, YAxis, ZAxis);
         }
 
-        public void ConfigureXAxis(AxisParam axis) => XAxis = axis;
+        public void ConfigureXAxis(AxisParam axis)
+        {
+            XAxis = axis;
+            _motion.ConfigureAxis(XAxis);
+        }
 
-        public void ConfigureYAxis(AxisParam axis) => YAxis = axis;
+        public void ConfigureYAxis(AxisParam axis)
+        {
+            YAxis = axis;
+            _motion.ConfigureAxis(YAxis);
+        }
 
-        public void ConfigureZAxis(AxisParam axis) => ZAxis = axis;
+        public void ConfigureZAxis(AxisParam axis)
+        {
+            ZAxis = axis;
+            _motion.ConfigureAxis(ZAxis);
+        }
 
         public void HomeAll(bool wait)
         {
@@ -209,10 +223,24 @@ namespace BLL
             CancellationToken cancellationToken,
             Action<AxisParam> updateAxis)
         {
+            ValidateAxisLimit(axis, position);
             var updatedAxis = axis with { Velocity = velocity };
             updateAxis(updatedAxis);
             await _motion.EnableAsync(updatedAxis.AxisNo).ConfigureAwait(false);
             await _motion.MoveAbsoluteAsync(updatedAxis.AxisNo, position, wait, cancellationToken).ConfigureAwait(false);
+        }
+
+        private static void ValidateAxisLimit(AxisParam axis, double position)
+        {
+            if (axis.LeftLimit.HasValue && position < axis.LeftLimit.Value)
+            {
+                throw new ArgumentOutOfRangeException(nameof(position), position, $"Axis {axis.AxisNo} position is less than left limit {axis.LeftLimit.Value}.");
+            }
+
+            if (axis.RightLimit.HasValue && position > axis.RightLimit.Value)
+            {
+                throw new ArgumentOutOfRangeException(nameof(position), position, $"Axis {axis.AxisNo} position is greater than right limit {axis.RightLimit.Value}.");
+            }
         }
 
         private int[] GetAllAxisNos()

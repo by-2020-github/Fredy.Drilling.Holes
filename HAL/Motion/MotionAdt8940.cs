@@ -24,6 +24,7 @@ namespace HAL
         private const int MaxNativeCallRecordCount = 500;
 
         private readonly ConcurrentDictionary<int, bool> _axisEnabled = new();
+        private readonly ConcurrentDictionary<int, AxisParam> _axisParams = new();
         private readonly ConcurrentQueue<NativeCallRecord> _nativeCallRecords = new();
         private readonly object _syncRoot = new();
         private readonly int _cardNo;
@@ -37,6 +38,22 @@ namespace HAL
         private long _nativeCallSequence;
 
         public NativeCallRecord[] NativeCallRecords => _nativeCallRecords.ToArray();
+
+        public void ConfigureAxis(AxisParam axis)
+        {
+            ValidateAxisNo(axis.AxisNo);
+            _axisParams[axis.AxisNo] = axis with { PulsesPerMillimeter = NormalizePulseEquivalent(axis.PulsesPerMillimeter) };
+        }
+
+        public void ConfigureAxes(params AxisParam[] axes)
+        {
+            ArgumentNullException.ThrowIfNull(axes);
+
+            for (var i = 0; i < axes.Length; i++)
+            {
+                ConfigureAxis(axes[i]);
+            }
+        }
 
         public MotionAdt8940(
             int cardNo = 0,
@@ -103,13 +120,14 @@ namespace HAL
         {
             cancellationToken.ThrowIfCancellationRequested();
             EnsureAxisReady(axisNo);
+            var axis = GetAxisParam(axisNo);
 
             ExecuteNative(
                 (out int pos) => adt8940a1.adt8940a1_get_actual_pos(_cardNo, axisNo, out pos),
                 $"Get position for axis {axisNo}",
                 out var position);
 
-            return Task.FromResult((double)position);
+            return Task.FromResult(ToMillimeter(position, axis));
         }
 
         public Task HomeAsync(int axisNo, bool wait, CancellationToken cancellationToken = default)
@@ -138,10 +156,11 @@ namespace HAL
             cancellationToken.ThrowIfCancellationRequested();
             EnsureAxisReady(axisNo);
             EnsureAxisEnabled(axisNo);
+            var axis = GetAxisParam(axisNo);
 
             ConfigureMotion(axisNo);
 
-            var targetPulse = ToPulse(position);
+            var targetPulse = ToPulse(position, axis);
             var currentPulse = GetCommandPosition(axisNo);
             var distance = checked(targetPulse - currentPulse);
             if (distance == 0)
@@ -158,9 +177,18 @@ namespace HAL
             cancellationToken.ThrowIfCancellationRequested();
             EnsureAxisReady(axisNo);
             EnsureAxisEnabled(axisNo);
+            var axis = GetAxisParam(axisNo);
 
-            var currentPulse = GetCommandPosition(axisNo);
-            return MoveAbsoluteAsync(axisNo, currentPulse + distance, wait, cancellationToken);
+            ConfigureMotion(axisNo);
+
+            var pulseDistance = ToPulse(distance, axis);
+            if (pulseDistance == 0)
+            {
+                return Task.CompletedTask;
+            }
+
+            ExecuteNative(() => adt8940a1.adt8940a1_pmove(_cardNo, axisNo, pulseDistance), $"Move relative axis {axisNo}");
+            return wait ? WaitForAxisStopAsync(axisNo, cancellationToken) : Task.CompletedTask;
         }
 
         public Task StopAllAsync(int[] axisNos)
@@ -269,13 +297,14 @@ namespace HAL
         {
             cancellationToken.ThrowIfCancellationRequested();
             EnsureAxisReady(axisNo);
+            var axis = GetAxisParam(axisNo);
 
             ExecuteNative(
                 (out int pos) => adt8940a1.adt8940a1_get_lock_position(_cardNo, axisNo, out pos),
                 $"Get lock position for axis {axisNo}",
                 out var position);
 
-            return Task.FromResult((double)position);
+            return Task.FromResult(ToMillimeter(position, axis));
         }
 
         public Task<bool> GetLockStatusAsync(int axisNo, CancellationToken cancellationToken = default)
@@ -316,9 +345,14 @@ namespace HAL
             await Task.WhenAll(tasks).ConfigureAwait(false);
         }
 
-        private static int ToPulse(double value)
+        private static int ToPulse(double value, AxisParam axis)
         {
-            return checked((int)Math.Round(value, MidpointRounding.AwayFromZero));
+            return checked((int)Math.Round(value * NormalizePulseEquivalent(axis.PulsesPerMillimeter), MidpointRounding.AwayFromZero));
+        }
+
+        private static double ToMillimeter(int pulse, AxisParam axis)
+        {
+            return pulse / NormalizePulseEquivalent(axis.PulsesPerMillimeter);
         }
 
         private async Task WaitForAxisStopAsync(int axisNo, CancellationToken cancellationToken)
@@ -413,6 +447,7 @@ namespace HAL
             ValidateAxisNo(axisNo);
             EnsureInitialized();
             _axisEnabled.TryAdd(axisNo, true);
+            _axisParams.TryAdd(axisNo, CreateDefaultAxisParam(axisNo));
         }
 
         private void EnsureInitialized()
@@ -456,6 +491,23 @@ namespace HAL
         {
             ExecuteNative(() => adt8940a1.adt8940a1_set_command_pos(_cardNo, axisNo, 0), $"Reset command position for axis {axisNo}");
             ExecuteNative(() => adt8940a1.adt8940a1_set_actual_pos(_cardNo, axisNo, 0), $"Reset actual position for axis {axisNo}");
+        }
+
+        private AxisParam GetAxisParam(int axisNo)
+        {
+            return _axisParams.TryGetValue(axisNo, out var axis)
+                ? axis
+                : CreateDefaultAxisParam(axisNo);
+        }
+
+        private static AxisParam CreateDefaultAxisParam(int axisNo)
+        {
+            return new AxisParam(axisNo, 0, 0, 0, PulsesPerMillimeter: 1d);
+        }
+
+        private static double NormalizePulseEquivalent(double pulseEquivalent)
+        {
+            return pulseEquivalent > 0d ? pulseEquivalent : 1d;
         }
 
         private static int ToCardAcceleration(int acceleration)

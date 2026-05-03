@@ -1,5 +1,6 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using BLL;
 using Fredy.Drilling.Holes.Models;
 using Fredy.Drilling.Holes.Services;
 using System;
@@ -14,12 +15,14 @@ namespace Fredy.Drilling.Holes.ViewModels
     public partial class ConfigViewModel : ObservableObject
     {
         private readonly ConfigService _configService;
+            private readonly IMotionService _motionService;
         private string _statusMessage = string.Empty;
         private AppConfig _originalConfig = new();
 
-        public ConfigViewModel(ConfigService configService)
+        public ConfigViewModel(ConfigService configService, IMotionService motionService)
         {
             _configService = configService;
+            _motionService = motionService;
             LoadFromConfig(_configService.CurrentConfig);
             _originalConfig = BuildConfig();
             RefreshModifiedParametersInfo();
@@ -63,6 +66,9 @@ namespace Fredy.Drilling.Holes.ViewModels
         [ObservableProperty] private MotionParams _zAxisBase = new();
         [ObservableProperty] private MotionParams _firstPass = new();
         [ObservableProperty] private MotionParams _secondPass = new();
+        [ObservableProperty] private AxisParamConfig _xAxis = new() { AxisNo = 1, PulsesPerMillimeter = 1d };
+        [ObservableProperty] private AxisParamConfig _yAxis = new() { AxisNo = 2, PulsesPerMillimeter = 1d };
+        [ObservableProperty] private AxisParamConfig _zAxis = new() { AxisNo = 3, PulsesPerMillimeter = 1d };
 
         [ObservableProperty] private double _fastMovePos = -22.0;
         [ObservableProperty] private int _fastMoveSpeed = 9000;
@@ -204,6 +210,9 @@ namespace Fredy.Drilling.Holes.ViewModels
                 ZAxisBase = CloneMotionParams(ZAxisBase),
                 FirstPass = CloneMotionParams(FirstPass),
                 SecondPass = CloneMotionParams(SecondPass),
+                XAxis = CloneAxisParamConfig(XAxis),
+                YAxis = CloneAxisParamConfig(YAxis),
+                ZAxis = CloneAxisParamConfig(ZAxis),
                 FastMovePos = FastMovePos,
                 FastMoveSpeed = FastMoveSpeed,
                 SlowMoveDist = SlowMoveDist,
@@ -261,6 +270,9 @@ namespace Fredy.Drilling.Holes.ViewModels
             ZAxisBase = CloneMotionParams(config.ZAxisBase);
             FirstPass = CloneMotionParams(config.FirstPass);
             SecondPass = CloneMotionParams(config.SecondPass);
+            XAxis = CloneAxisParamConfig(config.XAxis);
+            YAxis = CloneAxisParamConfig(config.YAxis);
+            ZAxis = CloneAxisParamConfig(config.ZAxis);
 
             FastMovePos = config.FastMovePos;
             FastMoveSpeed = config.FastMoveSpeed;
@@ -296,10 +308,32 @@ namespace Fredy.Drilling.Holes.ViewModels
 
         private void PersistCurrentConfig(string successMessage)
         {
-            _configService.SaveWithArchive(BuildConfig());
-            _originalConfig = BuildConfig();
+            var config = BuildConfig();
+            _configService.SaveWithArchive(config);
+            ApplyMotionConfig(config);
+            _originalConfig = config;
             RefreshModifiedParametersInfo();
             StatusMessage = successMessage;
+        }
+
+        private void ApplyMotionConfig(AppConfig config)
+        {
+            _motionService.ConfigureAxes(
+                BuildAxisParam(config.XAxis),
+                BuildAxisParam(config.YAxis),
+                BuildAxisParam(config.ZAxis));
+        }
+
+        private static HAL.AxisParam BuildAxisParam(AxisParamConfig axisConfig)
+        {
+            return new HAL.AxisParam(
+                axisConfig.AxisNo,
+                axisConfig.Velocity,
+                axisConfig.Acceleration,
+                axisConfig.Deceleration,
+                axisConfig.LeftLimit,
+                axisConfig.RightLimit,
+                axisConfig.PulsesPerMillimeter > 0 ? axisConfig.PulsesPerMillimeter : 1d);
         }
 
         protected override void OnPropertyChanged(PropertyChangedEventArgs e)
@@ -322,6 +356,9 @@ namespace Fredy.Drilling.Holes.ViewModels
             ZAxisBase.PropertyChanged += NestedObject_PropertyChanged;
             FirstPass.PropertyChanged += NestedObject_PropertyChanged;
             SecondPass.PropertyChanged += NestedObject_PropertyChanged;
+            XAxis.PropertyChanged += NestedObject_PropertyChanged;
+            YAxis.PropertyChanged += NestedObject_PropertyChanged;
+            ZAxis.PropertyChanged += NestedObject_PropertyChanged;
             XLimitPort.PropertyChanged += NestedObject_PropertyChanged;
             YLimitPort.PropertyChanged += NestedObject_PropertyChanged;
 
@@ -340,6 +377,9 @@ namespace Fredy.Drilling.Holes.ViewModels
             ZAxisBase.PropertyChanged -= NestedObject_PropertyChanged;
             FirstPass.PropertyChanged -= NestedObject_PropertyChanged;
             SecondPass.PropertyChanged -= NestedObject_PropertyChanged;
+            XAxis.PropertyChanged -= NestedObject_PropertyChanged;
+            YAxis.PropertyChanged -= NestedObject_PropertyChanged;
+            ZAxis.PropertyChanged -= NestedObject_PropertyChanged;
             XLimitPort.PropertyChanged -= NestedObject_PropertyChanged;
             YLimitPort.PropertyChanged -= NestedObject_PropertyChanged;
 
@@ -453,6 +493,9 @@ namespace Fredy.Drilling.Holes.ViewModels
             AddMotionDiff(lines, "Z轴基础", _originalConfig.ZAxisBase, current.ZAxisBase);
             AddMotionDiff(lines, "头道", _originalConfig.FirstPass, current.FirstPass);
             AddMotionDiff(lines, "二道", _originalConfig.SecondPass, current.SecondPass);
+            AddAxisDiff(lines, "X轴", _originalConfig.XAxis, current.XAxis);
+            AddAxisDiff(lines, "Y轴", _originalConfig.YAxis, current.YAxis);
+            AddAxisDiff(lines, "Z轴", _originalConfig.ZAxis, current.ZAxis);
 
             AddIfChanged(lines, "快速移动位置", _originalConfig.FastMovePos, current.FastMovePos);
             AddIfChanged(lines, "快速速度", _originalConfig.FastMoveSpeed, current.FastMoveSpeed);
@@ -494,6 +537,17 @@ namespace Fredy.Drilling.Holes.ViewModels
             AddIfChanged(lines, $"{prefix}-加速度", oldValue.Acceleration, currentValue.Acceleration);
             AddIfChanged(lines, $"{prefix}-延时", oldValue.Delay, currentValue.Delay);
             AddIfChanged(lines, $"{prefix}-脉冲当量", oldValue.PulseEquivalent, currentValue.PulseEquivalent);
+        }
+
+        private static void AddAxisDiff(List<string> lines, string prefix, AxisParamConfig oldValue, AxisParamConfig currentValue)
+        {
+            AddIfChanged(lines, $"{prefix}-轴号", oldValue.AxisNo, currentValue.AxisNo);
+            AddIfChanged(lines, $"{prefix}-速度", oldValue.Velocity, currentValue.Velocity);
+            AddIfChanged(lines, $"{prefix}-加速度", oldValue.Acceleration, currentValue.Acceleration);
+            AddIfChanged(lines, $"{prefix}-减速度", oldValue.Deceleration, currentValue.Deceleration);
+            AddIfChanged(lines, $"{prefix}-左限位", oldValue.LeftLimit, currentValue.LeftLimit);
+            AddIfChanged(lines, $"{prefix}-右限位", oldValue.RightLimit, currentValue.RightLimit);
+            AddIfChanged(lines, $"{prefix}-每mm脉冲数", oldValue.PulsesPerMillimeter, currentValue.PulsesPerMillimeter);
         }
 
         private static void AddDetectionListDiff(ICollection<string> lines, string prefix, IReadOnlyList<DetectionRingItem> oldValues, IReadOnlyList<DetectionRingItem> currentValues)
@@ -583,6 +637,20 @@ namespace Fredy.Drilling.Holes.ViewModels
                 Acceleration = source.Acceleration,
                 Delay = source.Delay,
                 PulseEquivalent = source.PulseEquivalent
+            };
+        }
+
+        private static AxisParamConfig CloneAxisParamConfig(AxisParamConfig source)
+        {
+            return new AxisParamConfig
+            {
+                AxisNo = source.AxisNo,
+                Velocity = source.Velocity,
+                Acceleration = source.Acceleration,
+                Deceleration = source.Deceleration,
+                LeftLimit = source.LeftLimit,
+                RightLimit = source.RightLimit,
+                PulsesPerMillimeter = source.PulsesPerMillimeter
             };
         }
 

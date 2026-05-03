@@ -51,6 +51,14 @@
                                 </Grid>
                             </GroupBox>
 
+                            <GroupBox Header="轴参数配置" Background="#F3F9FF" Margin="0,0,0,10" Padding="10">
+                                <StackPanel>
+                                    <usercontrols:AxisParamEditorControl Header="X轴参数" AxisConfig="{Binding XAxis}"/>
+                                    <usercontrols:AxisParamEditorControl Header="Y轴参数" AxisConfig="{Binding YAxis}"/>
+                                    <usercontrols:AxisParamEditorControl Header="Z轴参数" AxisConfig="{Binding ZAxis}"/>
+                                </StackPanel>
+                            </GroupBox>
+
                             <GroupBox Header="XY驱动参数" Background="#D6EAF8" Margin="0,0,0,10" Padding="10">
                                 <WrapPanel VerticalAlignment="Center">
                                     <TextBlock Text="初速度" VerticalAlignment="Center" Margin="5,0"/>

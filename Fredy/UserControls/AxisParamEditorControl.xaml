@@ -1,0 +1,45 @@
+<UserControl x:Class="Fredy.Drilling.Holes.UserControls.AxisParamEditorControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:DesignHeight="220"
+             d:DesignWidth="360">
+    <GroupBox Header="{Binding Header, RelativeSource={RelativeSource AncestorType=UserControl}}"
+              Padding="10"
+              Margin="0,0,0,10">
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="110"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="110"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <TextBlock Text="轴号" VerticalAlignment="Center" Margin="0,0,8,8"/>
+            <TextBox Grid.Column="1" Text="{Binding AxisConfig.AxisNo, RelativeSource={RelativeSource AncestorType=UserControl}, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,12,8"/>
+            <TextBlock Grid.Column="2" Text="速度(mm/s)" VerticalAlignment="Center" Margin="0,0,8,8"/>
+            <TextBox Grid.Column="3" Text="{Binding AxisConfig.Velocity, RelativeSource={RelativeSource AncestorType=UserControl}, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,8"/>
+
+            <TextBlock Grid.Row="1" Text="加速度(mm/s²)" VerticalAlignment="Center" Margin="0,0,8,8"/>
+            <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding AxisConfig.Acceleration, RelativeSource={RelativeSource AncestorType=UserControl}, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,12,8"/>
+            <TextBlock Grid.Row="1" Grid.Column="2" Text="减速度(mm/s²)" VerticalAlignment="Center" Margin="0,0,8,8"/>
+            <TextBox Grid.Row="1" Grid.Column="3" Text="{Binding AxisConfig.Deceleration, RelativeSource={RelativeSource AncestorType=UserControl}, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,8"/>
+
+            <TextBlock Grid.Row="2" Text="左限位(mm)" VerticalAlignment="Center" Margin="0,0,8,8"/>
+            <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding AxisConfig.LeftLimit, RelativeSource={RelativeSource AncestorType=UserControl}, UpdateSourceTrigger=PropertyChanged, TargetNullValue=''}" Margin="0,0,12,8"/>
+            <TextBlock Grid.Row="2" Grid.Column="2" Text="右限位(mm)" VerticalAlignment="Center" Margin="0,0,8,8"/>
+            <TextBox Grid.Row="2" Grid.Column="3" Text="{Binding AxisConfig.RightLimit, RelativeSource={RelativeSource AncestorType=UserControl}, UpdateSourceTrigger=PropertyChanged, TargetNullValue=''}" Margin="0,0,0,8"/>
+
+            <TextBlock Grid.Row="3" Text="每mm脉冲数" VerticalAlignment="Center" Margin="0,0,8,0"/>
+            <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding AxisConfig.PulsesPerMillimeter, RelativeSource={RelativeSource AncestorType=UserControl}, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,12,0"/>
+        </Grid>
+    </GroupBox>
+</UserControl>
