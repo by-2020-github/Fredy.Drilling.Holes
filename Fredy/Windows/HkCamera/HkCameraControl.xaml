@@ -24,7 +24,7 @@
                         <RowDefinition Height="8" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
-                    <ComboBox Grid.Row="0" x:Name="cbDeviceList" MinWidth="240" />
+                    <ComboBox Grid.Row="0" x:Name="cbDeviceList" MinWidth="240"  IsEditable="True"/>
                     <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
                         <Button x:Name="bnEnum" Width="75" Margin="0,0,8,0" Content="查找设备" />
                         <Button x:Name="bnOpen" Width="75" Margin="0,0,8,0" Content="打开设备" />

@@ -38,6 +38,8 @@ public partial class HkCameraControl : UserControl
     private bool _isGrabbing;
     private CancellationTokenSource? _grabCts;
     private Task? _grabTask;
+    private readonly SemaphoreSlim _releaseLock = new(1, 1);
+    private Window? _ownerWindow;
 
     private IntPtr _grabBuffer = IntPtr.Zero;
     private uint _grabBufferSize;
@@ -55,6 +57,7 @@ public partial class HkCameraControl : UserControl
 
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
+        IsVisibleChanged += OnIsVisibleChanged;
 
         bnEnum.Click += (_, _) => DeviceListAcq();
         bnOpen.Click += BnOpen_Click;
@@ -83,12 +86,98 @@ public partial class HkCameraControl : UserControl
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
-        if (DesignerProperties.GetIsInDesignMode(this))
+        HookOwnerWindow();
+        EnsureSdkInitialized();
+    }
+
+    private static void PrepareNativeLibrarySearchPath()
+    {
+        var baseDir = AppContext.BaseDirectory;
+        var candidates = new List<string>
+        {
+            baseDir,
+            Path.Combine(baseDir, "DllImport"),
+            Path.Combine(baseDir, "x64"),
+            Path.Combine(baseDir, "x86")
+        };
+
+        var path = Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
+        foreach (var dir in candidates)
+        {
+            if (!Directory.Exists(dir))
+            {
+                continue;
+            }
+
+            if (path.IndexOf(dir, StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                continue;
+            }
+
+            path = dir + ";" + path;
+        }
+
+        Environment.SetEnvironmentVariable("PATH", path);
+    }
+
+    private async void OnUnloaded(object sender, RoutedEventArgs e)
+    {
+        UnhookOwnerWindow();
+        await ReleaseCameraResourcesAsync();
+    }
+
+    private void OnIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (DesignerProperties.GetIsInDesignMode(this) || !IsLoaded)
         {
             return;
         }
 
-        if (_sdkInitialized)
+        if (e.NewValue is true)
+        {
+            HookOwnerWindow();
+            EnsureSdkInitialized();
+            return;
+        }
+
+        _ = ReleaseCameraResourcesAsync();
+    }
+
+    private void HookOwnerWindow()
+    {
+        var window = Window.GetWindow(this);
+        if (ReferenceEquals(_ownerWindow, window))
+        {
+            return;
+        }
+
+        UnhookOwnerWindow();
+        _ownerWindow = window;
+        if (_ownerWindow is not null)
+        {
+            _ownerWindow.Closed += OwnerWindow_Closed;
+        }
+    }
+
+    private void UnhookOwnerWindow()
+    {
+        if (_ownerWindow is null)
+        {
+            return;
+        }
+
+        _ownerWindow.Closed -= OwnerWindow_Closed;
+        _ownerWindow = null;
+    }
+
+    private async void OwnerWindow_Closed(object? sender, EventArgs e)
+    {
+        await ReleaseCameraResourcesAsync();
+    }
+
+    private void EnsureSdkInitialized()
+    {
+        if (DesignerProperties.GetIsInDesignMode(this) || _sdkInitialized)
         {
             return;
         }
@@ -137,52 +226,44 @@ public partial class HkCameraControl : UserControl
         }
     }
 
-    private static void PrepareNativeLibrarySearchPath()
+    private async Task ReleaseCameraResourcesAsync()
     {
-        var baseDir = AppContext.BaseDirectory;
-        var candidates = new List<string>
+        await _releaseLock.WaitAsync();
+        try
         {
-            baseDir,
-            Path.Combine(baseDir, "DllImport"),
-            Path.Combine(baseDir, "x64"),
-            Path.Combine(baseDir, "x86")
-        };
+            await StopGrabbingAsync();
 
-        var path = Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
-        foreach (var dir in candidates)
-        {
-            if (!Directory.Exists(dir))
+            if (_camera is not null)
             {
-                continue;
+                _camera.MV_CC_CloseDevice_NET();
+                _camera.MV_CC_DestroyDevice_NET();
+                _camera = null;
             }
 
-            if (path.IndexOf(dir, StringComparison.OrdinalIgnoreCase) >= 0)
+            ReleaseBuffers();
+
+            if (_sdkInitialized)
             {
-                continue;
+                try
+                {
+                    MyCamera.MV_CC_Finalize_NET();
+                }
+                catch
+                {
+                }
+
+                _sdkInitialized = false;
             }
 
-            path = dir + ";" + path;
+            _deviceList.nDeviceNum = 0;
+            cbDeviceList.Items.Clear();
+            displayArea.ImageSource = null;
+            ClearCurrentDeviceInfo();
+            SetCtrlWhenClose();
         }
-
-        Environment.SetEnvironmentVariable("PATH", path);
-    }
-
-    private void OnUnloaded(object sender, RoutedEventArgs e)
-    {
-        CloseCurrentCamera();
-        ReleaseBuffers();
-
-        if (_sdkInitialized)
+        finally
         {
-            try
-            {
-                MyCamera.MV_CC_Finalize_NET();
-            }
-            catch
-            {
-            }
-
-            _sdkInitialized = false;
+            _releaseLock.Release();
         }
     }
 

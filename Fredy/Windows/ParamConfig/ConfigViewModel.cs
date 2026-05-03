@@ -3,17 +3,32 @@ using CommunityToolkit.Mvvm.Input;
 using BLL;
 using Fredy.Drilling.Holes.Models;
 using Fredy.Drilling.Holes.Services;
+using MvCamCtrl.NET;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Linq;
+using System.Runtime.InteropServices;
 
 namespace Fredy.Drilling.Holes.ViewModels
 {
     public partial class ConfigViewModel : ObservableObject
     {
+        private static readonly IReadOnlyList<string> SimulatedCameraConnectionDefaults =
+        [
+            "Index=0"
+        ];
+
+        private static readonly IReadOnlyList<string> HikvisionCameraConnectionDefaults =
+        [
+        ];
+
+        private static readonly IReadOnlyList<string> BaslerCameraConnectionDefaults =
+        [
+        ];
+
         private readonly ConfigService _configService;
             private readonly IMotionService _motionService;
         private string _statusMessage = string.Empty;
@@ -24,6 +39,7 @@ namespace Fredy.Drilling.Holes.ViewModels
             _configService = configService;
             _motionService = motionService;
             LoadFromConfig(_configService.CurrentConfig);
+            RefreshCameraConnectionOptions();
             _originalConfig = BuildConfig();
             RefreshModifiedParametersInfo();
         }
@@ -47,17 +63,11 @@ namespace Fredy.Drilling.Holes.ViewModels
         new[]
         {
             "模拟相机",
-            "海康 GigE",
-            "海康 USB",
-            "Basler GigE"
+            "海康",
+            "Basler"
         };
 
-        public IReadOnlyList<string> CameraConnectionOptions { get; } =
-        new[]
-        {
-            "rtsp://127.0.0.1/live",
-            "GigE://192.168.1.64"
-        };
+        [ObservableProperty] private IReadOnlyList<string> _cameraConnectionOptions = SimulatedCameraConnectionDefaults;
 
         [ObservableProperty] private MotionControllerConfig _motionController = new();
         [ObservableProperty] private CameraConfig _camera = new();
@@ -141,6 +151,7 @@ namespace Fredy.Drilling.Holes.ViewModels
             Camera.FovWidth = detectedCamera.FovWidth;
             Camera.FovHeight = detectedCamera.FovHeight;
             Camera.SaveDirectory = detectedCamera.SaveDirectory;
+            RefreshCameraConnectionOptions();
 
             PersistCurrentConfig($"已同步相机配置：{detectedCamera.CameraType} {detectedCamera.FovWidth}x{detectedCamera.FovHeight}");
         }
@@ -518,7 +529,122 @@ namespace Fredy.Drilling.Holes.ViewModels
 
         private void NestedObject_PropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
+            if (sender == Camera && e.PropertyName == nameof(Camera.CameraType))
+            {
+                RefreshCameraConnectionOptions();
+            }
+
             RefreshModifiedParametersInfo();
+        }
+
+        private void RefreshCameraConnectionOptions()
+        {
+            this.CameraConnectionOptions = Camera.CameraType switch
+            {
+                "海康" => GetHikvisionCameraConnectionOptions(),
+                "Basler" => BaslerCameraConnectionDefaults,
+                _ => SimulatedCameraConnectionDefaults
+            };
+
+            if (!CameraConnectionOptions.Contains(Camera.ConnectionString, StringComparer.OrdinalIgnoreCase))
+            {
+                Camera.ConnectionString = CameraConnectionOptions.FirstOrDefault() ?? string.Empty;
+            }
+        }
+
+        private IReadOnlyList<string> GetHikvisionCameraConnectionOptions()
+        {
+            var options = new List<string>();
+            var sdkInitialized = false;
+
+            try
+            {
+                var initRet = MyCamera.MV_CC_Initialize_NET();
+                if (initRet != MyCamera.MV_OK)
+                {
+                    return HikvisionCameraConnectionDefaults;
+                }
+
+                sdkInitialized = true;
+
+                var deviceList = new MyCamera.MV_CC_DEVICE_INFO_LIST
+                {
+                    pDeviceInfo = new IntPtr[MyCamera.MV_MAX_DEVICE_NUM]
+                };
+
+                var enumRet = MyCamera.MV_CC_EnumDevices_NET(
+                    (uint)(MyCamera.MV_GIGE_DEVICE
+                        | MyCamera.MV_USB_DEVICE
+                        | MyCamera.MV_GENTL_GIGE_DEVICE
+                        | MyCamera.MV_GENTL_CAMERALINK_DEVICE
+                        | MyCamera.MV_GENTL_CXP_DEVICE
+                        | MyCamera.MV_GENTL_XOF_DEVICE),
+                    ref deviceList);
+
+                if (enumRet != MyCamera.MV_OK)
+                {
+                    return HikvisionCameraConnectionDefaults;
+                }
+
+                for (int i = 0; i < deviceList.nDeviceNum; i++)
+                {
+                    var device = Marshal.PtrToStructure<MyCamera.MV_CC_DEVICE_INFO>(deviceList.pDeviceInfo[i]);
+                    var connectionString = GetHikvisionConnectionString(device);
+                    if (!string.IsNullOrWhiteSpace(connectionString) && !options.Contains(connectionString, StringComparer.OrdinalIgnoreCase))
+                    {
+                        options.Add(connectionString);
+                    }
+                }
+            }
+            catch
+            {
+            }
+            finally
+            {
+                if (sdkInitialized)
+                {
+                    try
+                    {
+                        MyCamera.MV_CC_Finalize_NET();
+                    }
+                    catch
+                    {
+                    }
+                }
+            }
+
+            return options
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList() is { Count: > 0 } discoveredOptions
+                    ? discoveredOptions
+                    : HikvisionCameraConnectionDefaults;
+        }
+
+        private static string GetHikvisionConnectionString(MyCamera.MV_CC_DEVICE_INFO device)
+        {
+            if (device.nTLayerType == MyCamera.MV_GIGE_DEVICE)
+            {
+                var info = (MyCamera.MV_GIGE_DEVICE_INFO_EX)MyCamera.ByteToStruct(device.SpecialInfo.stGigEInfo, typeof(MyCamera.MV_GIGE_DEVICE_INFO_EX));
+                return $"GigE://{FormatIpAddress(info.nCurrentIp)};Serial={info.chSerialNumber}";
+            }
+
+            if (device.nTLayerType == MyCamera.MV_USB_DEVICE)
+            {
+                var info = (MyCamera.MV_USB3_DEVICE_INFO_EX)MyCamera.ByteToStruct(device.SpecialInfo.stUsb3VInfo, typeof(MyCamera.MV_USB3_DEVICE_INFO_EX));
+                return $"USB://{info.chSerialNumber}";
+            }
+
+            return string.Empty;
+        }
+
+        private static string FormatIpAddress(uint ipAddress)
+        {
+            var b1 = (ipAddress & 0xff000000) >> 24;
+            var b2 = (ipAddress & 0x00ff0000) >> 16;
+            var b3 = (ipAddress & 0x0000ff00) >> 8;
+            var b4 = ipAddress & 0x000000ff;
+            return $"{b1}.{b2}.{b3}.{b4}";
         }
 
         private void RefreshModifiedParametersInfo()

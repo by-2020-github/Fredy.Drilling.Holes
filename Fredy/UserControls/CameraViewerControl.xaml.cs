@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -66,7 +67,7 @@ namespace Fredy.Drilling.Holes.UserControls
             }
         }
 
-        private readonly ICamera _camera;
+        private readonly ICamera? _camera;
         private CancellationTokenSource? _grabCts;
         private Task? _grabLoopTask;
 
@@ -78,7 +79,12 @@ namespace Fredy.Drilling.Holes.UserControls
         public CameraViewerControl()
         {
             InitializeComponent();
-            _camera = App.ServiceProvider.GetRequiredService<ICamera>();
+
+            if (!DesignerProperties.GetIsInDesignMode(this))
+            {
+                _camera = App.ServiceProvider.GetRequiredService<ICamera>();
+            }
+
             Unloaded += CameraViewerControl_Unloaded;
         }
 
@@ -166,6 +172,11 @@ namespace Fredy.Drilling.Holes.UserControls
             try
             {
                 await EnsureCameraOpenAsync();
+                if (_camera is null)
+                {
+                    return;
+                }
+
                 var frame = await _camera.GrabAsync();
                 UpdateImage(frame);
             }
@@ -230,6 +241,11 @@ namespace Fredy.Drilling.Holes.UserControls
 
         private async Task EnsureCameraOpenAsync()
         {
+            if (_camera is null)
+            {
+                throw new InvalidOperationException("设计模式下不加载相机服务。");
+            }
+
             if (_camera.IsConnected)
             {
                 return;

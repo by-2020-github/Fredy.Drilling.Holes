@@ -22,6 +22,7 @@ namespace Fredy.Drilling.Holes
     public partial class App : Application
     {
         public static IServiceProvider ServiceProvider { get; private set; } = null!;
+        private static bool _hardwareShutdown;
 
         protected override void OnStartup(StartupEventArgs e)
         {
@@ -62,9 +63,80 @@ namespace Fredy.Drilling.Holes
 
         protected override void OnExit(ExitEventArgs e)
         {
+            ShutdownHardware();
             Log.Information("应用程序正在退出");
             Log.CloseAndFlush();
             base.OnExit(e);
+        }
+
+        public static void ShutdownHardware()
+        {
+            if (_hardwareShutdown || ServiceProvider is null)
+            {
+                return;
+            }
+
+            _hardwareShutdown = true;
+
+            var hardwareStateService = ServiceProvider.GetService<IHardwareStateService>();
+            var camera = ServiceProvider.GetService<ICamera>();
+            var hardwareController = ServiceProvider.GetService<IHardwareController>();
+            var motionService = ServiceProvider.GetService<IMotionService>();
+
+            try
+            {
+                if (Current?.MainWindow?.DataContext is IDisposable disposable)
+                {
+                    disposable.Dispose();
+                }
+            }
+            catch
+            {
+            }
+
+            try
+            {
+                hardwareStateService?.Dispose();
+            }
+            catch
+            {
+            }
+
+            try
+            {
+                camera?.Close();
+                camera?.Dispose();
+            }
+            catch
+            {
+            }
+
+            try
+            {
+                hardwareController?.Close();
+            }
+            catch
+            {
+            }
+
+            try
+            {
+                motionService?.DisableAll();
+            }
+            catch
+            {
+            }
+
+            try
+            {
+                if (motionService?.Hardware is IDisposable motionDisposable)
+                {
+                    motionDisposable.Dispose();
+                }
+            }
+            catch
+            {
+            }
         }
 
         private static void ConfigureLogging(IAppLogStore logStore)

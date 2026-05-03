@@ -12,6 +12,12 @@ namespace Fredy.Views
         {
             InitializeComponent();
             DataContext = viewModel;
+            Closing += MainWindow_Closing;
+        }
+
+        private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
+        {
+            Fredy.Drilling.Holes.App.ShutdownHardware();
         }
     }
 }
