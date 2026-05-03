@@ -291,71 +291,8 @@ namespace Fredy.Drilling.Holes.ViewModels
 
             _cameraPreviewCancellationTokenSource?.Cancel();
             _cameraPreviewCancellationTokenSource = new CancellationTokenSource();
-            _cameraPreviewTask = Task.Run(() => CameraPreviewLoopAsync(_cameraPreviewCancellationTokenSource.Token));
         }
 
-        private async Task CameraPreviewLoopAsync(CancellationToken cancellationToken)
-        {
-            try
-            {
-                if (!_camera!.IsConnected)
-                {
-                    _camera.Open();
-                }
-
-                while (!cancellationToken.IsCancellationRequested)
-                {
-                    var frame = await _camera.GrabAsync().ConfigureAwait(false);
-                    if (frame is null || frame.Data is null) continue;
-
-                    var mat = Tools.VisionUIHelper.CameraArgsToMat(frame);
-                    if (mat.Empty())
-                    {
-                        mat.Dispose();
-                        continue;
-                    }
-
-                    if (EnableVisionAssist)
-                    {
-                        var detector = new Common.Services.CircleDetector();
-                        using var resultMat = new OpenCvSharp.Mat();
-                        if (mat.Channels() == 1)
-                        {
-                            OpenCvSharp.Cv2.CvtColor(mat, resultMat, OpenCvSharp.ColorConversionCodes.GRAY2BGR);
-                        }
-                        else
-                        {
-                            mat.CopyTo(resultMat);
-                        }
-
-                        using var result = detector.ProcessBrightField(resultMat, minArea: 50, maxArea: 100000, threshold: 100, circularity: 0.6);
-                        if (result?.ResultImage != null && !result.ResultImage.Empty())
-                        {
-                            var newMat = result.ResultImage.Clone();
-                            var oldMat = CameraPreviewMat;
-                            await Application.Current.Dispatcher.InvokeAsync(() => CameraPreviewMat = newMat);
-                            oldMat?.Dispose();
-                        }
-                        mat.Dispose();
-                    }
-                    else
-                    {
-                        var oldMat = CameraPreviewMat;
-                        await Application.Current.Dispatcher.InvokeAsync(() => CameraPreviewMat = mat);
-                        oldMat?.Dispose();
-                    }
-
-                    await Task.Delay(100, cancellationToken).ConfigureAwait(false);
-                }
-            }
-            catch (OperationCanceledException)
-            {
-            }
-            catch (Exception ex)
-            {
-                _logger?.LogError(ex, "手动界面相机预览异常");
-            }
-        }
-
+  
     }
 }

@@ -164,7 +164,7 @@
 
         <Border Grid.Column="1" Background="{StaticResource Brush.Surface.Dark}" Margin="8" Padding="8">
             <Grid>
-                <uc:CameraViewerControl ImageMat="{Binding StitchedPreviewMat}" />
+                <uc:CameraViewerControl ShowCaptureButtons="False" ImageMat="{Binding StitchedPreviewMat}" />
 
                 <ItemsControl Width="{Binding PreviewCanvasSize}"
                               Height="{Binding PreviewCanvasSize}"
@@ -224,7 +224,7 @@
 
                 <!-- 当前拍照识别结果叠加图 -->
                 <Border Grid.Row="1" Background="{StaticResource Brush.Surface.DarkAlt}" BorderBrush="{StaticResource Brush.Border.Dark}" BorderThickness="1">
-                    <uc:CameraViewerControl ImageMat="{Binding LatestDetectionMat}" />
+                    <uc:CameraViewerControl ShowCaptureButtons="False" ImageMat="{Binding LatestDetectionMat}" />
                 </Border>
                 <TextBlock Grid.Row="1" Text="当前单图识别效果预览" Foreground="{StaticResource Brush.Foreground.Overlay}" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="8,4" IsHitTestVisible="False"/>
 

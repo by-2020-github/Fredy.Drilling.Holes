@@ -1,10 +1,14 @@
 using System;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
+using HAL;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Win32;
 
 namespace Fredy.Drilling.Holes.UserControls
@@ -45,6 +49,15 @@ namespace Fredy.Drilling.Holes.UserControls
             set => SetValue(ImageSourceProperty, value);
         }
 
+        public static readonly DependencyProperty ShowCaptureButtonsProperty = DependencyProperty.Register(
+            nameof(ShowCaptureButtons), typeof(bool), typeof(CameraViewerControl), new PropertyMetadata(true));
+
+        public bool ShowCaptureButtons
+        {
+            get => (bool)GetValue(ShowCaptureButtonsProperty);
+            set => SetValue(ShowCaptureButtonsProperty, value);
+        }
+
         private static void OnImageSourceChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
             if (d is CameraViewerControl control && control.MenuDetectCircles.IsChecked)
@@ -52,6 +65,10 @@ namespace Fredy.Drilling.Holes.UserControls
                 using var result = control.RunCircleDetection();
             }
         }
+
+        private readonly ICamera _camera;
+        private CancellationTokenSource? _grabCts;
+        private Task? _grabLoopTask;
 
         private Point _startDragPos;
         private bool _isDragging = false;
@@ -61,6 +78,8 @@ namespace Fredy.Drilling.Holes.UserControls
         public CameraViewerControl()
         {
             InitializeComponent();
+            _camera = App.ServiceProvider.GetRequiredService<ICamera>();
+            Unloaded += CameraViewerControl_Unloaded;
         }
 
         private void OnMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -140,6 +159,130 @@ namespace Fredy.Drilling.Holes.UserControls
         private void ToggleCross_Click(object sender, RoutedEventArgs e)
         {
             CenterCross.Visibility = MenuShowCross.IsChecked ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        private async void GrabSingle_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                await EnsureCameraOpenAsync();
+                var frame = await _camera.GrabAsync();
+                UpdateImage(frame);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"单张拍照失败：{ex.Message}", "相机", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private async void StartContinuousGrab_Click(object sender, RoutedEventArgs e)
+        {
+            if (_grabCts is not null)
+            {
+                return;
+            }
+
+            try
+            {
+                await EnsureCameraOpenAsync();
+
+                _grabCts = new CancellationTokenSource();
+                var token = _grabCts.Token;
+
+                _grabLoopTask = Task.Run(async () =>
+                {
+                    while (!token.IsCancellationRequested)
+                    {
+                        CameraArgs frame;
+                        try
+                        {
+                            frame = await _camera.GrabAsync();
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            break;
+                        }
+
+                        await Dispatcher.InvokeAsync(() => UpdateImage(frame));
+
+                        try
+                        {
+                            await Task.Delay(33, token);
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            break;
+                        }
+                    }
+                }, token);
+            }
+            catch (Exception ex)
+            {
+                await StopContinuousGrabAsync();
+                MessageBox.Show($"启动连续拍照失败：{ex.Message}", "相机", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private async void StopContinuousGrab_Click(object sender, RoutedEventArgs e)
+        {
+            await StopContinuousGrabAsync();
+        }
+
+        private async Task EnsureCameraOpenAsync()
+        {
+            if (_camera.IsConnected)
+            {
+                return;
+            }
+
+            var opened = await Task.Run(() => _camera.Open());
+            if (!opened)
+            {
+                throw new InvalidOperationException("相机打开失败。");
+            }
+        }
+
+        private void UpdateImage(CameraArgs frame)
+        {
+            using var mat = Tools.VisionUIHelper.CameraArgsToMat(frame);
+            if (mat.Empty())
+            {
+                return;
+            }
+
+            var oldMat = ImageMat;
+            ImageMat = mat.Clone();
+            oldMat?.Dispose();
+        }
+
+        private async Task StopContinuousGrabAsync()
+        {
+            if (_grabCts is null)
+            {
+                return;
+            }
+
+            _grabCts.Cancel();
+
+            if (_grabLoopTask is not null)
+            {
+                try
+                {
+                    await _grabLoopTask;
+                }
+                catch (OperationCanceledException)
+                {
+                }
+            }
+
+            _grabLoopTask = null;
+            _grabCts.Dispose();
+            _grabCts = null;
+        }
+
+        private async void CameraViewerControl_Unloaded(object sender, RoutedEventArgs e)
+        {
+            await StopContinuousGrabAsync();
         }
 
         private void StartDrawROI_Click(object sender, RoutedEventArgs e)

@@ -678,55 +678,9 @@ namespace Fredy.Drilling.Holes.ViewModels
 
             _cameraPreviewCancellationTokenSource?.Cancel();
             _cameraPreviewCancellationTokenSource = new CancellationTokenSource();
-            _cameraPreviewTask = Task.Run(() => CameraPreviewLoopAsync(_cameraPreviewCancellationTokenSource.Token));
         }
 
-        private async Task CameraPreviewLoopAsync(CancellationToken cancellationToken)
-        {
-            try
-            {
-                if (!_camera!.IsConnected)
-                {
-                    _camera.Open();
-                    if (_hardwareStateService is not null)
-                    {
-                        await _hardwareStateService.RefreshAsync(cancellationToken).ConfigureAwait(false);
-                    }
-                }
-
-                while (!cancellationToken.IsCancellationRequested)
-                {
-                    var frame = await _camera.GrabAsync().ConfigureAwait(false);
-                    var bitmap = CreateBitmapSource(frame);
-
-                    if (bitmap is not null && Application.Current is not null)
-                    {
-                        await Application.Current.Dispatcher.InvokeAsync(() => CurrentCameraImage = bitmap);
-                    }
-
-                    await Task.Delay(100, cancellationToken).ConfigureAwait(false);
-                }
-            }
-            catch (OperationCanceledException)
-            {
-            }
-            catch (Exception ex)
-            {
-                if (_hardwareStateService is not null)
-                {
-                    try
-                    {
-                        await _hardwareStateService.RefreshAsync().ConfigureAwait(false);
-                    }
-                    catch
-                    {
-                    }
-                }
-
-                _logger?.LogError(ex, "主界面相机预览启动失败");
-            }
-        }
-
+    
         private static BitmapSource? CreateBitmapSource(CameraArgs? frame)
         {
             if (frame?.Data is null || frame.Width <= 0 || frame.Height <= 0)

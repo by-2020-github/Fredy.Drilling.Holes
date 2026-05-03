@@ -153,37 +153,9 @@ namespace Fredy.Drilling.Holes.ViewModels
 
             _cameraPreviewCancellationTokenSource?.Cancel();
             _cameraPreviewCancellationTokenSource = new CancellationTokenSource();
-            _cameraPreviewTask = Task.Run(() => CameraPreviewLoopAsync(_cameraPreviewCancellationTokenSource.Token));
         }
 
-        private async Task CameraPreviewLoopAsync(CancellationToken cancellationToken)
-        {
-            try
-            {
-                if (!_camera!.IsConnected) _camera.Open();
-
-                while (!cancellationToken.IsCancellationRequested)
-                {
-                    var frame = await _camera.GrabAsync().ConfigureAwait(false);
-                    var mat = Tools.VisionUIHelper.CameraArgsToMat(frame);
-
-                    if (mat is not null && !mat.Empty())
-                    {
-                        var oldMat = CameraPreviewMat;
-                        await Application.Current.Dispatcher.InvokeAsync(() => CameraPreviewMat = mat);
-                        oldMat?.Dispose();
-                    }
-
-                    await Task.Delay(100, cancellationToken).ConfigureAwait(false);
-                }
-            }
-            catch (OperationCanceledException) { }
-            catch (Exception ex)
-            {
-                _logger?.LogError(ex, "相机预览异常");
-            }
-        }
-
+   
         public void Dispose()
         {
             if (_disposed) return;

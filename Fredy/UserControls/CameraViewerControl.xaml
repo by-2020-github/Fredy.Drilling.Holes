@@ -16,6 +16,7 @@
                 <ContextMenu>
                     <MenuItem Header="重置视图" Click="ResetView_Click"/>
                     <MenuItem Header="保存图像" Click="SaveImage_Click"/>
+                    <Separator/>
                     <MenuItem x:Name="MenuShowCross" Header="显示中心十字标记" IsCheckable="True" IsChecked="True" Click="ToggleCross_Click"/>
                     <Separator/>
                     <MenuItem x:Name="MenuDetectCircles" Header="开启圆孔实时识别" IsCheckable="True" IsChecked="False" Click="DetectCircles_Click" />
@@ -26,6 +27,30 @@
                     <MenuItem Header="编辑圆孔识别参数..." Click="EditDetectParams_Click"/>
                 </ContextMenu>
             </Grid.ContextMenu>
+
+            <Border HorizontalAlignment="Left"
+                    VerticalAlignment="Top"
+                    Margin="12"
+                    Padding="8"
+                    Panel.ZIndex="10"
+                    Background="#66000000"
+                    CornerRadius="6">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Visibility" Value="Visible"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding ShowCaptureButtons, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="False">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <StackPanel Orientation="Horizontal">
+                    <Button Content="单张拍照" Click="GrabSingle_Click" Padding="12,4" MinWidth="84"/>
+                    <Button Content="开始连续拍照" Click="StartContinuousGrab_Click" Margin="8,0,0,0" Padding="12,4" MinWidth="108"/>
+                    <Button Content="停止连续拍照" Click="StopContinuousGrab_Click" Margin="8,0,0,0" Padding="12,4" MinWidth="108"/>
+                </StackPanel>
+            </Border>
 
             <Grid x:Name="ContentLayer" RenderTransformOrigin="0.5,0.5">
                 <Grid.RenderTransform>
@@ -68,6 +93,7 @@
         </Grid>
     </Grid>
 </UserControl>
+
 
 
 
