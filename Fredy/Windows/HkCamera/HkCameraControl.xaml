@@ -1,6 +1,7 @@
 ﻿<UserControl x:Class="Fredy.Drilling.Holes.Views.HkCameraControl"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:hc="clr-namespace:HandyControl.Controls;assembly=HandyControl"
     xmlns:uc="clr-namespace:Fredy.Drilling.Holes.UserControls"
     MinWidth="900"
     MinHeight="560">
@@ -77,11 +78,11 @@
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
                     <Label Grid.Row="0" Grid.Column="0" VerticalAlignment="Center" Content="曝光" />
-                    <TextBox x:Name="tbExposure" Grid.Row="0" Grid.Column="1" IsEnabled="False" />
+                    <hc:NumericUpDown x:Name="tbExposure" Grid.Row="0" Grid.Column="1" IsEnabled="False" Style="{StaticResource NumericDoubleUpDownStyle}" Margin="0" />
                     <Label Grid.Row="2" Grid.Column="0" VerticalAlignment="Center" Content="增益" />
-                    <TextBox x:Name="tbGain" Grid.Row="2" Grid.Column="1" IsEnabled="False" />
+                    <hc:NumericUpDown x:Name="tbGain" Grid.Row="2" Grid.Column="1" IsEnabled="False" Style="{StaticResource NumericDoubleUpDownStyle}" Margin="0" />
                     <Label Grid.Row="4" Grid.Column="0" VerticalAlignment="Center" Content="帧率" />
-                    <TextBox x:Name="tbFrameRate" Grid.Row="4" Grid.Column="1" IsEnabled="False" />
+                    <hc:NumericUpDown x:Name="tbFrameRate" Grid.Row="4" Grid.Column="1" IsEnabled="False" Style="{StaticResource NumericDoubleUpDownStyle}" Margin="0" />
                     <StackPanel Grid.Row="6" Grid.ColumnSpan="2" Orientation="Horizontal" HorizontalAlignment="Right">
                         <Button x:Name="bnGetParam" Width="75" Margin="0,0,8,0" Content="获取参数" IsEnabled="False" />
                         <Button x:Name="bnSetParam" Width="75" Content="设置参数" IsEnabled="False" />

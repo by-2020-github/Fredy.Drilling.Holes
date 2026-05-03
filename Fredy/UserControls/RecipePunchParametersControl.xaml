@@ -3,6 +3,7 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:hc="clr-namespace:HandyControl.Controls;assembly=HandyControl"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:converters="clr-namespace:Fredy.Drilling.Holes.Converters"
              mc:Ignorable="d"
@@ -145,10 +146,34 @@
                   SelectionChanged="PunchPointsDataGrid_SelectionChanged"
                   IsReadOnly="{Binding IsEditing, ElementName=Root, Converter={StaticResource InverseBoolConverter}}">
 			<DataGrid.Columns>
-				<DataGridTextColumn Header="X" Binding="{Binding X, UpdateSourceTrigger=PropertyChanged}" Width="*"/>
-				<DataGridTextColumn Header="Y" Binding="{Binding Y, UpdateSourceTrigger=PropertyChanged}" Width="*"/>
-				<DataGridTextColumn Header="RingNumber" Binding="{Binding RingNumber, UpdateSourceTrigger=PropertyChanged}" Width="*"/>
-				<DataGridTextColumn Header="SequenceIndex" Binding="{Binding SequenceIndex, UpdateSourceTrigger=PropertyChanged}" Width="*"/>
+               <DataGridTemplateColumn Header="X" Width="*">
+					<DataGridTemplateColumn.CellTemplate>
+						<DataTemplate>
+							<hc:NumericUpDown Value="{Binding X, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource NumericDoubleUpDownStyle}" Margin="0" BorderThickness="0"/>
+						</DataTemplate>
+					</DataGridTemplateColumn.CellTemplate>
+				</DataGridTemplateColumn>
+				<DataGridTemplateColumn Header="Y" Width="*">
+					<DataGridTemplateColumn.CellTemplate>
+						<DataTemplate>
+							<hc:NumericUpDown Value="{Binding Y, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource NumericDoubleUpDownStyle}" Margin="0" BorderThickness="0"/>
+						</DataTemplate>
+					</DataGridTemplateColumn.CellTemplate>
+				</DataGridTemplateColumn>
+				<DataGridTemplateColumn Header="RingNumber" Width="*">
+					<DataGridTemplateColumn.CellTemplate>
+						<DataTemplate>
+							<hc:NumericUpDown Value="{Binding RingNumber, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource NumericIntUpDownStyle}" Margin="0" BorderThickness="0"/>
+						</DataTemplate>
+					</DataGridTemplateColumn.CellTemplate>
+				</DataGridTemplateColumn>
+				<DataGridTemplateColumn Header="SequenceIndex" Width="*">
+					<DataGridTemplateColumn.CellTemplate>
+						<DataTemplate>
+							<hc:NumericUpDown Value="{Binding SequenceIndex, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource NumericIntUpDownStyle}" Margin="0" BorderThickness="0"/>
+						</DataTemplate>
+					</DataGridTemplateColumn.CellTemplate>
+				</DataGridTemplateColumn>
 				<DataGridCheckBoxColumn Header="完成" Binding="{Binding Complete, UpdateSourceTrigger=PropertyChanged}" Width="90"/>
 			</DataGrid.Columns>
 		</DataGrid>

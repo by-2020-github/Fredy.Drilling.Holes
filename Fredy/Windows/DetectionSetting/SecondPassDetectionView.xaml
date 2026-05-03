@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+              xmlns:hc="clr-namespace:HandyControl.Controls;assembly=HandyControl"
              xmlns:vm="clr-namespace:Fredy.Drilling.Holes.ViewModels"
              xmlns:models="clr-namespace:Fredy.Drilling.Holes.Models"
              mc:Ignorable="d" 
@@ -38,8 +39,8 @@
 
                             <TextBlock Text="{Binding Index, StringFormat='第{0}圈'}" VerticalAlignment="Center" FontSize="14"/>
 
-                            <TextBox Grid.Column="1" Text="{Binding DetectionCount}" 
-                                     VerticalContentAlignment="Center" HorizontalContentAlignment="Left" Padding="5,0"/>
+                            <hc:NumericUpDown Grid.Column="1" Value="{Binding DetectionCount, UpdateSourceTrigger=PropertyChanged}" 
+                                             Style="{StaticResource NumericIntUpDownStyle}" Margin="0"/>
                         </Grid>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
@@ -48,7 +49,7 @@
 
         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,10,0,20">
             <TextBlock Text="探测偏移量阈值：" VerticalAlignment="Center" FontSize="14" FontWeight="Bold"/>
-            <TextBox Text="{Binding OffsetThreshold}" Width="150" Height="28" VerticalContentAlignment="Center" Padding="5,0"/>
+            <hc:NumericUpDown Value="{Binding OffsetThreshold, UpdateSourceTrigger=PropertyChanged}" Width="150" Height="28" Style="{StaticResource NumericIntUpDownStyle}" Margin="0"/>
         </StackPanel>
 
         <UniformGrid Grid.Row="3" Columns="2" Margin="40,0">

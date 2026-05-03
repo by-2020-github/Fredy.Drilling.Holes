@@ -2,6 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:hc="clr-namespace:HandyControl.Controls;assembly=HandyControl"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:Fredy.Drilling.Holes.ViewModels"
         xmlns:models="clr-namespace:Fredy.Drilling.Holes.Models" xmlns:views="clr-namespace:Fredy.Drilling.Holes.Views" xmlns:usercontrols="clr-namespace:Fredy.Drilling.Holes.UserControls"
@@ -77,37 +78,37 @@
                                             <GroupBox Header="头道参数"  Grid.Column="0" Margin="2">
                                                 <StackPanel Margin="5">
                                                     <TextBlock Text="初速度"/>
-                                                    <TextBox Text="{Binding FirstPass.StartSpeed}" Margin="0,2,0,5"/>
+                                                    <hc:NumericUpDown Value="{Binding FirstPass.StartSpeed}" Style="{StaticResource NumericIntUpDownStyle}" Margin="0,2,0,5"/>
                                                     <TextBlock Text="驱动速度"/>
-                                                    <TextBox Text="{Binding FirstPass.DriveSpeed}" Margin="0,2,0,5"/>
+                                                    <hc:NumericUpDown Value="{Binding FirstPass.DriveSpeed}" Style="{StaticResource NumericIntUpDownStyle}" Margin="0,2,0,5"/>
                                                     <TextBlock Text="加速度"/>
-                                                    <TextBox Text="{Binding FirstPass.Acceleration}" Margin="0,2,0,5"/>
+                                                    <hc:NumericUpDown Value="{Binding FirstPass.Acceleration}" Style="{StaticResource NumericIntUpDownStyle}" Margin="0,2,0,5"/>
                                                     <TextBlock Text="延时"/>
-                                                    <TextBox Text="{Binding FirstPass.Delay}" Margin="0,2,0,5"/>
+                                                    <hc:NumericUpDown Value="{Binding FirstPass.Delay}" Style="{StaticResource NumericIntUpDownStyle}" Margin="0,2,0,5"/>
                                                 </StackPanel>
                                             </GroupBox>
                                             <GroupBox Header="二道参数"  Grid.Column="1" Margin="2">
                                                 <StackPanel Margin="5">
                                                     <TextBlock Text="初速度"/>
-                                                    <TextBox Text="{Binding SecondPass.StartSpeed}" Margin="0,2,0,5"/>
+                                                    <hc:NumericUpDown Value="{Binding SecondPass.StartSpeed}" Style="{StaticResource NumericIntUpDownStyle}" Margin="0,2,0,5"/>
                                                     <TextBlock Text="驱动速度"/>
-                                                    <TextBox Text="{Binding SecondPass.DriveSpeed}" Margin="0,2,0,5"/>
+                                                    <hc:NumericUpDown Value="{Binding SecondPass.DriveSpeed}" Style="{StaticResource NumericIntUpDownStyle}" Margin="0,2,0,5"/>
                                                     <TextBlock Text="加速度"/>
-                                                    <TextBox Text="{Binding SecondPass.Acceleration}" Margin="0,2,0,5"/>
+                                                    <hc:NumericUpDown Value="{Binding SecondPass.Acceleration}" Style="{StaticResource NumericIntUpDownStyle}" Margin="0,2,0,5"/>
                                                     <TextBlock Text="延时"/>
-                                                    <TextBox Text="{Binding SecondPass.Delay}" Margin="0,2,0,5"/>
+                                                    <hc:NumericUpDown Value="{Binding SecondPass.Delay}" Style="{StaticResource NumericIntUpDownStyle}" Margin="0,2,0,5"/>
                                                 </StackPanel>
                                             </GroupBox>
                                             <GroupBox Header="探测参数"  Grid.Column="2" Margin="2">
                                                 <StackPanel Margin="5">
                                                     <TextBlock Text="快速移动位置"/>
-                                                    <TextBox Text="{Binding FastMovePos}" Margin="0,2,0,5"/>
+                                                    <hc:NumericUpDown Value="{Binding FastMovePos}" Style="{StaticResource NumericDoubleUpDownStyle}" Margin="0,2,0,5"/>
                                                     <TextBlock Text="快速速度"/>
-                                                    <TextBox Text="{Binding FastMoveSpeed}" Margin="0,2,0,5"/>
+                                                    <hc:NumericUpDown Value="{Binding FastMoveSpeed}" Style="{StaticResource NumericIntUpDownStyle}" Margin="0,2,0,5"/>
                                                     <TextBlock Text="慢速移动距离"/>
-                                                    <TextBox Text="{Binding SlowMoveDist}" Margin="0,2,0,5"/>
+                                                    <hc:NumericUpDown Value="{Binding SlowMoveDist}" Style="{StaticResource NumericDoubleUpDownStyle}" Margin="0,2,0,5"/>
                                                     <TextBlock Text="慢速速度"/>
-                                                    <TextBox Text="{Binding SlowMoveSpeed}" Margin="0,2,0,5"/>
+                                                    <hc:NumericUpDown Value="{Binding SlowMoveSpeed}" Style="{StaticResource NumericIntUpDownStyle}" Margin="0,2,0,5"/>
                                                 </StackPanel>
                                             </GroupBox>
                                         </Grid>
@@ -133,28 +134,28 @@
                                                 <GroupBox Header="机械回零" Margin="0,0,5,0">
                                                     <UniformGrid Columns="2" Margin="8">
                                                         <TextBlock Text="搜索速度" VerticalAlignment="Center" Margin="0,0,6,6"/>
-                                                        <TextBox Text="{Binding HomeSearchSpeed}" Margin="0,0,0,6"/>
+                                                        <hc:NumericUpDown Value="{Binding HomeSearchSpeed}" Style="{StaticResource NumericIntUpDownStyle}" Margin="0,0,0,6"/>
                                                         <TextBlock Text="回零超时(ms)" VerticalAlignment="Center" Margin="0,0,6,6"/>
-                                                        <TextBox Text="{Binding AdtHoming.HomeTimeoutMs}" Margin="0,0,0,6"/>
+                                                        <hc:NumericUpDown Value="{Binding AdtHoming.HomeTimeoutMs}" Style="{StaticResource NumericIntUpDownStyle}" Margin="0,0,0,6"/>
                                                         <TextBlock Text="脱离脉冲" VerticalAlignment="Center" Margin="0,0,6,6"/>
-                                                        <TextBox Text="{Binding AdtHoming.HomeBackoffPulse}" Margin="0,0,0,6"/>
+                                                        <hc:NumericUpDown Value="{Binding AdtHoming.HomeBackoffPulse}" Style="{StaticResource NumericIntUpDownStyle}" Margin="0,0,0,6"/>
                                                         <TextBlock Text="初速度" VerticalAlignment="Center" Margin="0,0,6,6"/>
-                                                        <TextBox Text="{Binding AdtHoming.SlowHomeStartSpeed}" Margin="0,0,0,6"/>
+                                                        <hc:NumericUpDown Value="{Binding AdtHoming.SlowHomeStartSpeed}" Style="{StaticResource NumericIntUpDownStyle}" Margin="0,0,0,6"/>
                                                         <TextBlock Text="速度" VerticalAlignment="Center" Margin="0,0,6,6"/>
-                                                        <TextBox Text="{Binding AdtHoming.SlowHomeSpeed}" Margin="0,0,0,6"/>
+                                                        <hc:NumericUpDown Value="{Binding AdtHoming.SlowHomeSpeed}" Style="{StaticResource NumericIntUpDownStyle}" Margin="0,0,0,6"/>
                                                         <TextBlock Text="加速度" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                                        <TextBox Text="{Binding AdtHoming.SlowHomeAcceleration}"/>
+                                                        <hc:NumericUpDown Value="{Binding AdtHoming.SlowHomeAcceleration}" Style="{StaticResource NumericIntUpDownStyle}" Margin="0"/>
                                                     </UniformGrid>
                                                 </GroupBox>
 
                                                 <GroupBox Grid.Column="1" Header="光栅/锁存回零" Margin="5,0,5,0">
                                                     <UniformGrid Columns="2" Margin="8">
                                                         <TextBlock Text="初速度" VerticalAlignment="Center" Margin="0,0,6,6"/>
-                                                        <TextBox Text="{Binding AdtHoming.GratingHomeStartSpeed}" Margin="0,0,0,6"/>
+                                                        <hc:NumericUpDown Value="{Binding AdtHoming.GratingHomeStartSpeed}" Style="{StaticResource NumericIntUpDownStyle}" Margin="0,0,0,6"/>
                                                         <TextBlock Text="速度" VerticalAlignment="Center" Margin="0,0,6,6"/>
-                                                        <TextBox Text="{Binding AdtHoming.GratingHomeSpeed}" Margin="0,0,0,6"/>
+                                                        <hc:NumericUpDown Value="{Binding AdtHoming.GratingHomeSpeed}" Style="{StaticResource NumericIntUpDownStyle}" Margin="0,0,0,6"/>
                                                         <TextBlock Text="加速度" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                                        <TextBox Text="{Binding AdtHoming.GratingHomeAcceleration}"/>
+                                                        <hc:NumericUpDown Value="{Binding AdtHoming.GratingHomeAcceleration}" Style="{StaticResource NumericIntUpDownStyle}" Margin="0"/>
                                                     </UniformGrid>
                                                 </GroupBox>
 
@@ -162,7 +163,7 @@
                                                     <StackPanel Margin="8">
                                                         <UniformGrid Columns="2">
                                                             <TextBlock Text="抬起脉冲" VerticalAlignment="Center" Margin="0,0,6,6"/>
-                                                            <TextBox Text="{Binding AdtHoming.ZHomeLiftPulse}" Margin="0,0,0,6"/>
+                                                            <hc:NumericUpDown Value="{Binding AdtHoming.ZHomeLiftPulse}" Style="{StaticResource NumericIntUpDownStyle}" Margin="0,0,0,6"/>
                                                         </UniformGrid>
                                                         <CheckBox Content="Z机械回零朝正方向搜索"
                                                                   IsChecked="{Binding AdtHoming.ZHomeTowardPositiveDirection}"
@@ -193,7 +194,7 @@
                                                     <ColumnDefinition Width="Auto"/>
                                                 </Grid.ColumnDefinitions>
                                                 <TextBlock Text="X机械零位" VerticalAlignment="Center"/>
-                                                <TextBox Grid.Column="1" Text="{Binding XLimitPort.PortIndex}" Margin="5,0"/>
+                                                <hc:NumericUpDown Grid.Column="1" Value="{Binding XLimitPort.PortIndex}" Style="{StaticResource NumericIntUpDownStyle}" Margin="5,0"/>
                                                 <CheckBox Grid.Column="2" Content="低电平" IsChecked="{Binding XLimitPort.IsLowLevelActive}" VerticalAlignment="Center"/>
                                             </Grid>
                                             <Grid Margin="0,5">
@@ -203,7 +204,7 @@
                                                     <ColumnDefinition Width="Auto"/>
                                                 </Grid.ColumnDefinitions>
                                                 <TextBlock Text="Y机械零位" VerticalAlignment="Center"/>
-                                                <TextBox Grid.Column="1" Text="{Binding YLimitPort.PortIndex}" Margin="5,0"/>
+                                                <hc:NumericUpDown Grid.Column="1" Value="{Binding YLimitPort.PortIndex}" Style="{StaticResource NumericIntUpDownStyle}" Margin="5,0"/>
                                                 <CheckBox Grid.Column="2" Content="低电平" IsChecked="{Binding YLimitPort.IsLowLevelActive}" VerticalAlignment="Center"/>
                                             </Grid>
                                             <Grid Margin="0,5">
@@ -213,7 +214,7 @@
                                                     <ColumnDefinition Width="Auto"/>
                                                 </Grid.ColumnDefinitions>
                                                 <TextBlock Text="Z机械零位" VerticalAlignment="Center"/>
-                                                <TextBox Grid.Column="1" Text="{Binding AdtHoming.ZLimitPort.PortIndex}" Margin="5,0"/>
+                                                <hc:NumericUpDown Grid.Column="1" Value="{Binding AdtHoming.ZLimitPort.PortIndex}" Style="{StaticResource NumericIntUpDownStyle}" Margin="5,0"/>
                                                 <CheckBox Grid.Column="2" Content="低电平" IsChecked="{Binding AdtHoming.ZLimitPort.IsLowLevelActive}" VerticalAlignment="Center"/>
                                             </Grid>
                                             <Grid Margin="0,5">
@@ -223,7 +224,7 @@
                                                     <ColumnDefinition Width="Auto"/>
                                                 </Grid.ColumnDefinitions>
                                                 <TextBlock Text="X光栅零位" VerticalAlignment="Center"/>
-                                                <TextBox Grid.Column="1" Text="{Binding AdtHoming.XGratingPort.PortIndex}" Margin="5,0"/>
+                                                <hc:NumericUpDown Grid.Column="1" Value="{Binding AdtHoming.XGratingPort.PortIndex}" Style="{StaticResource NumericIntUpDownStyle}" Margin="5,0"/>
                                                 <CheckBox Grid.Column="2" Content="低电平" IsChecked="{Binding AdtHoming.XGratingPort.IsLowLevelActive}" VerticalAlignment="Center"/>
                                             </Grid>
                                             <Grid Margin="0,5">
@@ -233,7 +234,7 @@
                                                     <ColumnDefinition Width="Auto"/>
                                                 </Grid.ColumnDefinitions>
                                                 <TextBlock Text="Y光栅零位" VerticalAlignment="Center"/>
-                                                <TextBox Grid.Column="1" Text="{Binding AdtHoming.YGratingPort.PortIndex}" Margin="5,0"/>
+                                                <hc:NumericUpDown Grid.Column="1" Value="{Binding AdtHoming.YGratingPort.PortIndex}" Style="{StaticResource NumericIntUpDownStyle}" Margin="5,0"/>
                                                 <CheckBox Grid.Column="2" Content="低电平" IsChecked="{Binding AdtHoming.YGratingPort.IsLowLevelActive}" VerticalAlignment="Center"/>
                                             </Grid>
                                         </StackPanel>
@@ -252,13 +253,13 @@
                                                 <RowDefinition/>
                                             </Grid.RowDefinitions>
                                             <TextBlock Text="红灯" VerticalAlignment="Center"/>
-                                            <TextBox Grid.Column="1" Text="{Binding RedLightPort}" Margin="5,2"/>
+                                            <hc:NumericUpDown Grid.Column="1" Value="{Binding RedLightPort}" Style="{StaticResource NumericIntUpDownStyle}" Margin="5,2"/>
                                             <TextBlock Grid.Row="1" Text="绿灯" VerticalAlignment="Center"/>
-                                            <TextBox Grid.Row="1" Grid.Column="1" Text="0" Margin="5,2"/>
+                                            <hc:NumericUpDown Grid.Row="1" Grid.Column="1" Value="0" Style="{StaticResource NumericIntUpDownStyle}" Margin="5,2"/>
                                             <TextBlock Grid.Row="2" Text="黄灯" VerticalAlignment="Center"/>
-                                            <TextBox Grid.Row="2" Grid.Column="1" Text="0" Margin="5,2"/>
+                                            <hc:NumericUpDown Grid.Row="2" Grid.Column="1" Value="0" Style="{StaticResource NumericIntUpDownStyle}" Margin="5,2"/>
                                             <TextBlock Grid.Row="3" Text="蜂鸣器" VerticalAlignment="Center"/>
-                                            <TextBox Grid.Row="3" Grid.Column="1" Text="0" Margin="5,2"/>
+                                            <hc:NumericUpDown Grid.Row="3" Grid.Column="1" Value="0" Style="{StaticResource NumericIntUpDownStyle}" Margin="5,2"/>
                                         </Grid>
                                     </GroupBox>
 
@@ -310,9 +311,9 @@
                                         <ColumnDefinition Width="200"/>
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Text="像素尺寸 X (μm)" VerticalAlignment="Center"/>
-                                    <TextBox Grid.Column="1" Text="{Binding Camera.PixelSizeX}" Margin="5,0,15,0"/>
+                                    <hc:NumericUpDown Grid.Column="1" Value="{Binding Camera.PixelSizeX}" Style="{StaticResource NumericDoubleUpDownStyle}" Margin="5,0,15,0"/>
                                     <TextBlock Grid.Column="2" Text="像素尺寸 Y (μm)" VerticalAlignment="Center"/>
-                                    <TextBox Grid.Column="3" Text="{Binding Camera.PixelSizeY}" Margin="5,0,0,0"/>
+                                    <hc:NumericUpDown Grid.Column="3" Value="{Binding Camera.PixelSizeY}" Style="{StaticResource NumericDoubleUpDownStyle}" Margin="5,0,0,0"/>
                                 </Grid>
 
                                 <Button Margin="0,10,0,0"
@@ -333,9 +334,9 @@
                                     <ColumnDefinition Width="200"/>
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Text="视野宽度 (像素)" VerticalAlignment="Center"/>
-                                <TextBox Grid.Column="1" Text="{Binding Camera.FovWidth}" Margin="5,0,15,0"/>
+                                <hc:NumericUpDown Grid.Column="1" Value="{Binding Camera.FovWidth}" Style="{StaticResource NumericIntUpDownStyle}" Margin="5,0,15,0"/>
                                 <TextBlock Grid.Column="2" Text="视野高度 (像素)" VerticalAlignment="Center"/>
-                                <TextBox Grid.Column="3" Text="{Binding Camera.FovHeight}" Margin="5,0,0,0"/>
+                                <hc:NumericUpDown Grid.Column="3" Value="{Binding Camera.FovHeight}" Style="{StaticResource NumericIntUpDownStyle}" Margin="5,0,0,0"/>
                             </Grid>
                         </GroupBox>
 
@@ -360,19 +361,19 @@
                                           VerticalAlignment="Center"/>
 
                                 <TextBlock Grid.Row="1" Text="最小面积" VerticalAlignment="Center"/>
-                                <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding ScanDetectMinArea}" Margin="5,0,15,0"/>
+                                <hc:NumericUpDown Grid.Row="1" Grid.Column="1" Value="{Binding ScanDetectMinArea}" Style="{StaticResource NumericIntUpDownStyle}" Margin="5,0,15,0"/>
                                 <TextBlock Grid.Row="1" Grid.Column="2" Text="最大面积" VerticalAlignment="Center"/>
-                                <TextBox Grid.Row="1" Grid.Column="3" Text="{Binding ScanDetectMaxArea}" Margin="5,0,0,0"/>
+                                <hc:NumericUpDown Grid.Row="1" Grid.Column="3" Value="{Binding ScanDetectMaxArea}" Style="{StaticResource NumericIntUpDownStyle}" Margin="5,0,0,0"/>
 
                                 <TextBlock Grid.Row="2" Text="阈值" VerticalAlignment="Center"/>
-                                <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding ScanDetectThreshold}" Margin="5,0,15,0"/>
+                                <hc:NumericUpDown Grid.Row="2" Grid.Column="1" Value="{Binding ScanDetectThreshold}" Style="{StaticResource NumericIntUpDownStyle}" Margin="5,0,15,0"/>
                                 <TextBlock Grid.Row="2" Grid.Column="2" Text="圆度(0~1)" VerticalAlignment="Center"/>
-                                <TextBox Grid.Row="2" Grid.Column="3" Text="{Binding ScanDetectCircularity}" Margin="5,0,0,0"/>
+                                <hc:NumericUpDown Grid.Row="2" Grid.Column="3" Value="{Binding ScanDetectCircularity}" Style="{StaticResource NumericDoubleUpDownStyle}" Margin="5,0,0,0"/>
 
                                 <TextBlock Grid.Row="3" Text="形态学核大小" VerticalAlignment="Center"/>
-                                <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding ScanDetectMorphologySize}" Margin="5,0,15,0"/>
+                                <hc:NumericUpDown Grid.Row="3" Grid.Column="1" Value="{Binding ScanDetectMorphologySize}" Style="{StaticResource NumericIntUpDownStyle}" Margin="5,0,15,0"/>
                                 <TextBlock Grid.Row="3" Grid.Column="2" Text="去重容差(mm)" VerticalAlignment="Center"/>
-                                <TextBox Grid.Row="3" Grid.Column="3" Text="{Binding ScanDeduplicateToleranceMm}" Margin="5,0,0,0"/>
+                                <hc:NumericUpDown Grid.Row="3" Grid.Column="3" Value="{Binding ScanDeduplicateToleranceMm}" Style="{StaticResource NumericDoubleUpDownStyle}" Margin="5,0,0,0"/>
 
                             </Grid>
                         </GroupBox>
@@ -407,11 +408,10 @@
                                         </Grid.ColumnDefinitions>
 
                                         <TextBlock Text="{Binding Index, StringFormat=第{0}圈}" VerticalAlignment="Center" FontSize="14"/>
-                                        <TextBox Grid.Column="1"
-                                                 Text="{Binding DetectionCount, UpdateSourceTrigger=PropertyChanged}"
-                                                 VerticalContentAlignment="Center"
-                                                 HorizontalContentAlignment="Left"
-                                                 Padding="5,0"/>
+                                        <hc:NumericUpDown Grid.Column="1"
+                                                          Value="{Binding DetectionCount, UpdateSourceTrigger=PropertyChanged}"
+                                                          Style="{StaticResource NumericIntUpDownStyle}"
+                                                          Margin="0"/>
                                     </Grid>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
@@ -420,7 +420,7 @@
 
                     <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,8,0,12">
                         <TextBlock Text="探测偏移量阈值：" VerticalAlignment="Center" FontSize="14" FontWeight="Bold"/>
-                        <TextBox Text="{Binding DetectionOffsetThreshold, UpdateSourceTrigger=PropertyChanged}" Width="160" Height="28" VerticalContentAlignment="Center" Padding="5,0"/>
+                        <hc:NumericUpDown Value="{Binding DetectionOffsetThreshold, UpdateSourceTrigger=PropertyChanged}" Width="160" Height="28" Style="{StaticResource NumericIntUpDownStyle}" Margin="0"/>
                     </StackPanel>
 
                     <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Center">
@@ -459,11 +459,10 @@
                                         </Grid.ColumnDefinitions>
 
                                         <TextBlock Text="{Binding Index, StringFormat=第{0}圈}" VerticalAlignment="Center" FontSize="14"/>
-                                        <TextBox Grid.Column="1"
-                                                 Text="{Binding DetectionCount, UpdateSourceTrigger=PropertyChanged}"
-                                                 VerticalContentAlignment="Center"
-                                                 HorizontalContentAlignment="Left"
-                                                 Padding="5,0"/>
+                                        <hc:NumericUpDown Grid.Column="1"
+                                                          Value="{Binding DetectionCount, UpdateSourceTrigger=PropertyChanged}"
+                                                          Style="{StaticResource NumericIntUpDownStyle}"
+                                                          Margin="0"/>
                                     </Grid>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
@@ -472,7 +471,7 @@
 
                     <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,8,0,12">
                         <TextBlock Text="探测偏移量阈值：" VerticalAlignment="Center" FontSize="14" FontWeight="Bold"/>
-                        <TextBox Text="{Binding SecondPassOffsetThreshold, UpdateSourceTrigger=PropertyChanged}" Width="160" Height="28" VerticalContentAlignment="Center" Padding="5,0"/>
+                        <hc:NumericUpDown Value="{Binding SecondPassOffsetThreshold, UpdateSourceTrigger=PropertyChanged}" Width="160" Height="28" Style="{StaticResource NumericIntUpDownStyle}" Margin="0"/>
                     </StackPanel>
 
                     <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Center">

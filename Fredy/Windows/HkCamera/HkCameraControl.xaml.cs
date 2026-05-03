@@ -512,9 +512,11 @@ public partial class HkCameraControl : UserControl
             return;
         }
 
-        if (!float.TryParse(tbExposure.Text, out var exposure)
-            || !float.TryParse(tbGain.Text, out var gain)
-            || !float.TryParse(tbFrameRate.Text, out var frameRate))
+        var exposure = Convert.ToSingle(tbExposure.Value);
+        var gain = Convert.ToSingle(tbGain.Value);
+        var frameRate = Convert.ToSingle(tbFrameRate.Value);
+
+        if (float.IsNaN(exposure) || float.IsNaN(gain) || float.IsNaN(frameRate))
         {
             ShowError("参数格式错误", 0);
             return;
@@ -708,17 +710,17 @@ public partial class HkCameraControl : UserControl
 
         if (_camera.MV_CC_GetFloatValue_NET("ExposureTime", ref param) == MyCamera.MV_OK)
         {
-            tbExposure.Text = param.fCurValue.ToString("F1");
+            tbExposure.Value = Convert.ToDouble(param.fCurValue);
         }
 
         if (_camera.MV_CC_GetFloatValue_NET("Gain", ref param) == MyCamera.MV_OK)
         {
-            tbGain.Text = param.fCurValue.ToString("F1");
+            tbGain.Value = Convert.ToDouble(param.fCurValue);
         }
 
         if (_camera.MV_CC_GetFloatValue_NET("ResultingFrameRate", ref param) == MyCamera.MV_OK)
         {
-            tbFrameRate.Text = param.fCurValue.ToString("F1");
+            tbFrameRate.Value = Convert.ToDouble(param.fCurValue);
         }
     }
 

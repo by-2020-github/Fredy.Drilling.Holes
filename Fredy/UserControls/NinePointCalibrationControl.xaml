@@ -2,6 +2,7 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:hc="clr-namespace:HandyControl.Controls;assembly=HandyControl"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d"
              d:DesignHeight="320"
@@ -23,9 +24,9 @@
                     <ColumnDefinition Width="120"/>
                 </Grid.ColumnDefinitions>
                 <TextBlock Text="X 像素尺寸(μm)" VerticalAlignment="Center"/>
-                <TextBox Grid.Column="1" Text="{Binding ManualPixelSizeX, UpdateSourceTrigger=PropertyChanged}" Margin="5,0,15,0"/>
+                <hc:NumericUpDown Grid.Column="1" Value="{Binding ManualPixelSizeX, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource NumericDoubleUpDownStyle}" Margin="5,0,15,0"/>
                 <TextBlock Grid.Column="2" Text="Y 像素尺寸(μm)" VerticalAlignment="Center"/>
-                <TextBox Grid.Column="3" Text="{Binding ManualPixelSizeY, UpdateSourceTrigger=PropertyChanged}" Margin="5,0,0,0"/>
+                <hc:NumericUpDown Grid.Column="3" Value="{Binding ManualPixelSizeY, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource NumericDoubleUpDownStyle}" Margin="5,0,0,0"/>
             </Grid>
 
             <Button Content="应用手动值"
@@ -38,9 +39,9 @@
             <StackPanel Visibility="{Binding FieldPanelVisibility}">
                 <WrapPanel Margin="0,4,0,8">
                     <TextBlock Text="相邻点物理间距 X(mm)" VerticalAlignment="Center"/>
-                    <TextBox Width="70" Margin="6,0,16,0" Text="{Binding StagePitchX, UpdateSourceTrigger=PropertyChanged}"/>
+                    <hc:NumericUpDown Width="90" Margin="6,0,16,0" Value="{Binding StagePitchX, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource NumericDoubleUpDownStyle}"/>
                     <TextBlock Text="Y(mm)" VerticalAlignment="Center"/>
-                    <TextBox Width="70" Margin="6,0,16,0" Text="{Binding StagePitchY, UpdateSourceTrigger=PropertyChanged}"/>
+                    <hc:NumericUpDown Width="90" Margin="6,0,16,0" Value="{Binding StagePitchY, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource NumericDoubleUpDownStyle}"/>
                     <Button Content="重置九点" Width="80" Command="{Binding ResetPointsCommand}"/>
                 </WrapPanel>
 

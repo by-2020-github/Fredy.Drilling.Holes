@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+              xmlns:hc="clr-namespace:HandyControl.Controls;assembly=HandyControl"
              xmlns:vm="clr-namespace:Fredy.Drilling.Holes.ViewModels"
              xmlns:models="clr-namespace:Fredy.Drilling.Holes.Models"
              xmlns:uc="clr-namespace:Fredy.Drilling.Holes.UserControls"
@@ -171,14 +172,14 @@
             <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Bottom">
                 <Button Content="-" Width="60" Height="60" Background="{StaticResource Brush.Status.Blue.Subtle}" Command="{Binding ChangeSizeCommand}" CommandParameter="Canvas-"/>
                 <StackPanel VerticalAlignment="Center" Margin="10,0">
-                    <TextBox Text="{Binding CanvasSize}" Width="60" FontSize="18" HorizontalContentAlignment="Center"/>
+                     <hc:NumericUpDown Value="{Binding CanvasSize, UpdateSourceTrigger=PropertyChanged}" Width="80" FontSize="18" HorizontalContentAlignment="Center" Style="{StaticResource NumericIntUpDownStyle}" Margin="0"/>
                     <TextBlock Text="画面大小" HorizontalAlignment="Center"/>
                 </StackPanel>
                 <Button Content="+" Width="60" Height="60" Background="{StaticResource Brush.Status.Blue.Subtle}" Margin="0,0,20,0" Command="{Binding ChangeSizeCommand}" CommandParameter="Canvas+"/>
 
                 <Button Content="-" Width="60" Height="60" Background="{StaticResource Brush.Status.Yellow.Subtle}" Command="{Binding ChangeSizeCommand}" CommandParameter="Ring-"/>
                 <StackPanel VerticalAlignment="Center" Margin="10,0">
-                    <TextBox Text="{Binding RingSize}" Width="60" FontSize="18" HorizontalContentAlignment="Center"/>
+                     <hc:NumericUpDown Value="{Binding RingSize, UpdateSourceTrigger=PropertyChanged}" Width="80" FontSize="18" HorizontalContentAlignment="Center" Style="{StaticResource NumericIntUpDownStyle}" Margin="0"/>
                     <TextBlock Text="圈大小：" HorizontalAlignment="Center"/>
                 </StackPanel>
                 <Button Content="+" Width="60" Height="60" Background="{StaticResource Brush.Status.Yellow.Subtle}" Command="{Binding ChangeSizeCommand}" CommandParameter="Ring+"/>

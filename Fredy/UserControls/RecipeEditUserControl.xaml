@@ -5,6 +5,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
              xmlns:converters="clr-namespace:Fredy.Drilling.Holes.Converters"
+             xmlns:hc="clr-namespace:HandyControl.Controls;assembly=HandyControl"
              xmlns:local="clr-namespace:Fredy.Drilling.Holes.UserControls"
              xmlns:views="clr-namespace:Fredy.Drilling.Holes.Views"
              mc:Ignorable="d" 
@@ -48,20 +49,22 @@
                                  Text="{Binding TypeName, UpdateSourceTrigger=PropertyChanged}"/>
 
                         <TextBlock Grid.Row="2" Text="Radius" VerticalAlignment="Center" Margin="0,0,12,12" FontSize="14"/>
-                        <TextBox Grid.Row="2"
-                                 Grid.Column="1"
-                                 Margin="0,0,0,12"
-                                 Height="32"
-                                 IsReadOnly="{Binding IsEditing, ElementName=Root, Converter={StaticResource InverseBoolConverter}}"
-                                 Text="{Binding PunchParameters.Radius, UpdateSourceTrigger=PropertyChanged}"/>
+                        <hc:NumericUpDown Grid.Row="2"
+                                          Grid.Column="1"
+                                          Margin="0,0,0,12"
+                                          Height="32"
+                                          IsReadOnly="{Binding IsEditing, ElementName=Root, Converter={StaticResource InverseBoolConverter}}"
+                                          Style="{StaticResource NumericDoubleUpDownStyle}"
+                                          Value="{Binding PunchParameters.Radius, UpdateSourceTrigger=PropertyChanged}"/>
 
                         <TextBlock Grid.Row="3" Text="Rings" VerticalAlignment="Center" Margin="0,0,12,12" FontSize="14"/>
-                        <TextBox Grid.Row="3"
-                                 Grid.Column="1"
-                                 Margin="0,0,0,12"
-                                 Height="32"
-                                 IsReadOnly="{Binding IsEditing, ElementName=Root, Converter={StaticResource InverseBoolConverter}}"
-                                 Text="{Binding PunchParameters.Rings, UpdateSourceTrigger=PropertyChanged}"/>
+                        <hc:NumericUpDown Grid.Row="3"
+                                          Grid.Column="1"
+                                          Margin="0,0,0,12"
+                                          Height="32"
+                                          IsReadOnly="{Binding IsEditing, ElementName=Root, Converter={StaticResource InverseBoolConverter}}"
+                                          Style="{StaticResource NumericIntUpDownStyle}"
+                                          Value="{Binding PunchParameters.Rings, UpdateSourceTrigger=PropertyChanged}"/>
 
                         <TextBlock Grid.Row="4" Text="PunchPoints" VerticalAlignment="Center" Margin="0,0,12,12" FontSize="14"/>
                         <TextBlock Grid.Row="4"
@@ -134,11 +137,11 @@
                                         </Grid.ColumnDefinitions>
 
                                         <TextBlock Text="{Binding Index, StringFormat=第{0}圈}" VerticalAlignment="Center" FontSize="14"/>
-                                        <TextBox Grid.Column="1"
-                                                 Text="{Binding DetectionCount, UpdateSourceTrigger=PropertyChanged}"
-                                                 IsReadOnly="{Binding IsEditing, ElementName=Root, Converter={StaticResource InverseBoolConverter}}"
-                                                 VerticalContentAlignment="Center"
-                                                 Padding="5,0"/>
+                                        <hc:NumericUpDown Grid.Column="1"
+                                                          Value="{Binding DetectionCount, UpdateSourceTrigger=PropertyChanged}"
+                                                          IsReadOnly="{Binding IsEditing, ElementName=Root, Converter={StaticResource InverseBoolConverter}}"
+                                                          Style="{StaticResource NumericIntUpDownStyle}"
+                                                          Margin="0"/>
                                     </Grid>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
@@ -147,12 +150,12 @@
 
                     <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,8,0,12">
                         <TextBlock Text="探测偏移量阈值：" VerticalAlignment="Center" FontSize="14" FontWeight="Bold"/>
-                        <TextBox Text="{Binding DetectionOffsetThreshold, UpdateSourceTrigger=PropertyChanged}"
-                                 Width="160"
-                                 Height="28"
-                                 VerticalContentAlignment="Center"
-                                 IsReadOnly="{Binding IsEditing, ElementName=Root, Converter={StaticResource InverseBoolConverter}}"
-                                 Padding="5,0"/>
+                        <hc:NumericUpDown Value="{Binding DetectionOffsetThreshold, UpdateSourceTrigger=PropertyChanged}"
+                                          Width="160"
+                                          Height="28"
+                                          IsReadOnly="{Binding IsEditing, ElementName=Root, Converter={StaticResource InverseBoolConverter}}"
+                                          Style="{StaticResource NumericIntUpDownStyle}"
+                                          Margin="0"/>
                     </StackPanel>
 
                     <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Center">
@@ -192,11 +195,11 @@
                                         </Grid.ColumnDefinitions>
 
                                         <TextBlock Text="{Binding Index, StringFormat=第{0}圈}" VerticalAlignment="Center" FontSize="14"/>
-                                        <TextBox Grid.Column="1"
-                                                 Text="{Binding DetectionCount, UpdateSourceTrigger=PropertyChanged}"
-                                                 IsReadOnly="{Binding IsEditing, ElementName=Root, Converter={StaticResource InverseBoolConverter}}"
-                                                 VerticalContentAlignment="Center"
-                                                 Padding="5,0"/>
+                                        <hc:NumericUpDown Grid.Column="1"
+                                                          Value="{Binding DetectionCount, UpdateSourceTrigger=PropertyChanged}"
+                                                          IsReadOnly="{Binding IsEditing, ElementName=Root, Converter={StaticResource InverseBoolConverter}}"
+                                                          Style="{StaticResource NumericIntUpDownStyle}"
+                                                          Margin="0"/>
                                     </Grid>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
@@ -205,12 +208,12 @@
 
                     <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,8,0,12">
                         <TextBlock Text="探测偏移量阈值：" VerticalAlignment="Center" FontSize="14" FontWeight="Bold"/>
-                        <TextBox Text="{Binding SecondPassOffsetThreshold, UpdateSourceTrigger=PropertyChanged}"
-                                 Width="160"
-                                 Height="28"
-                                 VerticalContentAlignment="Center"
-                                 IsReadOnly="{Binding IsEditing, ElementName=Root, Converter={StaticResource InverseBoolConverter}}"
-                                 Padding="5,0"/>
+                        <hc:NumericUpDown Value="{Binding SecondPassOffsetThreshold, UpdateSourceTrigger=PropertyChanged}"
+                                          Width="160"
+                                          Height="28"
+                                          IsReadOnly="{Binding IsEditing, ElementName=Root, Converter={StaticResource InverseBoolConverter}}"
+                                          Style="{StaticResource NumericIntUpDownStyle}"
+                                          Margin="0"/>
                     </StackPanel>
 
                     <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Center">
