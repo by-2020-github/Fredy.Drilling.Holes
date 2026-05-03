@@ -89,6 +89,17 @@ namespace Fredy.Drilling.Holes.Models
         public Brush LabelBrush => IsScanned ? Brushes.LimeGreen : Brushes.Gold;
     }
 
+    public class DetectedHoleInfo : ObservableObject
+    {
+        public int ImageIndex { get; set; }
+        public double PixelX { get; set; }
+        public double PixelY { get; set; }
+        public double PixelSize { get; set; } // 直径(像素)
+        public double PhysicalX { get; set; }
+        public double PhysicalY { get; set; }
+        public double PhysicalSize { get; set; } // 直径(mm)
+    }
+
     public class ScanParameters : ObservableObject
     {
         private string _workpieceType = "PS60-6X500...";
@@ -108,13 +119,12 @@ namespace Fredy.Drilling.Holes.Models
         private double _currentX;
         private double _currentY;
         private double _progressValue;
-        private int _detectMinArea = 3;
-        private int _detectMaxArea = 600;
-        private int _detectThreshold = 95;
-        private double _detectCircularity = 0.5;
-        private int _detectMorphologySize = 13;
+        private double _detectMinRadius = 15;
+        private double _detectMaxRadius = 25;
+        private double _detectParam1 = 50;
+        private double _detectParam2 = 25;
+        private bool _detectIsDarkHole = true;
         private double _deduplicateToleranceMm = 0.08;
-        private bool _useBrightFieldDetector = true;
 
         public string WorkpieceType { get => _workpieceType; set => SetProperty(ref _workpieceType, value); }
 
@@ -150,18 +160,16 @@ namespace Fredy.Drilling.Holes.Models
 
         public double ProgressValue { get => _progressValue; set => SetProperty(ref _progressValue, value); }
 
-        public int DetectMinArea { get => _detectMinArea; set => SetProperty(ref _detectMinArea, value); }
+        public double DetectMinRadius { get => _detectMinRadius; set => SetProperty(ref _detectMinRadius, value); }
 
-        public int DetectMaxArea { get => _detectMaxArea; set => SetProperty(ref _detectMaxArea, value); }
+        public double DetectMaxRadius { get => _detectMaxRadius; set => SetProperty(ref _detectMaxRadius, value); }
 
-        public int DetectThreshold { get => _detectThreshold; set => SetProperty(ref _detectThreshold, value); }
+        public double DetectParam1 { get => _detectParam1; set => SetProperty(ref _detectParam1, value); }
 
-        public double DetectCircularity { get => _detectCircularity; set => SetProperty(ref _detectCircularity, value); }
+        public double DetectParam2 { get => _detectParam2; set => SetProperty(ref _detectParam2, value); }
 
-        public int DetectMorphologySize { get => _detectMorphologySize; set => SetProperty(ref _detectMorphologySize, value); }
+        public bool DetectIsDarkHole { get => _detectIsDarkHole; set => SetProperty(ref _detectIsDarkHole, value); }
 
         public double DeduplicateToleranceMm { get => _deduplicateToleranceMm; set => SetProperty(ref _deduplicateToleranceMm, value); }
-
-        public bool UseBrightFieldDetector { get => _useBrightFieldDetector; set => SetProperty(ref _useBrightFieldDetector, value); }
     }
 }

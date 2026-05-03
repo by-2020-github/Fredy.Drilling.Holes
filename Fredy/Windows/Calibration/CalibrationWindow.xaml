@@ -6,8 +6,8 @@
         xmlns:vm="clr-namespace:Fredy.Drilling.Holes.ViewModels"
         xmlns:uc="clr-namespace:Fredy.Drilling.Holes.UserControls"
         mc:Ignorable="d" x:Name="thisWin"
-        MaxHeight="1024" MaxWidth="1280"
-        Title="找圆定位 - 定位圆心" Height="950" Width="1050" Background="#F0F0F0"
+        MaxHeight="1024" MaxWidth="1280" Height="Auto" 
+        Title="找圆定位 - 定位圆心" Width="1050" Background="#F0F0F0"
         d:DataContext="{d:DesignInstance Type=vm:CalibrationViewModel, IsDesignTimeCreatable=True}">
 
     <Grid Margin="15">

@@ -39,10 +39,14 @@ namespace Fredy.Drilling.Holes.ViewModels
         private readonly string _debugImageDirectory = Path.Combine(AppContext.BaseDirectory, "images");
         private CancellationTokenSource? _scanCancellationTokenSource;
         private int _debugRenderIndex;
-        private AffineTransform2D _pendingAlignmentTransform = AffineTransform2D.Identity;
-        private IReadOnlyDictionary<int, (double X, double Y)> _pendingMatchedPoints = new Dictionary<int, (double X, double Y)>();
         private bool _hasPendingAlignmentTransform;
         private int _lastMatchedPointCount;
+
+        private IReadOnlyDictionary<int, (double X, double Y)> _pendingMatchedPoints = new Dictionary<int, (double X, double Y)>();
+
+        private Mat? _incrementalStitchedMat;
+        private int _currentStitchSize;
+        private double _currentStitchScaleRatio;
 
         [ObservableProperty] private ScanParameters _params = new();
         [ObservableProperty] private OpenCvSharp.Mat? _stitchedPreviewMat;
@@ -72,6 +76,12 @@ namespace Fredy.Drilling.Holes.ViewModels
 
         public ObservableCollection<ScanGridCellVisual> PreviewGridCells { get; }
 
+        public ObservableCollection<DetectedHoleInfo> DetectionResults { get; } = new();
+
+        [ObservableProperty] private bool _drawDetectedCircles = true;
+
+        [ObservableProperty] private OpenCvSharp.Mat? _latestDetectionMat;
+
         public double PreviewCanvasSize => PreviewCanvasSizeValue;
 
         // 命令实现
@@ -93,7 +103,6 @@ namespace Fredy.Drilling.Holes.ViewModels
         {
             ShowGridOverlay = true;
             _hasPendingAlignmentTransform = false;
-            _pendingAlignmentTransform = AffineTransform2D.Identity;
             _lastMatchedPointCount = 0;
 
              if (_scanPoints.Count == 0)
@@ -111,6 +120,13 @@ namespace Fredy.Drilling.Holes.ViewModels
             _secondPassAlignmentContext?.Clear();
             _detectedHoleCandidates.Clear();
             _detectedHoleCoordinates.Clear();
+            
+            System.Windows.Application.Current.Dispatcher.Invoke(() =>
+            {
+                DetectionResults.Clear();
+                LatestDetectionMat?.Dispose();
+                LatestDetectionMat = null;
+            });
 
              _scanCancellationTokenSource?.Cancel();
              _scanCancellationTokenSource = new CancellationTokenSource();
@@ -148,7 +164,7 @@ namespace Fredy.Drilling.Holes.ViewModels
                         }
 
                         _capturedTileMats[shot.ShotIndex] = captured;
-                        var tileHoles = DetectTileHoleCoordinates(captured, shot);
+                        var tileHoles = DetectTileHoleCoordinates(captured, shot, i + 1);
                         if (tileHoles.Count > 0)
                         {
                             _detectedHoleCandidates.AddRange(tileHoles);
@@ -165,7 +181,11 @@ namespace Fredy.Drilling.Holes.ViewModels
                         PreviewGridCells[shot.ShotIndex].IsScanned = true;
                     }
 
-                    await RenderStitchedPreviewOnUiThreadAsync();
+                    if (captured is not null)
+                    {
+                        await System.Windows.Application.Current.Dispatcher.InvokeAsync(() => UpdateIncrementalStitchedCanvas(shot.ShotIndex, captured));
+                    }
+
                     Params.ScanStatus = captured is null
                         ? $"扫描中 {i + 1}/{_scanPoints.Count}（当前帧为空）"
                         : $"扫描并拼接中 {i + 1}/{_scanPoints.Count}，已拼接 {_capturedTileMats.Count} 张，检测候选孔 {_detectedHoleCandidates.Count} 个";
@@ -209,28 +229,21 @@ namespace Fredy.Drilling.Holes.ViewModels
             try
             {
                 var config = _configService.CurrentConfig;
-                config.ScanUseBrightFieldDetector = Params.UseBrightFieldDetector;
-                config.ScanDetectMinArea = Math.Max(1, Params.DetectMinArea);
-                config.ScanDetectMaxArea = Math.Max(config.ScanDetectMinArea, Params.DetectMaxArea);
-                config.ScanDetectThreshold = Math.Clamp(Params.DetectThreshold, 0, 255);
-                config.ScanDetectCircularity = Math.Clamp(Params.DetectCircularity, 0.01, 1.0);
+                config.CircleIsDarkTarget = Params.DetectIsDarkHole;
+                config.CircleMinRadius = Math.Max(1, Params.DetectMinRadius);
+                config.CircleMaxRadius = Math.Max(config.CircleMinRadius, Params.DetectMaxRadius);
+                config.CircleParam1 = Params.DetectParam1;
+                config.CircleParam2 = Params.DetectParam2;
 
-                var morphologySize = Math.Max(3, Params.DetectMorphologySize);
-                if (morphologySize % 2 == 0)
-                {
-                    morphologySize++;
-                }
-
-                config.ScanDetectMorphologySize = morphologySize;
                 config.ScanDeduplicateToleranceMm = Math.Max(0.001, Params.DeduplicateToleranceMm);
 
                 _configService.SaveWithArchive(config);
 
-                Params.DetectMinArea = config.ScanDetectMinArea;
-                Params.DetectMaxArea = config.ScanDetectMaxArea;
-                Params.DetectThreshold = config.ScanDetectThreshold;
-                Params.DetectCircularity = config.ScanDetectCircularity;
-                Params.DetectMorphologySize = config.ScanDetectMorphologySize;
+                Params.DetectIsDarkHole = config.CircleIsDarkTarget;
+                Params.DetectMinRadius = config.CircleMinRadius;
+                Params.DetectMaxRadius = config.CircleMaxRadius;
+                Params.DetectParam1 = config.CircleParam1;
+                Params.DetectParam2 = config.CircleParam2;
                 Params.DeduplicateToleranceMm = config.ScanDeduplicateToleranceMm;
 
                 Params.ScanStatus = "检测参数已保存到配置。";
@@ -318,7 +331,7 @@ namespace Fredy.Drilling.Holes.ViewModels
         }
 
         [RelayCommand]
-        private void ApplySecondPassAlignment()
+        private async Task ApplySecondPassAlignmentAsync()
         {
             if (_secondPassAlignmentContext is null)
             {
@@ -326,17 +339,65 @@ namespace Fredy.Drilling.Holes.ViewModels
                 return;
             }
 
-            if (!_hasPendingAlignmentTransform)
+            if (_capturedTileMats.Count == 0)
             {
-                Params.ScanStatus = "请先完成分区扫描并成功计算坐标变换矩阵，再执行二道校准应用。";
+                Params.ScanStatus = "暂无已拍摄的扫描图像，请先执行分区扫描。";
                 return;
             }
 
-            _secondPassAlignmentContext.SetTransform(_pendingAlignmentTransform, _pendingMatchedPoints);
-            Params.ScanStatus = $"二道坐标校准成功，已写入坐标变换矩阵（匹配点 {_lastMatchedPointCount}），可返回主界面继续二道冲孔。";
+            Params.ScanStatus = "正在重新识别拼接图像并进行二道坐标校准...";
+
+            try
+            {
+                _hasPendingAlignmentTransform = false;
+                _lastMatchedPointCount = 0;
+
+                _detectedHoleCandidates.Clear();
+                _detectedHoleCoordinates.Clear();
+
+                await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
+                {
+                    DetectionResults.Clear();
+                    LatestDetectionMat?.Dispose();
+                    LatestDetectionMat = null;
+                });
+
+                var sortedTiles = _capturedTileMats.OrderBy(kvp => kvp.Key).ToList();
+                int processedCount = 0;
+
+                foreach (var kvp in sortedTiles)
+                {
+                    int shotIndex = kvp.Key;
+                    var tile = kvp.Value;
+
+                    var shot = _scanPoints.FirstOrDefault(s => s.ShotIndex == shotIndex);
+                    if (shot != null)
+                    {
+                        var tileHoles = await Task.Run(() => DetectTileHoleCoordinates(tile, shot, processedCount + 1)).ConfigureAwait(true);
+                        if (tileHoles.Count > 0)
+                        {
+                            _detectedHoleCandidates.AddRange(tileHoles);
+                        }
+                    }
+                    processedCount++;
+                    Params.ScanStatus = $"重新识别中 {processedCount}/{sortedTiles.Count}，检测候选孔 {_detectedHoleCandidates.Count} 个";
+                }
+
+                FinalizeSecondPassAlignmentPreparation();
+
+                if (_hasPendingAlignmentTransform)
+                {
+                    _secondPassAlignmentContext.SetMatchedPoints(_pendingMatchedPoints);
+                    Params.ScanStatus = $"二道坐标校准成功，已写入匹配结果（匹配点 {_lastMatchedPointCount}），可返回主界面继续二道冲孔。";
+                }
+            }
+            catch (Exception ex)
+            {
+                Params.ScanStatus = $"应用二道校准失败：{ex.Message}";
+            }
         }
 
-        private List<Point2d> DetectTileHoleCoordinates(Mat tile, ScanShotPoint shot)
+        private List<Point2d> DetectTileHoleCoordinates(Mat tile, ScanShotPoint shot, int photoIndex)
         {
             var result = new List<Point2d>();
             if (tile.Empty())
@@ -351,6 +412,35 @@ namespace Fredy.Drilling.Holes.ViewModels
 
             using var detectorInput = tile.Clone();
             using var detection = DetectCircles(detectorInput);
+            
+            System.Windows.Application.Current.Dispatcher.Invoke(() =>
+            {
+                var oldMat = LatestDetectionMat;
+                if (DrawDetectedCircles)
+                {
+                    var overlay = tile.Clone();
+                    foreach (var circle in detection.Circles)
+                    {
+                        var cx = (int)circle.Center.X;
+                        var cy = (int)circle.Center.Y;
+                        var r = (int)circle.Radius;
+                        
+                        // 绿色圆形轮廓
+                        OpenCvSharp.Cv2.Circle(overlay, new OpenCvSharp.Point(cx, cy), r, OpenCvSharp.Scalar.LimeGreen, 2);
+                        // 圆心红色十字
+                        int crossLen = 6;
+                        OpenCvSharp.Cv2.Line(overlay, new OpenCvSharp.Point(cx - crossLen, cy), new OpenCvSharp.Point(cx + crossLen, cy), OpenCvSharp.Scalar.Red, 2);
+                        OpenCvSharp.Cv2.Line(overlay, new OpenCvSharp.Point(cx, cy - crossLen), new OpenCvSharp.Point(cx, cy + crossLen), OpenCvSharp.Scalar.Red, 2);
+                    }
+                    LatestDetectionMat = overlay;
+                }
+                else
+                {
+                    LatestDetectionMat = tile.Clone();
+                }
+                oldMat?.Dispose();
+            });
+
             if (detection.Circles.Count == 0)
             {
                 return result;
@@ -358,6 +448,8 @@ namespace Fredy.Drilling.Holes.ViewModels
 
             double centerX = tile.Width / 2.0;
             double centerY = tile.Height / 2.0;
+
+            var newHoles = new List<DetectedHoleInfo>();
 
             foreach (var circle in detection.Circles)
             {
@@ -368,29 +460,42 @@ namespace Fredy.Drilling.Holes.ViewModels
                 double physicalX = shot.X + (dxPixel * pixelSizeXmm);
                 double physicalY = shot.Y - (dyPixel * pixelSizeYmm);
                 result.Add(new Point2d(physicalX, physicalY));
+                
+                double pixelDiam = circle.Radius * 2;
+                double physDiam = pixelDiam * ((pixelSizeXmm + pixelSizeYmm) / 2.0);
+
+                newHoles.Add(new DetectedHoleInfo 
+                {
+                    ImageIndex = photoIndex,
+                    PixelX = Math.Round(circle.Center.X, 2),
+                    PixelY = Math.Round(circle.Center.Y, 2),
+                    PixelSize = Math.Round(pixelDiam, 2),
+                    PhysicalX = Math.Round(physicalX, 3),
+                    PhysicalY = Math.Round(physicalY, 3),
+                    PhysicalSize = Math.Round(physDiam, 3)
+                });
             }
+
+            System.Windows.Application.Current.Dispatcher.InvokeAsync(() => 
+            {
+                foreach (var h in newHoles)
+                {
+                    DetectionResults.Add(h);
+                }
+            });
 
             return result;
         }
 
         private DetectionResult DetectCircles(Mat input)
         {
-            int minArea = Math.Max(1, Params.DetectMinArea);
-            int maxArea = Math.Max(minArea, Params.DetectMaxArea);
-            int threshold = Math.Clamp(Params.DetectThreshold, 0, 255);
-            double circularity = Math.Clamp(Params.DetectCircularity, 0.01, 1.0);
-            int morphologySize = Math.Max(3, Params.DetectMorphologySize);
-            if (morphologySize % 2 == 0)
-            {
-                morphologySize++;
-            }
+            var isDarkHole = Params.DetectIsDarkHole;
+            int minRadius = Math.Max(1, (int)Params.DetectMinRadius);
+            int maxRadius = Math.Max(minRadius, (int)Params.DetectMaxRadius);
+            int param1 = Math.Max(1, (int)Params.DetectParam1);
+            int param2 = Math.Max(1, (int)Params.DetectParam2);
 
-            if (Params.UseBrightFieldDetector)
-            {
-                return _circleDetector.ProcessBrightField(input, minArea, maxArea, threshold, circularity, morphologySize);
-            }
-
-            return _circleDetector.Process(input, minArea, maxArea, threshold, circularity);
+            return _circleDetector.ProcessMetalHoles(input, isDarkHole, minRadius, maxRadius, param1, param2);
         }
 
         private void FinalizeSecondPassAlignmentPreparation()
@@ -409,21 +514,69 @@ namespace Fredy.Drilling.Holes.ViewModels
 
             if (!TryGetRecipePoints(out var recipePoints, out var recipeName))
             {
-                Params.ScanStatus = $"扫描完成，检测候选 {_detectedHoleCandidates.Count} 个、去重后 {_detectedHoleCoordinates.Count} 个，但未找到当前配方，无法计算坐标矩阵。";
+                Params.ScanStatus = $"扫描完成，检测候选 {_detectedHoleCandidates.Count} 个、去重后 {_detectedHoleCoordinates.Count} 个，但未找到当前配方，无法计算坐标匹配。";
                 return;
             }
 
-            if (!TryEstimateTransform(recipePoints, _detectedHoleCoordinates, out var transform, out var matchedIndexMap))
+            if (!TryMatchDetectedHolesToRecipe(recipePoints, _detectedHoleCoordinates, out var matchedIndexMap))
             {
-                Params.ScanStatus = $"扫描完成，检测候选 {_detectedHoleCandidates.Count} 个、去重后 {_detectedHoleCoordinates.Count} 个；与配方[{recipeName}]自动匹配失败，无法生成坐标矩阵。";
+                Params.ScanStatus = $"扫描完成，检测候选 {_detectedHoleCandidates.Count} 个、去重后 {_detectedHoleCoordinates.Count} 个；与配方[{recipeName}]自动匹配失败。";
                 return;
             }
 
-            _pendingAlignmentTransform = transform;
             _pendingMatchedPoints = matchedIndexMap;
             _hasPendingAlignmentTransform = true;
             _lastMatchedPointCount = matchedIndexMap.Count;
-            Params.ScanStatus = $"扫描完成，候选 {_detectedHoleCandidates.Count} 个，去重后 {_detectedHoleCoordinates.Count} 个；与配方[{recipeName}]匹配 {matchedIndexMap.Count} 个，已计算坐标变换矩阵。";
+            Params.ScanStatus = $"扫描完成，候选 {_detectedHoleCandidates.Count} 个，去重后 {_detectedHoleCoordinates.Count} 个；与配方[{recipeName}]匹配 {matchedIndexMap.Count} 个。";
+        }
+
+        private static bool TryMatchDetectedHolesToRecipe(
+            IReadOnlyList<Point2d> recipePoints,
+            IReadOnlyList<Point2d> detectedPoints,
+            out IReadOnlyDictionary<int, (double X, double Y)> matchedIndexMap)
+        {
+            var map = new Dictionary<int, (double X, double Y)>();
+            matchedIndexMap = map;
+
+            if (recipePoints.Count == 0 || detectedPoints.Count == 0)
+            {
+                return false;
+            }
+
+            // 搜索半径，如果孔位相较于理论设计偏离太多则认为不是这个孔
+            double maxMatchDistanceMm = 10.0;
+            var usedDetectedIndices = new HashSet<int>();
+
+            for (int rIndex = 0; rIndex < recipePoints.Count; rIndex++)
+            {
+                var recipePoint = recipePoints[rIndex];
+                int bestMatchIndex = -1;
+                double bestDistance = double.MaxValue;
+
+                for (int dIndex = 0; dIndex < detectedPoints.Count; dIndex++)
+                {
+                    if (usedDetectedIndices.Contains(dIndex))
+                    {
+                        continue;
+                    }
+
+                    var detectedPoint = detectedPoints[dIndex];
+                    double dist = GetDistance(recipePoint, detectedPoint);
+                    if (dist < bestDistance)
+                    {
+                        bestDistance = dist;
+                        bestMatchIndex = dIndex;
+                    }
+                }
+
+                if (bestMatchIndex >= 0 && bestDistance <= maxMatchDistanceMm)
+                {
+                    usedDetectedIndices.Add(bestMatchIndex);
+                    map[rIndex] = (detectedPoints[bestMatchIndex].X, detectedPoints[bestMatchIndex].Y);
+                }
+            }
+
+            return map.Count > 0;
         }
 
         private bool TryGetRecipePoints(out List<Point2d> recipePoints, out string recipeName)
@@ -486,302 +639,6 @@ namespace Fredy.Drilling.Holes.ViewModels
             }
 
             return clusters.Select(c => c.Center).ToList();
-        }
-
-        private static bool TryEstimateTransform(
-            IReadOnlyList<Point2d> recipePoints,
-            IReadOnlyList<Point2d> detectedPoints,
-            out AffineTransform2D transform,
-            out IReadOnlyDictionary<int, (double X, double Y)> matchedIndexMap)
-        {
-            transform = AffineTransform2D.Identity;
-            matchedIndexMap = new Dictionary<int, (double X, double Y)>();
-            int matchedCount = 0;
-
-            if (recipePoints.Count < 3 || detectedPoints.Count < 3)
-            {
-                return false;
-            }
-
-            var recipeCentroid = ComputeCentroid(recipePoints);
-            var detectedCentroid = ComputeCentroid(detectedPoints);
-            transform = new AffineTransform2D(1, 0, 0, 1, detectedCentroid.X - recipeCentroid.X, detectedCentroid.Y - recipeCentroid.Y);
-
-            double maxMatchDistance = EstimateInitialMatchDistance(recipePoints);
-            List<PointPair> finalPairs = new();
-
-            for (int iter = 0; iter < 6; iter++)
-            {
-                var pairs = BuildPairs(recipePoints, detectedPoints, transform, maxMatchDistance);
-                if (pairs.Count < 3)
-                {
-                    break;
-                }
-
-                if (!TrySolveAffine(pairs, out var solved))
-                {
-                    break;
-                }
-
-                // 一次残差过滤，提升鲁棒性
-                var filteredPairs = pairs
-                    .Where(p => GetDistance(solved.Transform(p.Source.X, p.Source.Y), (p.Target.X, p.Target.Y)) <= maxMatchDistance)
-                    .ToList();
-
-                if (filteredPairs.Count >= 3 && TrySolveAffine(filteredPairs, out var refined))
-                {
-                    transform = refined;
-                    finalPairs = filteredPairs;
-                    matchedCount = filteredPairs.Count;
-                }
-                else
-                {
-                    transform = solved;
-                    finalPairs = pairs;
-                    matchedCount = pairs.Count;
-                }
-
-                maxMatchDistance = Math.Max(0.06, maxMatchDistance * 0.85);
-            }
-
-            if (matchedCount >= 3)
-            {
-                var map = new Dictionary<int, (double X, double Y)>();
-                foreach (var pair in finalPairs)
-                {
-                    if (pair.SourceIndex >= 0)
-                    {
-                        map[pair.SourceIndex] = (pair.Target.X, pair.Target.Y);
-                    }
-                }
-                matchedIndexMap = map;
-                return true;
-            }
-
-            return false;
-        }
-
-        private static List<PointPair> BuildPairs(
-            IReadOnlyList<Point2d> recipePoints,
-            IReadOnlyList<Point2d> detectedPoints,
-            AffineTransform2D transform,
-            double maxDistance)
-        {
-            var pairs = new List<PointPair>();
-            var used = new HashSet<int>();
-
-            for (int sourceIdx = 0; sourceIdx < recipePoints.Count; sourceIdx++)
-            {
-                var source = recipePoints[sourceIdx];
-                var mapped = transform.Transform(source.X, source.Y);
-                int nearestIndex = -1;
-                double nearestDistance = double.MaxValue;
-
-                for (int i = 0; i < detectedPoints.Count; i++)
-                {
-                    if (used.Contains(i))
-                    {
-                        continue;
-                    }
-
-                    double dist = GetDistance(mapped, (detectedPoints[i].X, detectedPoints[i].Y));
-                    if (dist < nearestDistance)
-                    {
-                        nearestDistance = dist;
-                        nearestIndex = i;
-                    }
-                }
-
-                if (nearestIndex >= 0 && nearestDistance <= maxDistance)
-                {
-                    used.Add(nearestIndex);
-                    pairs.Add(new PointPair(source, detectedPoints[nearestIndex], sourceIdx));
-                }
-            }
-
-            return pairs;
-        }
-
-        private static bool TrySolveAffine(IReadOnlyList<PointPair> pairs, out AffineTransform2D transform)
-        {
-            transform = AffineTransform2D.Identity;
-            if (pairs.Count < 3)
-            {
-                return false;
-            }
-
-            var ata = new double[6, 6];
-            var atb = new double[6];
-
-            foreach (var pair in pairs)
-            {
-                var x = pair.Source.X;
-                var y = pair.Source.Y;
-                var u = pair.Target.X;
-                var v = pair.Target.Y;
-
-                var r1 = new[] { x, y, 0d, 0d, 1d, 0d };
-                var r2 = new[] { 0d, 0d, x, y, 0d, 1d };
-
-                AccumulateNormalEquation(ata, atb, r1, u);
-                AccumulateNormalEquation(ata, atb, r2, v);
-            }
-
-            if (!TrySolveLinearSystem(ata, atb, out var p))
-            {
-                return false;
-            }
-
-            transform = new AffineTransform2D(p[0], p[1], p[2], p[3], p[4], p[5]);
-            return true;
-        }
-
-        private static void AccumulateNormalEquation(double[,] ata, double[] atb, double[] row, double value)
-        {
-            for (int i = 0; i < 6; i++)
-            {
-                atb[i] += row[i] * value;
-                for (int j = 0; j < 6; j++)
-                {
-                    ata[i, j] += row[i] * row[j];
-                }
-            }
-        }
-
-        private static bool TrySolveLinearSystem(double[,] a, double[] b, out double[] x)
-        {
-            x = new double[6];
-            var aug = new double[6, 7];
-
-            for (int i = 0; i < 6; i++)
-            {
-                for (int j = 0; j < 6; j++)
-                {
-                    aug[i, j] = a[i, j];
-                }
-
-                aug[i, 6] = b[i];
-            }
-
-            for (int col = 0; col < 6; col++)
-            {
-                int pivot = col;
-                double maxAbs = Math.Abs(aug[pivot, col]);
-                for (int row = col + 1; row < 6; row++)
-                {
-                    double abs = Math.Abs(aug[row, col]);
-                    if (abs > maxAbs)
-                    {
-                        maxAbs = abs;
-                        pivot = row;
-                    }
-                }
-
-                if (maxAbs < 1e-10)
-                {
-                    return false;
-                }
-
-                if (pivot != col)
-                {
-                    for (int k = col; k <= 6; k++)
-                    {
-                        (aug[col, k], aug[pivot, k]) = (aug[pivot, k], aug[col, k]);
-                    }
-                }
-
-                double div = aug[col, col];
-                for (int k = col; k <= 6; k++)
-                {
-                    aug[col, k] /= div;
-                }
-
-                for (int row = 0; row < 6; row++)
-                {
-                    if (row == col)
-                    {
-                        continue;
-                    }
-
-                    double factor = aug[row, col];
-                    if (Math.Abs(factor) < 1e-12)
-                    {
-                        continue;
-                    }
-
-                    for (int k = col; k <= 6; k++)
-                    {
-                        aug[row, k] -= factor * aug[col, k];
-                    }
-                }
-            }
-
-            for (int i = 0; i < 6; i++)
-            {
-                x[i] = aug[i, 6];
-            }
-
-            return true;
-        }
-
-        private static Point2d ComputeCentroid(IReadOnlyList<Point2d> points)
-        {
-            if (points.Count == 0)
-            {
-                return new Point2d(0, 0);
-            }
-
-            double sumX = 0;
-            double sumY = 0;
-            for (int i = 0; i < points.Count; i++)
-            {
-                sumX += points[i].X;
-                sumY += points[i].Y;
-            }
-
-            return new Point2d(sumX / points.Count, sumY / points.Count);
-        }
-
-        private static double EstimateInitialMatchDistance(IReadOnlyList<Point2d> recipePoints)
-        {
-            if (recipePoints.Count < 2)
-            {
-                return 1.0;
-            }
-
-            double totalNearest = 0;
-            int count = 0;
-            for (int i = 0; i < recipePoints.Count; i++)
-            {
-                double nearest = double.MaxValue;
-                for (int j = 0; j < recipePoints.Count; j++)
-                {
-                    if (i == j)
-                    {
-                        continue;
-                    }
-
-                    double dist = GetDistance((recipePoints[i].X, recipePoints[i].Y), (recipePoints[j].X, recipePoints[j].Y));
-                    if (dist < nearest)
-                    {
-                        nearest = dist;
-                    }
-                }
-
-                if (nearest < double.MaxValue)
-                {
-                    totalNearest += nearest;
-                    count++;
-                }
-            }
-
-            if (count == 0)
-            {
-                return 1.0;
-            }
-
-            var avgNearest = totalNearest / count;
-            return Math.Clamp(avgNearest * 0.7, 0.2, 2.0);
         }
 
         private static double GetDistance(Point2d a, Point2d b)
@@ -934,21 +791,27 @@ namespace Fredy.Drilling.Holes.ViewModels
              var fovYmm = (camera.PixelSizeY * camera.FovHeight) / 1000.0;
              var estimatedFov = Math.Max(0.1, Math.Min(fovXmm, fovYmm));
 
-             Params.WorkpieceType = camera.CameraType;
+             Params.WorkpieceType = _recipeService?.CurrentRecipe?.RecipeName ?? camera.CameraType;
              Params.FovSize = Math.Round(estimatedFov, 3);
              Params.ScanExpand = Math.Round(estimatedFov, 3);
-             Params.WorkpieceDiameter = 42.7;
+             
+             // 尝试从当前配方中提取实际工件直径（如果配方有设置的话，默认取配方外圈半径 * 2），否则采用默认的42.7
+             double diameter = 42.7;
+             if (_recipeService?.CurrentRecipe?.PunchParameters is { Radius: > 0 } punchParams)
+             {
+                 diameter = punchParams.Radius * 2.0;
+             }
+             Params.WorkpieceDiameter = diameter;
+
              Params.SettleTime = Math.Max(1, config.HomeSearchSpeed / 10);
-             Params.UseBrightFieldDetector = config.ScanUseBrightFieldDetector;
-             Params.DetectMinArea = config.ScanDetectMinArea;
-             Params.DetectMaxArea = config.ScanDetectMaxArea;
-             Params.DetectThreshold = config.ScanDetectThreshold;
-             Params.DetectCircularity = config.ScanDetectCircularity;
-             Params.DetectMorphologySize = config.ScanDetectMorphologySize;
-             Params.DeduplicateToleranceMm = config.ScanDeduplicateToleranceMm;
-         }
- 
-         private void NormalizeInputs()
+            Params.DetectMinRadius = config.CircleMinRadius;
+            Params.DetectMaxRadius = config.CircleMaxRadius;
+            Params.DetectParam1 = config.CircleParam1;
+            Params.DetectParam2 = config.CircleParam2;
+            Params.DetectIsDarkHole = config.CircleIsDarkTarget;
+        }
+
+        private void NormalizeInputs()
          {
              Params.WorkpieceDiameter = Math.Max(1, Params.WorkpieceDiameter);
              Params.FovSize = Math.Max(0.1, Params.FovSize);
@@ -963,15 +826,13 @@ namespace Fredy.Drilling.Holes.ViewModels
              Params.ScanExpand = Math.Clamp(Params.ScanExpand, minExpand, maxExpand);
              Params.SettleTime = Math.Max(1, Params.SettleTime);
 
-            Params.DetectMinArea = Math.Max(1, Params.DetectMinArea);
-            Params.DetectMaxArea = Math.Max(Params.DetectMinArea, Params.DetectMaxArea);
-            Params.DetectThreshold = Math.Clamp(Params.DetectThreshold, 0, 255);
-            Params.DetectCircularity = Math.Clamp(Params.DetectCircularity, 0.01, 1.0);
-            Params.DetectMorphologySize = Math.Max(3, Params.DetectMorphologySize);
-            Params.DeduplicateToleranceMm = Math.Max(0.001, Params.DeduplicateToleranceMm);
-         }
+            Params.DetectMinRadius = Math.Max(1, Params.DetectMinRadius);
+            Params.DetectMaxRadius = Math.Max(Params.DetectMinRadius, Params.DetectMaxRadius);
+            Params.DetectParam1 = Math.Max(1, Params.DetectParam1);
+            Params.DetectParam2 = Math.Max(1, Params.DetectParam2);
+        }
 
-         private void BuildScanPlan()
+        private void BuildScanPlan()
          {
              _scanPoints.Clear();
              PreviewGridCells.Clear();
@@ -1038,7 +899,73 @@ namespace Fredy.Drilling.Holes.ViewModels
                  }
              }
 
-             Params.TotalShots = order;
+             FilterScanPlanByRecipePoints();
+             Params.TotalShots = _scanPoints.Count;
+         }
+
+         private void FilterScanPlanByRecipePoints()
+         {
+             try
+             {
+                 if (!TryGetRecipePoints(out var recipePoints, out _))
+                 {
+                     return;
+                 }
+
+                 var fov = Params.FovSize;
+                 var halfFov = fov / 2.0;
+                 var margin = Math.Max(2.0, Params.ScanExpand); // 根据扩展范围给定一个足够安全的容差
+
+                 var filteredPoints = new List<ScanShotPoint>();
+                 var filteredCells = new List<ScanGridCellVisual>();
+
+                 int newOrder = 0;
+                 for (int i = 0; i < _scanPoints.Count; i++)
+                 {
+                     var pt = _scanPoints[i];
+                     var cell = PreviewGridCells[i];
+
+                     bool hasHole = false;
+                     foreach (var rp in recipePoints)
+                     {
+                         if (Math.Abs(rp.X - pt.X) <= halfFov + margin &&
+                             Math.Abs(rp.Y - pt.Y) <= halfFov + margin)
+                         {
+                             hasHole = true;
+                             break;
+                         }
+                     }
+
+                     if (hasHole)
+                     {
+                         filteredPoints.Add(pt with { ShotIndex = newOrder });
+                         
+                         cell.ShotIndex = newOrder;
+                         cell.OrderIndex = newOrder + 1;
+                         filteredCells.Add(cell);
+
+                         newOrder++;
+                     }
+                 }
+
+                 // 如果过滤结果为0，说明当前扫描区设置得太小(如默认直径42.7)未覆盖到实际的图纸孔位(如 Virtual_Recipe_01 半径达62)
+                 // 为了避免界面网格全部消失引发"异常"观感，保留原全部网格。
+                 if (filteredPoints.Count > 0 && filteredPoints.Count < _scanPoints.Count)
+                 {
+                     _scanPoints.Clear();
+                     _scanPoints.AddRange(filteredPoints);
+
+                     PreviewGridCells.Clear();
+                     foreach (var cell in filteredCells)
+                     {
+                         PreviewGridCells.Add(cell);
+                     }
+                 }
+             }
+             catch
+             {
+                 // 忽略过滤产生的异常，退回至扫描全部计算出网格
+             }
          }
 
          private static List<double> BuildSymmetricAxisPositions(double radius, double step)
@@ -1068,15 +995,23 @@ namespace Fredy.Drilling.Holes.ViewModels
 
          private void RenderStitchedPreview()
          {
-             var size = (int)PreviewCanvasSizeValue;
-             using var stitched = new Mat(size, size, MatType.CV_8UC3, new Scalar(36, 36, 36));
+             var scanRadius = (Params.WorkpieceDiameter / 2.0) + Params.ScanExpand;
+             var rangeSize = scanRadius * 2;
+             
+             double pixelSizeXmm = (_configService?.CurrentConfig?.Camera.PixelSizeX ?? 3.45) / 1000.0;
+             double requiredPixels = rangeSize / pixelSizeXmm;
+             _currentStitchSize = (int)Math.Min(3000, Math.Max(PreviewCanvasSizeValue, requiredPixels));
+             _currentStitchScaleRatio = _currentStitchSize / PreviewCanvasSizeValue;
+
+             _incrementalStitchedMat?.Dispose();
+             _incrementalStitchedMat = new Mat(_currentStitchSize, _currentStitchSize, MatType.CV_8UC3, new Scalar(36, 36, 36));
 
              foreach (var cell in PreviewGridCells)
              {
-                 var x = Math.Max(0, (int)Math.Round(cell.Left));
-                 var y = Math.Max(0, (int)Math.Round(cell.Top));
-                 var w = Math.Min(size - x, Math.Max(1, (int)Math.Round(cell.Width)));
-                 var h = Math.Min(size - y, Math.Max(1, (int)Math.Round(cell.Height)));
+                 var x = Math.Max(0, (int)Math.Round(cell.Left * _currentStitchScaleRatio));
+                 var y = Math.Max(0, (int)Math.Round(cell.Top * _currentStitchScaleRatio));
+                 var w = Math.Min(_currentStitchSize - x, Math.Max(1, (int)Math.Round(cell.Width * _currentStitchScaleRatio)));
+                 var h = Math.Min(_currentStitchSize - y, Math.Max(1, (int)Math.Round(cell.Height * _currentStitchScaleRatio)));
                  if (w <= 0 || h <= 0)
                  {
                      continue;
@@ -1088,20 +1023,48 @@ namespace Fredy.Drilling.Holes.ViewModels
                  {
                      using var resized = new Mat();
                      Cv2.Resize(tile, resized, new OpenCvSharp.Size(w, h), 0, 0, InterpolationFlags.Area);
-                     using var targetRoi = new Mat(stitched, roi);
+                     using var targetRoi = new Mat(_incrementalStitchedMat, roi);
                      resized.CopyTo(targetRoi);
                  }
                  else
                  {
-                     Cv2.Rectangle(stitched, roi, new Scalar(95, 95, 95), -1);
+                     Cv2.Rectangle(_incrementalStitchedMat, roi, new Scalar(95, 95, 95), -1);
                  }
              }
 
-            SaveDebugStitchedMatIfNeeded(stitched);
-            var oldMat = StitchedPreviewMat;
-            StitchedPreviewMat = stitched.Clone();
-            oldMat?.Dispose();
-        }
+             SaveDebugStitchedMatIfNeeded(_incrementalStitchedMat);
+             
+             var oldMat = StitchedPreviewMat;
+             StitchedPreviewMat = _incrementalStitchedMat.Clone();
+             oldMat?.Dispose();
+         }
+
+         private void UpdateIncrementalStitchedCanvas(int shotIndex, Mat tile)
+         {
+             if (_incrementalStitchedMat == null || _incrementalStitchedMat.IsDisposed) return;
+             if (tile == null || tile.Empty()) return;
+
+             var cell = PreviewGridCells.FirstOrDefault(c => c.ShotIndex == shotIndex);
+             if (cell == null) return;
+
+             var x = Math.Max(0, (int)Math.Round(cell.Left * _currentStitchScaleRatio));
+             var y = Math.Max(0, (int)Math.Round(cell.Top * _currentStitchScaleRatio));
+             var w = Math.Min(_currentStitchSize - x, Math.Max(1, (int)Math.Round(cell.Width * _currentStitchScaleRatio)));
+             var h = Math.Min(_currentStitchSize - y, Math.Max(1, (int)Math.Round(cell.Height * _currentStitchScaleRatio)));
+             
+             if (w > 0 && h > 0)
+             {
+                 var roi = new OpenCvSharp.Rect(x, y, w, h);
+                 using var resized = new Mat();
+                 Cv2.Resize(tile, resized, new OpenCvSharp.Size(w, h), 0, 0, InterpolationFlags.Area);
+                 using var targetRoi = new Mat(_incrementalStitchedMat, roi);
+                 resized.CopyTo(targetRoi);
+
+                 var oldMat = StitchedPreviewMat;
+                 StitchedPreviewMat = _incrementalStitchedMat.Clone();
+                 oldMat?.Dispose();
+             }
+         }
 
          private void SaveDebugStitchedMatIfNeeded(Mat stitched)
          {

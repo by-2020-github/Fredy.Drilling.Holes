@@ -8,7 +8,7 @@
              xmlns:uc="clr-namespace:Fredy.Drilling.Holes.UserControls"
              mc:Ignorable="d" Background="#F0F0F0"
              d:DesignHeight="700" d:DesignWidth="1100"
-        MaxHeight="1024" MaxWidth="1280"
+            MaxHeight="1024" MaxWidth="1280" Height="Auto" 
              Title="手动控制"
              d:DataContext="{d:DesignInstance Type=vm:ManualControlViewModel, IsDesignTimeCreatable=True}">
 

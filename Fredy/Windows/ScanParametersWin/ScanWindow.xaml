@@ -4,8 +4,8 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:Fredy.Drilling.Holes.ViewModels"        xmlns:uc="clr-namespace:Fredy.Drilling.Holes.UserControls"        mc:Ignorable="d"
-        MaxHeight="1024" MaxWidth="1280"
-        Title="分区扫描" Height="700" Width="1100" Background="#F0F0F0"
+        MaxHeight="1080" MaxWidth="1800"
+        Title="分区扫描" Height="Auto" Width="1480" Background="#F0F0F0"
         d:DataContext="{d:DesignInstance Type=vm:ScanViewModel, IsDesignTimeCreatable=True}">
 
     <Window.Resources>
@@ -20,6 +20,7 @@
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="360"/>
             <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="380"/>
         </Grid.ColumnDefinitions>
 
         <Border BorderBrush="#CCCCCC" BorderThickness="0,0,1,0" Padding="15">
@@ -101,18 +102,18 @@
                                 <RowDefinition Height="34"/>
                             </Grid.RowDefinitions>
 
-                            <TextBlock Text="最小面积" VerticalAlignment="Center"/>
-                            <TextBox Grid.Column="1" Text="{Binding Params.DetectMinArea, UpdateSourceTrigger=PropertyChanged}" Margin="4,0,8,0"/>
-                            <TextBlock Grid.Column="2" Text="最大面积" VerticalAlignment="Center"/>
-                            <TextBox Grid.Column="3" Text="{Binding Params.DetectMaxArea, UpdateSourceTrigger=PropertyChanged}" Margin="4,0,0,0"/>
+                            <TextBlock Text="最小半径" VerticalAlignment="Center"/>
+                            <TextBox Grid.Column="1" Text="{Binding Params.DetectMinRadius, UpdateSourceTrigger=PropertyChanged}" Margin="4,0,8,0"/>
+                            <TextBlock Grid.Column="2" Text="最大半径" VerticalAlignment="Center"/>
+                            <TextBox Grid.Column="3" Text="{Binding Params.DetectMaxRadius, UpdateSourceTrigger=PropertyChanged}" Margin="4,0,0,0"/>
 
-                            <TextBlock Grid.Row="1" Text="阈值" VerticalAlignment="Center"/>
-                            <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Params.DetectThreshold, UpdateSourceTrigger=PropertyChanged}" Margin="4,0,8,0"/>
-                            <TextBlock Grid.Row="1" Grid.Column="2" Text="圆度" VerticalAlignment="Center"/>
-                            <TextBox Grid.Row="1" Grid.Column="3" Text="{Binding Params.DetectCircularity, UpdateSourceTrigger=PropertyChanged}" Margin="4,0,0,0"/>
+                            <TextBlock Grid.Row="1" Text="边缘检测阈值" VerticalAlignment="Center"/>
+                            <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Params.DetectParam1, UpdateSourceTrigger=PropertyChanged}" Margin="4,0,8,0"/>
+                            <TextBlock Grid.Row="1" Grid.Column="2" Text="累加器阈值" VerticalAlignment="Center"/>
+                            <TextBox Grid.Row="1" Grid.Column="3" Text="{Binding Params.DetectParam2, UpdateSourceTrigger=PropertyChanged}" Margin="4,0,0,0"/>
 
-                            <TextBlock Grid.Row="2" Text="形态学核" VerticalAlignment="Center"/>
-                            <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding Params.DetectMorphologySize, UpdateSourceTrigger=PropertyChanged}" Margin="4,0,8,0"/>
+                            <TextBlock Grid.Row="2" Text="孔类型: 黑孔" VerticalAlignment="Center"/>
+                            <CheckBox Grid.Row="2" Grid.Column="1" IsChecked="{Binding Params.DetectIsDarkHole, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center" Margin="4,0,8,0"/>
                             <TextBlock Grid.Row="2" Grid.Column="2" Text="去重容差" VerticalAlignment="Center"/>
                             <TextBox Grid.Row="2" Grid.Column="3" Text="{Binding Params.DeduplicateToleranceMm, UpdateSourceTrigger=PropertyChanged}" Margin="4,0,0,0"/>
 
@@ -126,7 +127,6 @@
                     </GroupBox>
 
                     <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                        <CheckBox Content="明场检测" IsChecked="{Binding Params.UseBrightFieldDetector}" VerticalAlignment="Center"/>
                         <Button Content="导入图片测试" Margin="12,0,0,0" Padding="10,2" Command="{Binding TestDetectionFromFileCommand}"/>
                         <Button Content="拍一张测试" Margin="8,0,0,0" Padding="10,2" Command="{Binding TestDetectionFromCameraCommand}"/>
                     </StackPanel>
@@ -172,6 +172,7 @@
                               VerticalAlignment="Center"
                               Visibility="{Binding ShowGridOverlay, Converter={StaticResource BoolToVisibilityConverter}}"
                               Opacity="0.2"
+                              IsHitTestVisible="False"
                               ItemsSource="{Binding PreviewGridCells}"
                               ItemContainerStyle="{StaticResource GridCellPresenterStyle}">
                     <ItemsControl.ItemsPanel>
@@ -203,5 +204,51 @@
                            Margin="8,4"/>
             </Grid>
         </Border>
+
+        <!-- 右侧：实时检测预览与列表 -->
+        <Border Grid.Column="2" BorderBrush="#CCCCCC" BorderThickness="1,0,0,0" Padding="10">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="260"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <StackPanel Grid.Row="0" Margin="0,0,0,8">
+                    <TextBlock Text="当前拍照圆孔识别" FontSize="16" FontWeight="Bold" Margin="0,0,0,4"/>
+                    <CheckBox Content="开启图片上的结果标识"
+                              IsChecked="{Binding DrawDetectedCircles}"
+                              Margin="0,4,0,0" VerticalAlignment="Center"/>
+                </StackPanel>
+
+                <!-- 当前拍照识别结果叠加图 -->
+                <Border Grid.Row="1" Background="#202020" BorderBrush="#555" BorderThickness="1">
+                    <uc:CameraViewerControl ImageMat="{Binding LatestDetectionMat}" />
+                </Border>
+                <TextBlock Grid.Row="1" Text="当前单图识别效果预览" Foreground="#B0B0B0" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="8,4" IsHitTestVisible="False"/>
+
+                <TextBlock Grid.Row="2" Text="识别列表 (全局物理坐标, 尺寸等)" FontWeight="Bold" Margin="0,15,0,8"/>
+
+                <DataGrid Grid.Row="3"
+                          ItemsSource="{Binding DetectionResults}"
+                          AutoGenerateColumns="False"
+                          IsReadOnly="True"
+                          HeadersVisibility="Column"
+                          GridLinesVisibility="Horizontal"
+                          Background="White">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="图序" Binding="{Binding ImageIndex}" Width="40"/>
+                        <DataGridTextColumn Header="像素X" Binding="{Binding PixelX}" Width="55"/>
+                        <DataGridTextColumn Header="像素Y" Binding="{Binding PixelY}" Width="55"/>
+                        <DataGridTextColumn Header="径(px)" Binding="{Binding PixelSize}" Width="50"/>
+                        <DataGridTextColumn Header="物理X" Binding="{Binding PhysicalX}" Width="55"/>
+                        <DataGridTextColumn Header="物理Y" Binding="{Binding PhysicalY}" Width="55"/>
+                        <DataGridTextColumn Header="径(mm)" Binding="{Binding PhysicalSize}" Width="55"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Grid>
+        </Border>
+
     </Grid>
 </Window>
