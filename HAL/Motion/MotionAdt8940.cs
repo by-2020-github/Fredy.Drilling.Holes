@@ -10,6 +10,31 @@ namespace HAL
 {
     public class MotionAdt8940 : IMoton, IIOCard
     {
+        public readonly record struct HomingPort(
+            int PortIndex,
+            bool IsLowLevelActive);
+
+        public readonly record struct HomingOptions(
+            int HomeSearchSpeed,
+            bool IsIoHome,
+            bool IsLatch,
+            bool IsGratingHome,
+            HomingPort XLimitPort,
+            HomingPort YLimitPort,
+            HomingPort ZLimitPort,
+            HomingPort XGratingPort,
+            HomingPort YGratingPort,
+            int HomeTimeoutMs = 10000,
+            int HomeBackoffPulse = 200,
+            int ZHomeLiftPulse = 0,
+            bool ZHomeTowardPositiveDirection = false,
+            int SlowHomeStartSpeed = 100,
+            int SlowHomeSpeed = 500,
+            int SlowHomeAcceleration = 1000,
+            int GratingHomeStartSpeed = 500,
+            int GratingHomeSpeed = 2000,
+            int GratingHomeAcceleration = 2000);
+
         public readonly record struct NativeCallRecord(
             long SequenceId,
             DateTime Timestamp,
@@ -31,11 +56,12 @@ namespace HAL
         private readonly int _startSpeed;
         private readonly int _driveSpeed;
         private readonly int _acceleration;
-        private readonly int _homeSearchSpeed;
-        private readonly int _homeApproachSpeed;
+        private int _homeSearchSpeed;
+        private int _homeApproachSpeed;
         private bool _initialized;
         private int _nativeCallRecordCount;
         private long _nativeCallSequence;
+        private HomingOptions _homingOptions;
 
         public NativeCallRecord[] NativeCallRecords => _nativeCallRecords.ToArray();
 
@@ -76,6 +102,34 @@ namespace HAL
             _acceleration = acceleration;
             _homeSearchSpeed = homeSearchSpeed;
             _homeApproachSpeed = homeApproachSpeed;
+            _homingOptions = new HomingOptions(
+                homeSearchSpeed,
+                false,
+                false,
+                false,
+                new HomingPort(14, false),
+                new HomingPort(14, false),
+                new HomingPort(14, false),
+                new HomingPort(0, true),
+                new HomingPort(0, true));
+        }
+
+        public void ConfigureHoming(HomingOptions options)
+        {
+            _homingOptions = options with
+            {
+                HomeSearchSpeed = Math.Max(1, options.HomeSearchSpeed),
+                HomeTimeoutMs = Math.Max(100, options.HomeTimeoutMs),
+                HomeBackoffPulse = Math.Max(0, options.HomeBackoffPulse),
+                SlowHomeStartSpeed = Math.Max(1, options.SlowHomeStartSpeed),
+                SlowHomeSpeed = Math.Max(1, options.SlowHomeSpeed),
+                SlowHomeAcceleration = Math.Max(1, options.SlowHomeAcceleration),
+                GratingHomeStartSpeed = Math.Max(1, options.GratingHomeStartSpeed),
+                GratingHomeSpeed = Math.Max(1, options.GratingHomeSpeed),
+                GratingHomeAcceleration = Math.Max(1, options.GratingHomeAcceleration)
+            };
+
+            _homeSearchSpeed = _homingOptions.HomeSearchSpeed;
         }
 
         public Task DisableAllAsync(int[] axisNos)
@@ -136,19 +190,14 @@ namespace HAL
             EnsureAxisReady(axisNo);
             EnsureAxisEnabled(axisNo);
 
-            ConfigureHome(axisNo);
-            ExecuteNative(() => adt8940a1.adt8940a1_HomeProcess_Ex(_cardNo, axisNo), $"Home axis {axisNo}");
-
+            var task = HomeCoreAsync(axisNo, cancellationToken);
             if (wait)
             {
-                return WaitForHomeAsync(axisNo, cancellationToken);
+                return task;
             }
-            else
-            {
-                // 如果不等待，依然需要启动后台监控并在完成时重置轴的位置
-                _ = WaitForHomeAsync(axisNo, cancellationToken);
-                return Task.CompletedTask;
-            }
+
+            _ = task;
+            return Task.CompletedTask;
         }
 
         public Task MoveAbsoluteAsync(int axisNo, double position, bool wait, CancellationToken cancellationToken = default)
@@ -170,6 +219,293 @@ namespace HAL
 
             ExecuteNative(() => adt8940a1.adt8940a1_pmove(_cardNo, axisNo, distance), $"Move absolute axis {axisNo}");
             return wait ? WaitForAxisStopAsync(axisNo, cancellationToken) : Task.CompletedTask;
+        }
+
+        private async Task HomeCoreAsync(int axisNo, CancellationToken cancellationToken)
+        {
+            RecordNativeCall($"Home axis {axisNo}", null, "开始执行旧 ProcessManager 风格回零流程。", true);
+
+            if (axisNo == 3)
+            {
+                await HomeZAxisAsync(axisNo, cancellationToken).ConfigureAwait(false);
+                return;
+            }
+
+            await HomeXYAxisAsync(axisNo, cancellationToken).ConfigureAwait(false);
+        }
+
+        private async Task HomeXYAxisAsync(int axisNo, CancellationToken cancellationToken)
+        {
+            Exception? lastException = null;
+
+            for (var retry = 0; retry < 3; retry++)
+            {
+                try
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    await HomeXYMechanicalAsync(axisNo, cancellationToken).ConfigureAwait(false);
+
+                    if (_homingOptions.IsGratingHome)
+                    {
+                        if (_homingOptions.IsLatch)
+                        {
+                            await HomeXYByLatchAsync(axisNo, cancellationToken).ConfigureAwait(false);
+                        }
+                        else if (_homingOptions.IsIoHome)
+                        {
+                            await HomeXYByGratingIoAsync(axisNo, cancellationToken).ConfigureAwait(false);
+                        }
+                    }
+
+                    ResetPosition(axisNo);
+                    RecordNativeCall($"Home axis {axisNo}", null, $"轴 {axisNo} 回零完成。", true);
+                    return;
+                }
+                catch (OperationCanceledException)
+                {
+                    await EmergencyStopAsync(axisNo).ConfigureAwait(false);
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    lastException = ex;
+                    RecordNativeCall($"Home axis {axisNo}", null, $"轴 {axisNo} 回零失败，准备重试：{ex.Message}", false);
+                    await StopAsync(axisNo).ConfigureAwait(false);
+                }
+            }
+
+            throw new InvalidOperationException($"Home axis {axisNo} failed after maximum retries.", lastException);
+        }
+
+        private async Task HomeZAxisAsync(int axisNo, CancellationToken cancellationToken)
+        {
+            var port = GetMechanicalPort(axisNo);
+            var activeLevel = GetActiveLevel(port);
+            var inactiveLevel = GetInactiveLevel(port);
+            var currentLevel = await ReadInputLevelAsync(port.PortIndex, cancellationToken).ConfigureAwait(false);
+
+            if (currentLevel == activeLevel)
+            {
+                await MoveContinuousUntilInputLevelAsync(
+                    axisNo,
+                    _homingOptions.ZHomeTowardPositiveDirection ? 0 : 1,
+                    port,
+                    inactiveLevel,
+                    _startSpeed,
+                    _homingOptions.HomeSearchSpeed,
+                    _acceleration,
+                    _homingOptions.HomeTimeoutMs,
+                    cancellationToken).ConfigureAwait(false);
+            }
+
+            await MoveContinuousUntilInputLevelAsync(
+                axisNo,
+                _homingOptions.ZHomeTowardPositiveDirection ? 1 : 0,
+                port,
+                activeLevel,
+                _startSpeed,
+                _homingOptions.HomeSearchSpeed,
+                _acceleration,
+                _homingOptions.HomeTimeoutMs,
+                cancellationToken).ConfigureAwait(false);
+
+            ResetPosition(axisNo);
+
+            if (_homingOptions.ZHomeLiftPulse > 0)
+            {
+                await MoveRelativePulseAsync(axisNo, _homingOptions.ZHomeLiftPulse, cancellationToken).ConfigureAwait(false);
+            }
+
+            RecordNativeCall($"Home axis {axisNo}", null, $"轴 {axisNo} Z 回零流程完成。", true);
+        }
+
+        private async Task HomeXYMechanicalAsync(int axisNo, CancellationToken cancellationToken)
+        {
+            var port = GetMechanicalPort(axisNo);
+            var activeLevel = GetActiveLevel(port);
+            var inactiveLevel = GetInactiveLevel(port);
+            var currentLevel = await ReadInputLevelAsync(port.PortIndex, cancellationToken).ConfigureAwait(false);
+
+            if (currentLevel == activeLevel)
+            {
+                await MoveContinuousUntilInputLevelAsync(
+                    axisNo,
+                    1,
+                    port,
+                    inactiveLevel,
+                    _startSpeed,
+                    _homingOptions.HomeSearchSpeed,
+                    _acceleration,
+                    _homingOptions.HomeTimeoutMs,
+                    cancellationToken).ConfigureAwait(false);
+
+                if (_homingOptions.HomeBackoffPulse > 0)
+                {
+                    await MoveRelativePulseAsync(axisNo, _homingOptions.HomeBackoffPulse, cancellationToken).ConfigureAwait(false);
+                }
+            }
+            else
+            {
+                await MoveContinuousUntilInputLevelAsync(
+                    axisNo,
+                    0,
+                    port,
+                    inactiveLevel,
+                    _startSpeed,
+                    _homingOptions.HomeSearchSpeed,
+                    _acceleration,
+                    _homingOptions.HomeTimeoutMs,
+                    cancellationToken).ConfigureAwait(false);
+            }
+
+            await MoveContinuousUntilInputLevelAsync(
+                axisNo,
+                1,
+                port,
+                activeLevel,
+                _homingOptions.SlowHomeStartSpeed,
+                _homingOptions.SlowHomeSpeed,
+                _homingOptions.SlowHomeAcceleration,
+                _homingOptions.HomeTimeoutMs,
+                cancellationToken).ConfigureAwait(false);
+        }
+
+        private async Task HomeXYByGratingIoAsync(int axisNo, CancellationToken cancellationToken)
+        {
+            var port = GetGratingPort(axisNo);
+            ValidatePort(port, $"Axis {axisNo} grating");
+
+            await MoveContinuousUntilInputLevelAsync(
+                axisNo,
+                0,
+                port,
+                GetActiveLevel(port),
+                _homingOptions.GratingHomeStartSpeed,
+                _homingOptions.GratingHomeSpeed,
+                _homingOptions.GratingHomeAcceleration,
+                _homingOptions.HomeTimeoutMs,
+                cancellationToken).ConfigureAwait(false);
+        }
+
+        private async Task HomeXYByLatchAsync(int axisNo, CancellationToken cancellationToken)
+        {
+            await ClearLockStatusAsync(axisNo, cancellationToken).ConfigureAwait(false);
+            await SetLockPositionModeAsync(axisNo, 1, 0, 1, cancellationToken).ConfigureAwait(false);
+
+            try
+            {
+                ConfigureMotion(axisNo, _homingOptions.GratingHomeStartSpeed, _homingOptions.GratingHomeSpeed, _homingOptions.GratingHomeAcceleration);
+                ExecuteNative(() => adt8940a1.adt8940a1_continue_move(_cardNo, axisNo, 0), $"Start latch home move for axis {axisNo}");
+
+                await WaitForLockStatusAsync(axisNo, cancellationToken).ConfigureAwait(false);
+                await StopAsync(axisNo).ConfigureAwait(false);
+
+                var lockPosition = GetLockPositionPulse(axisNo);
+                var currentPosition = GetCommandPosition(axisNo);
+                var moveDistance = lockPosition - currentPosition;
+                if (moveDistance != 0)
+                {
+                    await MoveRelativePulseAsync(axisNo, moveDistance, cancellationToken).ConfigureAwait(false);
+                }
+            }
+            finally
+            {
+                await SetLockPositionModeAsync(axisNo, 0, 0, 0, cancellationToken).ConfigureAwait(false);
+                await ClearLockStatusAsync(axisNo, cancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        private async Task MoveContinuousUntilInputLevelAsync(
+            int axisNo,
+            int dir,
+            HomingPort port,
+            int targetLevel,
+            int startSpeed,
+            int driveSpeed,
+            int acceleration,
+            int timeoutMs,
+            CancellationToken cancellationToken)
+        {
+            ValidatePort(port, $"Axis {axisNo} home");
+            ConfigureMotion(axisNo, startSpeed, driveSpeed, acceleration);
+            ExecuteNative(() => adt8940a1.adt8940a1_continue_move(_cardNo, axisNo, dir), $"Continuous move axis {axisNo} dir {dir}");
+
+            try
+            {
+                var startedAt = Environment.TickCount64;
+                while (true)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    var level = await ReadInputLevelAsync(port.PortIndex, cancellationToken).ConfigureAwait(false);
+                    if (level == targetLevel)
+                    {
+                        return;
+                    }
+
+                    if (Environment.TickCount64 - startedAt >= timeoutMs)
+                    {
+                        throw new TimeoutException($"Axis {axisNo} home input wait timed out on port {port.PortIndex}.");
+                    }
+
+                    await Task.Delay(PollInterval, cancellationToken).ConfigureAwait(false);
+                }
+            }
+            finally
+            {
+                await StopAsync(axisNo).ConfigureAwait(false);
+            }
+        }
+
+        private async Task MoveRelativePulseAsync(int axisNo, int pulseDistance, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (pulseDistance == 0)
+            {
+                return;
+            }
+
+            ConfigureMotion(axisNo);
+            ExecuteNative(() => adt8940a1.adt8940a1_pmove(_cardNo, axisNo, pulseDistance), $"Move relative pulse axis {axisNo}");
+            await WaitForAxisStopAsync(axisNo, cancellationToken).ConfigureAwait(false);
+        }
+
+        private async Task<int> ReadInputLevelAsync(int portNo, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            EnsureInitialized();
+
+            var result = ExecuteNativeWithRawResult(
+                () => adt8940a1.adt8940a1_read_bit(_cardNo, portNo),
+                $"Read input level {portNo}");
+
+            if (result < 0)
+            {
+                throw new InvalidOperationException($"Read input {portNo} failed with code {result}.");
+            }
+
+            return result;
+        }
+
+        private async Task WaitForLockStatusAsync(int axisNo, CancellationToken cancellationToken)
+        {
+            var startedAt = Environment.TickCount64;
+            while (true)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                if (await GetLockStatusAsync(axisNo, cancellationToken).ConfigureAwait(false))
+                {
+                    return;
+                }
+
+                if (Environment.TickCount64 - startedAt >= _homingOptions.HomeTimeoutMs)
+                {
+                    throw new TimeoutException($"Axis {axisNo} latch home timed out.");
+                }
+
+                await Task.Delay(PollInterval, cancellationToken).ConfigureAwait(false);
+            }
         }
 
         public Task MoveRelativeAsync(int axisNo, double distance, bool wait, CancellationToken cancellationToken = default)
@@ -434,6 +770,13 @@ namespace HAL
             ExecuteNative(() => adt8940a1.adt8940a1_set_acc(_cardNo, axisNo, ToCardAcceleration(_acceleration)), $"Set acceleration for axis {axisNo}");
         }
 
+        private void ConfigureMotion(int axisNo, int startSpeed, int driveSpeed, int acceleration)
+        {
+            ExecuteNative(() => adt8940a1.adt8940a1_set_startv(_cardNo, axisNo, Math.Max(1, startSpeed)), $"Set start speed for axis {axisNo}");
+            ExecuteNative(() => adt8940a1.adt8940a1_set_speed(_cardNo, axisNo, Math.Max(1, driveSpeed)), $"Set drive speed for axis {axisNo}");
+            ExecuteNative(() => adt8940a1.adt8940a1_set_acc(_cardNo, axisNo, ToCardAcceleration(Math.Max(1, acceleration))), $"Set acceleration for axis {axisNo}");
+        }
+
         private void EnsureAxisEnabled(int axisNo)
         {
             if (!_axisEnabled.TryGetValue(axisNo, out var enabled) || !enabled)
@@ -487,6 +830,16 @@ namespace HAL
             return position;
         }
 
+        private int GetLockPositionPulse(int axisNo)
+        {
+            ExecuteNative(
+                (out int pos) => adt8940a1.adt8940a1_get_lock_position(_cardNo, axisNo, out pos),
+                $"Get lock position pulse for axis {axisNo}",
+                out var position);
+
+            return position;
+        }
+
         private void ResetPosition(int axisNo)
         {
             ExecuteNative(() => adt8940a1.adt8940a1_set_command_pos(_cardNo, axisNo, 0), $"Reset command position for axis {axisNo}");
@@ -498,6 +851,45 @@ namespace HAL
             return _axisParams.TryGetValue(axisNo, out var axis)
                 ? axis
                 : CreateDefaultAxisParam(axisNo);
+        }
+
+        private HomingPort GetMechanicalPort(int axisNo)
+        {
+            return axisNo switch
+            {
+                1 => _homingOptions.XLimitPort,
+                2 => _homingOptions.YLimitPort,
+                3 => _homingOptions.ZLimitPort,
+                _ => throw new ArgumentOutOfRangeException(nameof(axisNo), axisNo, "Unsupported homing axis.")
+            };
+        }
+
+        private HomingPort GetGratingPort(int axisNo)
+        {
+            return axisNo switch
+            {
+                1 => _homingOptions.XGratingPort,
+                2 => _homingOptions.YGratingPort,
+                _ => throw new ArgumentOutOfRangeException(nameof(axisNo), axisNo, "Grating homing is only supported for X/Y axes.")
+            };
+        }
+
+        private static int GetActiveLevel(HomingPort port)
+        {
+            return port.IsLowLevelActive ? 0 : 1;
+        }
+
+        private static int GetInactiveLevel(HomingPort port)
+        {
+            return port.IsLowLevelActive ? 1 : 0;
+        }
+
+        private static void ValidatePort(HomingPort port, string name)
+        {
+            if (port.PortIndex < 0)
+            {
+                throw new InvalidOperationException($"{name} port is not configured.");
+            }
         }
 
         private static AxisParam CreateDefaultAxisParam(int axisNo)

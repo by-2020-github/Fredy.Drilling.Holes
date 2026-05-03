@@ -4,7 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:Fredy.Drilling.Holes.ViewModels"        xmlns:uc="clr-namespace:Fredy.Drilling.Holes.UserControls"        mc:Ignorable="d"
-        Title="九点标定" Height="760" Width="1100" Background="#F0F0F0"
+        Title="九点标定" Height="760" Width="1100" Background="{StaticResource Brush.Background.Subtle}"
         d:DataContext="{d:DesignInstance Type=vm:NinePointCalibrationViewModel, IsDesignTimeCreatable=False}">
     <Grid Margin="12">
         <Grid.ColumnDefinitions>
@@ -78,7 +78,7 @@
                 <RowDefinition Height="220"/>
             </Grid.RowDefinitions>
 
-            <Border Background="#1A1A1A" BorderBrush="#3A3A3A" BorderThickness="1" CornerRadius="4">
+            <Border Background="{StaticResource Brush.Surface.DarkAlt}" BorderBrush="{StaticResource Brush.Border.Dark}" BorderThickness="1" CornerRadius="4">
                 <uc:CameraViewerControl ImageSource="{Binding PreviewImage}" />
             </Border>
 
@@ -97,6 +97,7 @@
         </Grid>
     </Grid>
 </Window>
+
 
 
 

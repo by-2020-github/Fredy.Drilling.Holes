@@ -31,6 +31,95 @@ namespace Fredy.Drilling.Holes.Models
         [ObservableProperty] private bool _isLowLevelActive;
     }
 
+    public class AdtHomingConfig : ObservableObject
+    {
+        public PortItem ZLimitPort { get; set; } = new() { PortIndex = 14 };
+
+        public PortItem XGratingPort { get; set; } = new() { PortIndex = -1, IsLowLevelActive = true };
+
+        public PortItem YGratingPort { get; set; } = new() { PortIndex = -1, IsLowLevelActive = true };
+
+        private int _homeTimeoutMs = 10000;
+
+        private int _homeBackoffPulse = 200;
+
+        private int _zHomeLiftPulse;
+
+        private int _slowHomeStartSpeed = 100;
+
+        private int _slowHomeSpeed = 500;
+
+        private int _slowHomeAcceleration = 1000;
+
+        private int _gratingHomeStartSpeed = 500;
+
+        private int _gratingHomeSpeed = 2000;
+
+        private int _gratingHomeAcceleration = 2000;
+
+        private bool _zHomeTowardPositiveDirection;
+
+        public int HomeTimeoutMs
+        {
+            get => _homeTimeoutMs;
+            set => SetProperty(ref _homeTimeoutMs, value);
+        }
+
+        public int HomeBackoffPulse
+        {
+            get => _homeBackoffPulse;
+            set => SetProperty(ref _homeBackoffPulse, value);
+        }
+
+        public int ZHomeLiftPulse
+        {
+            get => _zHomeLiftPulse;
+            set => SetProperty(ref _zHomeLiftPulse, value);
+        }
+
+        public int SlowHomeStartSpeed
+        {
+            get => _slowHomeStartSpeed;
+            set => SetProperty(ref _slowHomeStartSpeed, value);
+        }
+
+        public int SlowHomeSpeed
+        {
+            get => _slowHomeSpeed;
+            set => SetProperty(ref _slowHomeSpeed, value);
+        }
+
+        public int SlowHomeAcceleration
+        {
+            get => _slowHomeAcceleration;
+            set => SetProperty(ref _slowHomeAcceleration, value);
+        }
+
+        public int GratingHomeStartSpeed
+        {
+            get => _gratingHomeStartSpeed;
+            set => SetProperty(ref _gratingHomeStartSpeed, value);
+        }
+
+        public int GratingHomeSpeed
+        {
+            get => _gratingHomeSpeed;
+            set => SetProperty(ref _gratingHomeSpeed, value);
+        }
+
+        public int GratingHomeAcceleration
+        {
+            get => _gratingHomeAcceleration;
+            set => SetProperty(ref _gratingHomeAcceleration, value);
+        }
+
+        public bool ZHomeTowardPositiveDirection
+        {
+            get => _zHomeTowardPositiveDirection;
+            set => SetProperty(ref _zHomeTowardPositiveDirection, value);
+        }
+    }
+
     public partial class MotionControllerConfig : ObservableObject
     {
         [ObservableProperty] private string _controllerType = "模拟运动控制卡";
@@ -87,6 +176,8 @@ namespace Fredy.Drilling.Holes.Models
         public PortItem XLimitPort { get; set; } = new() { PortIndex = 14 };
 
         public PortItem YLimitPort { get; set; } = new() { PortIndex = 14 };
+
+        public AdtHomingConfig AdtHoming { get; set; } = new();
 
         public int RedLightPort { get; set; } = 14;
 

@@ -39,4 +39,16 @@
   <ItemGroup>
     <None Include="..\HAL\DllImport\**\*.*" Link="%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="Windows\ParamConfig\old\ConfigManager.cs" />
+    <Compile Remove="Windows\ParamConfig\old\ProcessManager.cs" />
+    <Compile Remove="Windows\ParamConfig\old\ProcessParameters.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="Windows\ParamConfig\old\ConfigManager.cs" />
+    <None Include="Windows\ParamConfig\old\ProcessManager.cs" />
+    <None Include="Windows\ParamConfig\old\ProcessParameters.cs" />
+  </ItemGroup>
 </Project>

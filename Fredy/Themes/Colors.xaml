@@ -1,0 +1,52 @@
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Color x:Key="Color.Background">#FFFFFFFF</Color>
+    <Color x:Key="Color.Background.Subtle">#FFF5F5F5</Color>
+    <Color x:Key="Color.Background.Disabled">#FFF0F0F0</Color>
+    <Color x:Key="Color.Background.Overlay">#CCFFFFFF</Color>
+    <Color x:Key="Color.Surface.Dark">#FF111111</Color>
+    <Color x:Key="Color.Surface.DarkAlt">#FF202020</Color>
+    <Color x:Key="Color.Foreground">#FF000000</Color>
+    <Color x:Key="Color.Foreground.Secondary">#FF333333</Color>
+    <Color x:Key="Color.Foreground.Inverse">#FFFFFFFF</Color>
+    <Color x:Key="Color.Foreground.Muted">#FF666666</Color>
+    <Color x:Key="Color.Foreground.Subtle">#FF9A9A9A</Color>
+    <Color x:Key="Color.Foreground.Overlay">#FFB0B0B0</Color>
+    <Color x:Key="Color.Border">#FFD9D9D9</Color>
+    <Color x:Key="Color.Border.Strong">#FFBFBFBF</Color>
+    <Color x:Key="Color.Border.Dark">#FF555555</Color>
+
+    <Color x:Key="Color.Status.Red">#FFD32F2F</Color>
+    <Color x:Key="Color.Status.Yellow">#FFED6C02</Color>
+    <Color x:Key="Color.Status.Blue">#FF1976D2</Color>
+    <Color x:Key="Color.Status.Green">#FF2E7D32</Color>
+    <Color x:Key="Color.Status.Red.Subtle">#FFFBEAEA</Color>
+    <Color x:Key="Color.Status.Yellow.Subtle">#FFFFF4E5</Color>
+    <Color x:Key="Color.Status.Blue.Subtle">#FFE8F4FF</Color>
+    <Color x:Key="Color.Status.Green.Subtle">#FFEDF7ED</Color>
+
+    <SolidColorBrush x:Key="Brush.Background" Color="{StaticResource Color.Background}"/>
+    <SolidColorBrush x:Key="Brush.Background.Subtle" Color="{StaticResource Color.Background.Subtle}"/>
+    <SolidColorBrush x:Key="Brush.Background.Disabled" Color="{StaticResource Color.Background.Disabled}"/>
+    <SolidColorBrush x:Key="Brush.Background.Overlay" Color="{StaticResource Color.Background.Overlay}"/>
+    <SolidColorBrush x:Key="Brush.Surface.Dark" Color="{StaticResource Color.Surface.Dark}"/>
+    <SolidColorBrush x:Key="Brush.Surface.DarkAlt" Color="{StaticResource Color.Surface.DarkAlt}"/>
+    <SolidColorBrush x:Key="Brush.Foreground" Color="{StaticResource Color.Foreground}"/>
+    <SolidColorBrush x:Key="Brush.Foreground.Secondary" Color="{StaticResource Color.Foreground.Secondary}"/>
+    <SolidColorBrush x:Key="Brush.Foreground.Inverse" Color="{StaticResource Color.Foreground.Inverse}"/>
+    <SolidColorBrush x:Key="Brush.Foreground.Muted" Color="{StaticResource Color.Foreground.Muted}"/>
+    <SolidColorBrush x:Key="Brush.Foreground.Subtle" Color="{StaticResource Color.Foreground.Subtle}"/>
+    <SolidColorBrush x:Key="Brush.Foreground.Overlay" Color="{StaticResource Color.Foreground.Overlay}"/>
+    <SolidColorBrush x:Key="Brush.Border" Color="{StaticResource Color.Border}"/>
+    <SolidColorBrush x:Key="Brush.Border.Strong" Color="{StaticResource Color.Border.Strong}"/>
+    <SolidColorBrush x:Key="Brush.Border.Dark" Color="{StaticResource Color.Border.Dark}"/>
+
+    <SolidColorBrush x:Key="Brush.Status.Red" Color="{StaticResource Color.Status.Red}"/>
+    <SolidColorBrush x:Key="Brush.Status.Yellow" Color="{StaticResource Color.Status.Yellow}"/>
+    <SolidColorBrush x:Key="Brush.Status.Blue" Color="{StaticResource Color.Status.Blue}"/>
+    <SolidColorBrush x:Key="Brush.Status.Green" Color="{StaticResource Color.Status.Green}"/>
+    <SolidColorBrush x:Key="Brush.Status.Red.Subtle" Color="{StaticResource Color.Status.Red.Subtle}"/>
+    <SolidColorBrush x:Key="Brush.Status.Yellow.Subtle" Color="{StaticResource Color.Status.Yellow.Subtle}"/>
+    <SolidColorBrush x:Key="Brush.Status.Blue.Subtle" Color="{StaticResource Color.Status.Blue.Subtle}"/>
+    <SolidColorBrush x:Key="Brush.Status.Green.Subtle" Color="{StaticResource Color.Status.Green.Subtle}"/>
+</ResourceDictionary>

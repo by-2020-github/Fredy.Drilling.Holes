@@ -6,7 +6,7 @@
              xmlns:vm="clr-namespace:Fredy.Drilling.Holes.ViewModels"
              xmlns:models="clr-namespace:Fredy.Drilling.Holes.Models"
              xmlns:uc="clr-namespace:Fredy.Drilling.Holes.UserControls"
-             mc:Ignorable="d" Background="#F0F0F0"
+             mc:Ignorable="d" Background="{StaticResource Brush.Background.Subtle}"
              d:DesignHeight="700" d:DesignWidth="1100"
             MaxHeight="1024" MaxWidth="1280" Height="Auto" 
              Title="手动控制"
@@ -27,12 +27,12 @@
                         <Setter Property="Margin" Value="5"/>
                     </Style>
                 </Grid.Resources>
-                <Button Content="X-" Background="#A68D85" HorizontalAlignment="Left" VerticalAlignment="Center" Width="70" Height="70" Command="{Binding MoveAxisCommand}" CommandParameter="X-"/>
-                <Button Content="X+" Background="#A68D85" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,100,0" Width="70" Height="70" Command="{Binding MoveAxisCommand}" CommandParameter="X+"/>
-                <Button Content="Y+" Background="#8EB933" HorizontalAlignment="Center" VerticalAlignment="Top" Width="70" Height="70" Margin="0,0,80,0" Command="{Binding MoveAxisCommand}" CommandParameter="Y+"/>
-                <Button Content="Y-" Background="#8EB933" HorizontalAlignment="Center" VerticalAlignment="Bottom" Width="70" Height="70" Margin="0,0,80,0" Command="{Binding MoveAxisCommand}" CommandParameter="Y-"/>
-                <Button Content="Z+" Background="#8F78C6" HorizontalAlignment="Right" VerticalAlignment="Top" Width="70" Height="70" Command="{Binding MoveAxisCommand}" CommandParameter="Z+"/>
-                <Button Content="Z-" Background="#8F78C6" HorizontalAlignment="Right" VerticalAlignment="Bottom" Width="70" Height="70" Command="{Binding MoveAxisCommand}" CommandParameter="Z-"/>
+                <Button Content="X-" Background="{StaticResource Brush.Status.Yellow}" HorizontalAlignment="Left" VerticalAlignment="Center" Width="70" Height="70" Command="{Binding MoveAxisCommand}" CommandParameter="X-"/>
+                <Button Content="X+" Background="{StaticResource Brush.Status.Yellow}" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,100,0" Width="70" Height="70" Command="{Binding MoveAxisCommand}" CommandParameter="X+"/>
+                <Button Content="Y+" Background="{StaticResource Brush.Status.Green}" HorizontalAlignment="Center" VerticalAlignment="Top" Width="70" Height="70" Margin="0,0,80,0" Command="{Binding MoveAxisCommand}" CommandParameter="Y+"/>
+                <Button Content="Y-" Background="{StaticResource Brush.Status.Green}" HorizontalAlignment="Center" VerticalAlignment="Bottom" Width="70" Height="70" Margin="0,0,80,0" Command="{Binding MoveAxisCommand}" CommandParameter="Y-"/>
+                <Button Content="Z+" Background="{StaticResource Brush.Status.Blue}" HorizontalAlignment="Right" VerticalAlignment="Top" Width="70" Height="70" Command="{Binding MoveAxisCommand}" CommandParameter="Z+"/>
+                <Button Content="Z-" Background="{StaticResource Brush.Status.Blue}" HorizontalAlignment="Right" VerticalAlignment="Bottom" Width="70" Height="70" Command="{Binding MoveAxisCommand}" CommandParameter="Z-"/>
             </Grid>
 
             <StackPanel Orientation="Horizontal" Margin="0,20">
@@ -49,7 +49,7 @@
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate DataType="{x:Type models:GpioItem}">
-                            <Border BorderBrush="Gray" BorderThickness="1" Margin="1" Height="25"
+                            <Border BorderBrush="{StaticResource Brush.Border.Strong}" BorderThickness="1" Margin="1" Height="25"
                                     Background="{Binding IsActive, Converter={StaticResource StatusColorConverter}}">
                                 <TextBlock Text="{Binding Id}" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="10"/>
                             </Border>
@@ -71,7 +71,7 @@
                                     Height="25"
                                     Margin="2"
                                     Padding="0"
-                                    BorderBrush="Gray"
+                                    BorderBrush="{StaticResource Brush.Border.Strong}"
                                     BorderThickness="1"
                                     Background="{Binding IsActive, Converter={StaticResource StatusColorConverter}}"
                                     Command="{Binding DataContext.ToggleOutputCommand, RelativeSource={RelativeSource AncestorType=Window}}"
@@ -96,13 +96,13 @@
                     <TextBlock Text="Z:" FontSize="24" Margin="0,5"/>
                 </StackPanel>
                 <StackPanel Grid.Column="1" Margin="10,0">
-                    <Border Background="#00FF00" Margin="0,5" Height="35">
+                    <Border Background="{StaticResource Brush.Status.Green}" Margin="0,5" Height="35">
                         <TextBlock Text="{Binding MachineStatus.PosX, StringFormat=N3}" FontSize="22" FontWeight="Bold" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                     </Border>
-                    <Border Background="#00FF00" Margin="0,5" Height="35">
+                    <Border Background="{StaticResource Brush.Status.Green}" Margin="0,5" Height="35">
                         <TextBlock Text="{Binding MachineStatus.PosY, StringFormat=N3}" FontSize="22" FontWeight="Bold" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                     </Border>
-                    <Border Background="#00FF00" Margin="0,5" Height="35">
+                    <Border Background="{StaticResource Brush.Status.Green}" Margin="0,5" Height="35">
                         <TextBlock Text="{Binding MachineStatus.PosZ, StringFormat=N3}" FontSize="22" FontWeight="Bold" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                     </Border>
                 </StackPanel>
@@ -116,7 +116,7 @@
                 </StackPanel>
             </Grid>
 
-            <GroupBox Header="坐标偏差校准 (Offset)" Margin="0,15" Background="#F8F8F8">
+            <GroupBox Header="坐标偏差校准 (Offset)" Margin="0,15" Background="{StaticResource Brush.Background.Subtle}">
                 <StackPanel Margin="5">
                     <Grid>
                         <Grid.ColumnDefinitions>
@@ -125,7 +125,7 @@
                             <ColumnDefinition Width="1.5*"/>
                         </Grid.ColumnDefinitions>
                         <Button Content="1. 记录冲针" FontSize="16" Height="40" Margin="5" Command="{Binding MarkPunchPositionCommand}"/>
-                        <Button Grid.Column="1" Content="打孔" FontSize="16" Height="40" Margin="5" Command="{Binding TestPunchCommand}" Background="#FFDDDD"/>
+                        <Button Grid.Column="1" Content="打孔" FontSize="16" Height="40" Margin="5" Command="{Binding TestPunchCommand}" Background="{StaticResource Brush.Status.Red.Subtle}"/>
                         <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="10,0,0,0">
                             <TextBlock Text="{Binding PunchX, StringFormat=X: {0:F3}}"/>
                             <TextBlock Text="{Binding PunchY, StringFormat=Y: {0:F3}}"/>
@@ -149,10 +149,10 @@
                             <ColumnDefinition Width="2.5*"/>
                             <ColumnDefinition Width="1.5*"/>
                         </Grid.ColumnDefinitions>
-                        <Button Content="3. 计算并应用 Offset" FontSize="18" FontWeight="Bold" Height="45" Margin="5" Background="#8EB933" Command="{Binding CalculateAndSaveOffsetCommand}"/>
+                        <Button Content="3. 计算并应用 Offset" FontSize="18" FontWeight="Bold" Height="45" Margin="5" Background="{StaticResource Brush.Status.Green}" Command="{Binding CalculateAndSaveOffsetCommand}"/>
                         <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="10,0,0,0">
-                            <TextBlock Text="{Binding OffsetX, StringFormat=dX: {0:F3}}" FontWeight="Bold" Foreground="Red" FontSize="16"/>
-                            <TextBlock Text="{Binding OffsetY, StringFormat=dY: {0:F3}}" FontWeight="Bold" Foreground="Red" FontSize="16"/>
+                            <TextBlock Text="{Binding OffsetX, StringFormat=dX: {0:F3}}" FontWeight="Bold" Foreground="{StaticResource Brush.Status.Red}" FontSize="16"/>
+                            <TextBlock Text="{Binding OffsetY, StringFormat=dY: {0:F3}}" FontWeight="Bold" Foreground="{StaticResource Brush.Status.Red}" FontSize="16"/>
                         </StackPanel>
                     </Grid>
                 </StackPanel>
@@ -164,24 +164,24 @@
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="100"/>
             </Grid.RowDefinitions>
-            <Border x:Name="LiveVideo" BorderBrush="Gray" BorderThickness="1" Background="#EAEAEA">
+            <Border x:Name="LiveVideo" BorderBrush="{StaticResource Brush.Border.Strong}" BorderThickness="1" Background="{StaticResource Brush.Background.Disabled}">
                 <uc:CameraViewerControl ImageMat="{Binding CameraPreviewMat}" />
             </Border>
 
             <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Bottom">
-                <Button Content="-" Width="60" Height="60" Background="#E0FFFF" Command="{Binding ChangeSizeCommand}" CommandParameter="Canvas-"/>
+                <Button Content="-" Width="60" Height="60" Background="{StaticResource Brush.Status.Blue.Subtle}" Command="{Binding ChangeSizeCommand}" CommandParameter="Canvas-"/>
                 <StackPanel VerticalAlignment="Center" Margin="10,0">
                     <TextBox Text="{Binding CanvasSize}" Width="60" FontSize="18" HorizontalContentAlignment="Center"/>
                     <TextBlock Text="画面大小" HorizontalAlignment="Center"/>
                 </StackPanel>
-                <Button Content="+" Width="60" Height="60" Background="#E0FFFF" Margin="0,0,20,0" Command="{Binding ChangeSizeCommand}" CommandParameter="Canvas+"/>
+                <Button Content="+" Width="60" Height="60" Background="{StaticResource Brush.Status.Blue.Subtle}" Margin="0,0,20,0" Command="{Binding ChangeSizeCommand}" CommandParameter="Canvas+"/>
 
-                <Button Content="-" Width="60" Height="60" Background="#FFA07A" Command="{Binding ChangeSizeCommand}" CommandParameter="Ring-"/>
+                <Button Content="-" Width="60" Height="60" Background="{StaticResource Brush.Status.Yellow.Subtle}" Command="{Binding ChangeSizeCommand}" CommandParameter="Ring-"/>
                 <StackPanel VerticalAlignment="Center" Margin="10,0">
                     <TextBox Text="{Binding RingSize}" Width="60" FontSize="18" HorizontalContentAlignment="Center"/>
                     <TextBlock Text="圈大小：" HorizontalAlignment="Center"/>
                 </StackPanel>
-                <Button Content="+" Width="60" Height="60" Background="#FFA07A" Command="{Binding ChangeSizeCommand}" CommandParameter="Ring+"/>
+                <Button Content="+" Width="60" Height="60" Background="{StaticResource Brush.Status.Yellow.Subtle}" Command="{Binding ChangeSizeCommand}" CommandParameter="Ring+"/>
             </StackPanel>
         </Grid>
     </Grid>

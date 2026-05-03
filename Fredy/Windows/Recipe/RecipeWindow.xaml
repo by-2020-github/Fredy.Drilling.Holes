@@ -11,7 +11,7 @@
          Height="760"
          Width="1400"
 MaxHeight="1024" MaxWidth="1280"
-         Background="#F4F4F4">
+         Background="{StaticResource Brush.Background.Subtle}">
     <Window.Resources>
         <converters:InverseBoolConverter x:Key="InverseBoolConverter"/>
     </Window.Resources>
@@ -31,24 +31,24 @@ MaxHeight="1024" MaxWidth="1280"
                 </Grid.RowDefinitions>
 
                 <TextBlock Margin="4,0,4,8"
-                           Foreground="#666666"
+                           Foreground="{StaticResource Brush.Foreground.Muted}"
                            Text="选择一个 Recipe 后可加载到中间编辑区。"/>
 
                 <ListBox Grid.Row="1"
                          ItemsSource="{Binding RecipeNames}"
                          IsEnabled="{Binding IsEditing, Converter={StaticResource InverseBoolConverter}}"
                          SelectedItem="{Binding SelectedRecipeName, Mode=TwoWay}"
-                         BorderBrush="#D0D0D0"
+                         BorderBrush="{StaticResource Brush.Border}"
                          BorderThickness="1"
-                         Background="White"/>
+                         Background="{StaticResource Brush.Background}"/>
             </Grid>
         </GroupBox>
 
         <Border Grid.Column="1"
                 Margin="12,0"
                 Padding="8"
-                Background="White"
-                BorderBrush="#D6D6D6"
+                Background="{StaticResource Brush.Background}"
+                BorderBrush="{StaticResource Brush.Border}"
                 BorderThickness="1"
                 CornerRadius="6">
             <Grid>
@@ -61,10 +61,10 @@ MaxHeight="1024" MaxWidth="1280"
                     <TextBlock Text="Recipe 编辑区"
                                FontSize="16"
                                FontWeight="SemiBold"
-                               Foreground="#404040"/>
+                               Foreground="{StaticResource Brush.Foreground.Secondary}"/>
                     <TextBlock DockPanel.Dock="Right"
                                VerticalAlignment="Center"
-                               Foreground="#666666"
+                               Foreground="{StaticResource Brush.Foreground.Muted}"
                                Text="{Binding EditingRecipeDisplayName}"/>
                 </DockPanel>
 
@@ -74,7 +74,7 @@ MaxHeight="1024" MaxWidth="1280"
 
                     <TextBlock Text="请先从左侧选择 Recipe，或点击右侧 New 创建新 Recipe"
                                FontSize="18"
-                               Foreground="#9A9A9A"
+                               Foreground="{StaticResource Brush.Foreground.Subtle}"
                                HorizontalAlignment="Center"
                                VerticalAlignment="Center">
                         <TextBlock.Style>
@@ -96,14 +96,15 @@ MaxHeight="1024" MaxWidth="1280"
             <StackPanel>
                 <Button Content="加载" Height="36" Margin="0,0,0,8" IsEnabled="{Binding IsEditing, Converter={StaticResource InverseBoolConverter}}" Click="LoadButton_Click"/>
                 <Button Content="编辑" Height="36" Margin="0,0,0,8" IsEnabled="{Binding CanEdit}" Click="EditButton_Click"/>
-                <Button Content="保存" Height="36" Margin="0,0,0,8" Background="#DFF0D8" IsEnabled="{Binding IsEditing}" Click="SaveButton_Click"/>
+                <Button Content="保存" Height="36" Margin="0,0,0,8" Background="{StaticResource Brush.Status.Green.Subtle}" IsEnabled="{Binding IsEditing}" Click="SaveButton_Click"/>
                 <Button Content="取消" Height="36" Margin="0,0,0,8" IsEnabled="{Binding IsEditing}" Click="CancelButton_Click"/>
-                <Button Content="删除" Height="36" Margin="0,0,0,8" Background="#F2DEDE" IsEnabled="{Binding CanDelete}" Click="DeleteButton_Click"/>
+                <Button Content="删除" Height="36" Margin="0,0,0,8" Background="{StaticResource Brush.Status.Red.Subtle}" IsEnabled="{Binding CanDelete}" Click="DeleteButton_Click"/>
                 <Button Content="复制" Height="36" Margin="0,0,0,8" IsEnabled="{Binding CanCopy}" Click="CopyButton_Click"/>
-                <Button Content="新建" Height="36" Margin="0,0,0,8" Background="#D9EDF7" IsEnabled="{Binding CanCreateNew}" Click="NewButton_Click"/>
+                <Button Content="新建" Height="36" Margin="0,0,0,8" Background="{StaticResource Brush.Status.Blue.Subtle}" IsEnabled="{Binding CanCreateNew}" Click="NewButton_Click"/>
                 <Separator Margin="0,8,0,8"/>
                 <Button Content="关闭" Height="36" Click="CloseButton_Click"/>
             </StackPanel>
         </GroupBox>
     </Grid>
 </Window>
+

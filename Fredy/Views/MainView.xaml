@@ -14,7 +14,7 @@
         <ResourceDictionary Source="/Fredy.Drilling.Holes;component/Themes/MainResources.xaml"/>
     </UserControl.Resources>
 
-    <Grid Background="White">
+    <Grid Background="{StaticResource Brush.Background}">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*"/>
             <ColumnDefinition Width="300"/>
@@ -25,7 +25,7 @@
             <RowDefinition Height="30"/>
         </Grid.RowDefinitions>
 
-        <Border Margin="5" BorderBrush="#D6D6D6" BorderThickness="1" Background="#101214" CornerRadius="6">
+        <Border Margin="5" BorderBrush="{StaticResource Brush.Border}" BorderThickness="1" Background="{StaticResource Brush.Background.Subtle}" CornerRadius="6">
             <Grid>
                 <uc:CameraViewerControl ImageSource="{Binding CurrentCameraImage}" 
                                         Margin="0,0,0,0"/>
@@ -34,7 +34,7 @@
                            Margin="12,10,12,0"
                            HorizontalAlignment="Left"
                            VerticalAlignment="Top"
-                           Foreground="White"
+                           Foreground="{StaticResource Brush.Foreground}"
                            FontSize="16"
                            FontWeight="SemiBold"/>
 
@@ -43,8 +43,8 @@
                         Margin="12"
                         HorizontalAlignment="Right"
                         VerticalAlignment="Top"
-                        Background="#CCFFFFFF"
-                        BorderBrush="#D6D6D6"
+                        Background="{StaticResource Brush.Background.Overlay}"
+                        BorderBrush="{StaticResource Brush.Border}"
                         BorderThickness="1"
                         CornerRadius="6">
                     <uc:RecipeUserControl RecipeViewModel="{Binding CurrentRecipeViewModel}"/>
@@ -53,7 +53,7 @@
         </Border>
 
         <StackPanel Grid.Column="1" Grid.RowSpan="2" Margin="5">
-            <Border BorderBrush="#CCCCCC" BorderThickness="1" Padding="10" Background="#F9F9F9">
+            <Border BorderBrush="{StaticResource Brush.Border}" BorderThickness="1" Padding="10" Background="{StaticResource Brush.Background.Subtle}">
                 <StackPanel>
                     <TextBlock Text="自动冲孔控制软件" FontSize="20" FontWeight="Bold" Margin="0,0,0,10"/>
                     <Grid>
@@ -70,7 +70,7 @@
                         <StackPanel>
                             <TextBlock Text="工件类型:"/>
                             <TextBlock Text="总孔数:"/>
-                            <TextBlock Text="当前圈:" Foreground="Red" FontWeight="Bold"/>
+                            <TextBlock Text="当前圈:" Foreground="{StaticResource Brush.Status.Red}" FontWeight="Bold"/>
                             <TextBlock Text="已冲孔:"/>
                             <TextBlock Text="速度:"/>
                         </StackPanel>
@@ -79,21 +79,21 @@
                                 <Button Content="刷新" DockPanel.Dock="Right" Margin="10,0,0,0" Padding="8,2" Command="{Binding RefreshRecipesCommand}"/>
                                 <ComboBox ItemsSource="{Binding RecipeNames}"
                                           SelectedItem="{Binding Status.WorkpieceType, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                          Foreground="RoyalBlue"
+                                          Foreground="{StaticResource Brush.Status.Blue}"
                                           MinWidth="160"/>
                             </DockPanel>
-                            <TextBlock Text="{Binding Status.TotalHoles}" Foreground="Red" FontWeight="Bold"/>
+                            <TextBlock Text="{Binding Status.TotalHoles}" Foreground="{StaticResource Brush.Status.Red}" FontWeight="Bold"/>
                             <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="{Binding Status.CurrentRing}" Foreground="Red" FontWeight="Bold" Width="40"/>
-                                <TextBlock Text="当前孔:" Margin="20,0,0,0" Foreground="Red" FontWeight="Bold"/>
-                                <TextBlock Text="{Binding Status.CurrentHole}" Foreground="Red" FontWeight="Bold" Margin="10,0,0,0"/>
+                                <TextBlock Text="{Binding Status.CurrentRing}" Foreground="{StaticResource Brush.Status.Red}" FontWeight="Bold" Width="40"/>
+                                <TextBlock Text="当前孔:" Margin="20,0,0,0" Foreground="{StaticResource Brush.Status.Red}" FontWeight="Bold"/>
+                                <TextBlock Text="{Binding Status.CurrentHole}" Foreground="{StaticResource Brush.Status.Red}" FontWeight="Bold" Margin="10,0,0,0"/>
                             </StackPanel>
                             <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="{Binding Status.PunchedHoles}" Foreground="Red" FontWeight="Bold" Width="40"/>
-                                <TextBlock Text="待冲孔:" Margin="20,0,0,0" Foreground="Red" FontWeight="Bold"/>
-                                <TextBlock Text="{Binding Status.RemainingHoles}" Foreground="Red" FontWeight="Bold" Margin="10,0,0,0"/>
+                                <TextBlock Text="{Binding Status.PunchedHoles}" Foreground="{StaticResource Brush.Status.Red}" FontWeight="Bold" Width="40"/>
+                                <TextBlock Text="待冲孔:" Margin="20,0,0,0" Foreground="{StaticResource Brush.Status.Red}" FontWeight="Bold"/>
+                                <TextBlock Text="{Binding Status.RemainingHoles}" Foreground="{StaticResource Brush.Status.Red}" FontWeight="Bold" Margin="10,0,0,0"/>
                             </StackPanel>
-                            <TextBlock Text="{Binding Status.Speed}" Foreground="Teal"/>
+                            <TextBlock Text="{Binding Status.Speed}" Foreground="{StaticResource Brush.Status.Blue}"/>
                         </StackPanel>
                     </Grid>
                 </StackPanel>
@@ -109,32 +109,32 @@
 
             <StackPanel Margin="0,10">
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,5">
-                    <CheckBox Content="模拟冲孔" IsChecked="{Binding IsSimulate}" VerticalAlignment="Center" Foreground="Red" Margin="0,0,20,0"/>
+                    <CheckBox Content="模拟冲孔" IsChecked="{Binding IsSimulate}" VerticalAlignment="Center" Foreground="{StaticResource Brush.Status.Red}" Margin="0,0,20,0"/>
                     <RadioButton Content="头道" IsChecked="{Binding IsFirstPass}" Margin="0,0,10,0"/>
                     <RadioButton Content="二道"
                                  IsChecked="{Binding IsFirstPass, Converter={StaticResource InverseBoolConverter}}"/>
                 </StackPanel>
 
                 <UniformGrid Columns="2">
-                    <Button Content="启动冲孔" Background="#00FF00" Style="{StaticResource ControlButtonStyle}" Command="{Binding StartPunchingCommand}"/>
+                    <Button Content="启动冲孔" Background="{StaticResource Brush.Status.Green}" Style="{StaticResource ControlButtonStyle}" Command="{Binding StartPunchingCommand}"/>
                     <Grid>
                         <Button Content="暂停冲孔"
                                 Style="{StaticResource ControlButtonStyle}"
                                 Command="{Binding PausePunchingCommand}"
                                 Visibility="{Binding ShowPausePunchingButton, Converter={StaticResource BoolToVis}}"/>
                         <Button Content="继续冲孔"
-                                Background="#00FF00"
+                                Background="{StaticResource Brush.Status.Green}"
                                 Style="{StaticResource ControlButtonStyle}"
                                 Command="{Binding ContinuePunchingCommand}"
                                 Visibility="{Binding ShowContinuePunchingButton, Converter={StaticResource BoolToVis}}"/>
                     </Grid>
-                    <Button Content="自定义" Background="Orange" Style="{StaticResource ControlButtonStyle}" IsEnabled="{Binding CanUseCustomAction}"/>
-                    <Button Content="复位" Background="Orange" Style="{StaticResource ControlButtonStyle}" Command="{Binding ResetMachineCommand}"/>
+                    <Button Content="自定义" Background="{StaticResource Brush.Status.Yellow}" Style="{StaticResource ControlButtonStyle}" IsEnabled="{Binding CanUseCustomAction}"/>
+                    <Button Content="复位" Background="{StaticResource Brush.Status.Yellow}" Style="{StaticResource ControlButtonStyle}" Command="{Binding ResetMachineCommand}"/>
                 </UniformGrid>
-                <Button Content="停止" Background="Red" Foreground="White" Height="50" FontSize="20" FontWeight="Bold" Margin="5" Command="{Binding StopPunchingCommand}"/>
+                <Button Content="停止" Background="{StaticResource Brush.Status.Red}" Foreground="{StaticResource Brush.Foreground}" Height="50" FontSize="20" FontWeight="Bold" Margin="5" Command="{Binding StopPunchingCommand}"/>
             </StackPanel>
 
-            <Border BorderBrush="Gray" BorderThickness="1" Margin="5" Padding="5">
+            <Border BorderBrush="{StaticResource Brush.Border.Strong}" BorderThickness="1" Margin="5" Padding="5">
                 <StackPanel>
                     <TextBlock Text="机台坐标" FontWeight="Bold" Margin="0,0,0,5"/>
                     <Grid>
@@ -148,15 +148,15 @@
                             <RowDefinition/>
                         </Grid.RowDefinitions>
                         <TextBlock Text="X:"/>
-                        <Border Grid.Column="1" Background="#00FF00" Margin="2">
+                        <Border Grid.Column="1" Background="{StaticResource Brush.Status.Green}" Margin="2">
                             <TextBlock Text="{Binding Status.PosX, StringFormat=N3}" HorizontalAlignment="Right"/>
                         </Border>
                         <TextBlock Text="Y:" Grid.Row="1"/>
-                        <Border Grid.Column="1" Grid.Row="1" Background="#00FF00" Margin="2">
+                        <Border Grid.Column="1" Grid.Row="1" Background="{StaticResource Brush.Status.Green}" Margin="2">
                             <TextBlock Text="{Binding Status.PosY, StringFormat=N3}" HorizontalAlignment="Right"/>
                         </Border>
                         <TextBlock Text="Z:" Grid.Row="2"/>
-                        <Border Grid.Column="1" Grid.Row="2" Background="#00FF00" Margin="2">
+                        <Border Grid.Column="1" Grid.Row="2" Background="{StaticResource Brush.Status.Green}" Margin="2">
                             <TextBlock Text="{Binding Status.PosZ, StringFormat=N3}" HorizontalAlignment="Right"/>
                         </Border>
                     </Grid>
@@ -172,9 +172,9 @@
             <StackPanel Orientation="Horizontal">
                 <TextBlock Text="操作日志" VerticalAlignment="Center" FontWeight="Bold"/>
                 <TextBlock Text="共" Margin="12,0,0,0" VerticalAlignment="Center"/>
-                <TextBlock Text="{Binding Logs.Count}" VerticalAlignment="Center" FontWeight="Bold" Foreground="RoyalBlue"/>
+                <TextBlock Text="{Binding Logs.Count}" VerticalAlignment="Center" FontWeight="Bold" Foreground="{StaticResource Brush.Status.Blue}"/>
                 <TextBlock Text="/" VerticalAlignment="Center"/>
-                <TextBlock Text="{Binding LogCapacity}" VerticalAlignment="Center" FontWeight="Bold" Foreground="RoyalBlue"/>
+                <TextBlock Text="{Binding LogCapacity}" VerticalAlignment="Center" FontWeight="Bold" Foreground="{StaticResource Brush.Status.Blue}"/>
                 <TextBlock Text="条" VerticalAlignment="Center"/>
                 <CheckBox Content="仅看 Error/Warning" Margin="12,0,0,0" IsChecked="{Binding OnlyShowWarningsAndErrors}" VerticalAlignment="Center"/>
                 <Button Content="导出日志" Margin="10,0" Command="{Binding ExportLogsCommand}" Padding="5,2"/>
@@ -183,8 +183,8 @@
             <ListBox x:Name="LogListBox"
                      Grid.Row="1"
                      ItemsSource="{Binding FilteredLogs}"
-                     Background="#F0F0F0"
-                     BorderBrush="#D0D0D0"
+                     Background="{StaticResource Brush.Background.Subtle}"
+                     BorderBrush="{StaticResource Brush.Border}"
                      BorderThickness="1"
                      Loaded="LogListBox_Loaded"
                      Unloaded="LogListBox_Unloaded">
@@ -198,7 +198,7 @@
             </ListBox>
         </Grid>
 
-        <StatusBar Grid.Row="2" Grid.ColumnSpan="2" Background="#F0F0F0">
+        <StatusBar Grid.Row="2" Grid.ColumnSpan="2" Background="{StaticResource Brush.Background.Subtle}">
             <StatusBarItem Content="自动冲孔机控制系统"/>
             <Separator/>
             <StatusBarItem Content="软件版本 1.0.1"/>
@@ -210,7 +210,7 @@
             <Separator/>
             <TextBlock Text="相机状态"/>
             <Border Background="{Binding Status.IsCameraConnected, Converter={StaticResource StatusColorConverter}}" Padding="5,1">
-                <TextBlock Foreground="White">
+                <TextBlock Foreground="{StaticResource Brush.Foreground}">
                     <TextBlock.Style>
                         <Style TargetType="TextBlock">
                             <Setter Property="Text" Value="未连接"/>

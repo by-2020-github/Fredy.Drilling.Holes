@@ -7,7 +7,7 @@
         xmlns:models="clr-namespace:Fredy.Drilling.Holes.Models" xmlns:views="clr-namespace:Fredy.Drilling.Holes.Views" xmlns:usercontrols="clr-namespace:Fredy.Drilling.Holes.UserControls"
         mc:Ignorable="d" x:Name="thisWin"
         MaxHeight="1024" MaxWidth="1280"
-        Title="参数配置" Height="750" Width="1200" Background="#F0F0F0"
+        Title="参数配置" Height="750" Width="1200" Background="{StaticResource Brush.Background.Subtle}"
         d:DataContext="{d:DesignInstance Type=vm:ConfigViewModel, IsDesignTimeCreatable=False}">
 
     <Grid Margin="10">
@@ -20,192 +20,256 @@
             <TabItem Header="运动卡调试">
                 <usercontrols:MotionDebugControl></usercontrols:MotionDebugControl>
             </TabItem>
-                <TabItem Header="运动参数设置">
-                <Grid Margin="10">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="320"/>
-                    </Grid.ColumnDefinitions>
-
-                    <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto">
-                        <StackPanel Margin="0,0,10,0">
-                            <GroupBox Header="运动控制卡" Background="#DDEBF7" Margin="0,0,0,10" Padding="10">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="100"/>
-                                        <ColumnDefinition Width="220"/>
-                                        <ColumnDefinition Width="110"/>
-                                        <ColumnDefinition Width="*"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Text="控制卡类型" VerticalAlignment="Center"/>
-                                    <ComboBox Grid.Column="1"
-                                              ItemsSource="{Binding MotionControllerTypes}"
-                                              SelectedItem="{Binding MotionController.ControllerType}"
-                                              Margin="5,0,15,0"/>
-                                    <TextBlock Grid.Column="2" Text="连接字符串" VerticalAlignment="Center"/>
-                                    <ComboBox Grid.Column="3"
-                                              ItemsSource="{Binding MotionConnectionOptions}"
-                                              Text="{Binding MotionController.ConnectionString, UpdateSourceTrigger=PropertyChanged}"
-                                              IsEditable="True"
-                                              Margin="5,0,0,0"/>
-                                </Grid>
-                            </GroupBox>
-
-                            <GroupBox Header="轴参数配置" Background="#F3F9FF" Margin="0,0,0,10" Padding="10">
-                                <StackPanel>
-                                    <usercontrols:AxisParamEditorControl Header="X轴参数" AxisConfig="{Binding XAxis}"/>
-                                    <usercontrols:AxisParamEditorControl Header="Y轴参数" AxisConfig="{Binding YAxis}"/>
-                                    <usercontrols:AxisParamEditorControl Header="Z轴参数" AxisConfig="{Binding ZAxis}"/>
-                                </StackPanel>
-                            </GroupBox>
-
-                            <GroupBox Header="XY驱动参数" Background="#D6EAF8" Margin="0,0,0,10" Padding="10">
-                                <WrapPanel VerticalAlignment="Center">
-                                    <TextBlock Text="初速度" VerticalAlignment="Center" Margin="5,0"/>
-                                    <TextBox Text="{Binding XyDrive.StartSpeed}" Width="80" Height="25"/>
-                                    <TextBlock Text="驱动速度" VerticalAlignment="Center" Margin="15,0,5,0"/>
-                                    <TextBox Text="{Binding XyDrive.DriveSpeed}" Width="80"/>
-                                    <TextBlock Text="加速度" VerticalAlignment="Center" Margin="15,0,5,0"/>
-                                    <TextBox Text="{Binding XyDrive.Acceleration}" Width="80"/>
-                                    <TextBlock Text="延时" VerticalAlignment="Center" Margin="15,0,5,0"/>
-                                    <TextBox Text="{Binding XyDrive.Delay}" Width="60"/>
-                                    <TextBlock Text="脉冲当量" VerticalAlignment="Center" Margin="15,10,5,0" HorizontalAlignment="Left"/>
-                                    <TextBox Text="{Binding XyDrive.PulseEquivalent}" Width="80" Margin="0,10,0,0"/>
-                                    <TextBlock Text="(每mm脉冲数)" VerticalAlignment="Center" Margin="5,10,0,0"/>
-                                </WrapPanel>
-                            </GroupBox>
-
-                            <GroupBox Header="Z轴参数" Background="#008080" Foreground="White" Margin="0,0,0,10" Padding="10">
-                                <StackPanel>
-                                    <WrapPanel Margin="0,0,0,10">
-                                        <TextBlock Text="初速度" VerticalAlignment="Center" Foreground="White"/>
-                                        <TextBox Text="{Binding ZAxisBase.StartSpeed}" Width="80" Margin="5,0,15,0"/>
-                                        <TextBlock Text="驱动速度" VerticalAlignment="Center" Foreground="White"/>
-                                        <TextBox Text="{Binding ZAxisBase.DriveSpeed}" Width="80" Margin="5,0,15,0"/>
-                                        <TextBlock Text="加速度" VerticalAlignment="Center" Foreground="White"/>
-                                        <TextBox Text="{Binding ZAxisBase.Acceleration}" Width="80" Margin="5,0,15,0"/>
-                                        <TextBlock Text="延时" VerticalAlignment="Center" Foreground="White"/>
-                                        <TextBox Text="{Binding ZAxisBase.Delay}" Width="60" Margin="5,0"/>
-                                    </WrapPanel>
+            <TabItem Header="运动参数设置">
+                <TabControl Margin="10">
+                    <TabItem Header="控制器参数">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel Margin="10">
+                                <GroupBox Header="运动控制卡" Background="{StaticResource Brush.Status.Blue.Subtle}" Margin="0,0,0,10" Padding="10">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition/>
-                                            <ColumnDefinition/>
-                                            <ColumnDefinition/>
+                                            <ColumnDefinition Width="100"/>
+                                            <ColumnDefinition Width="220"/>
+                                            <ColumnDefinition Width="110"/>
+                                            <ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
-                                        <GroupBox Header="头道参数" Foreground="White" Grid.Column="0" Margin="2">
-                                            <StackPanel Margin="5">
-                                                <TextBlock Text="初速度"/>
-                                                <TextBox Text="{Binding FirstPass.StartSpeed}" Margin="0,2,0,5"/>
-                                                <TextBlock Text="驱动速度"/>
-                                                <TextBox Text="{Binding FirstPass.DriveSpeed}" Margin="0,2,0,5"/>
-                                                <TextBlock Text="加速度"/>
-                                                <TextBox Text="{Binding FirstPass.Acceleration}" Margin="0,2,0,5"/>
-                                            </StackPanel>
-                                        </GroupBox>
-                                        <GroupBox Header="二道参数" Foreground="White" Grid.Column="1" Margin="2">
-                                            <StackPanel Margin="5">
-                                                <TextBlock Text="初速度"/>
-                                                <TextBox Text="{Binding SecondPass.StartSpeed}" Margin="0,2,0,5"/>
-                                                <TextBlock Text="驱动速度"/>
-                                                <TextBox Text="{Binding SecondPass.DriveSpeed}" Margin="0,2,0,5"/>
-                                                <TextBlock Text="加速度"/>
-                                                <TextBox Text="{Binding SecondPass.Acceleration}" Margin="0,2,0,5"/>
-                                            </StackPanel>
-                                        </GroupBox>
-                                        <GroupBox Header="探测参数" Foreground="White" Grid.Column="2" Margin="2">
-                                            <StackPanel Margin="5">
-                                                <TextBlock Text="快速移动位置"/>
-                                                <TextBox Text="{Binding FastMovePos}" Margin="0,2,0,5"/>
-                                                <TextBlock Text="快速速度"/>
-                                                <TextBox Text="{Binding FastMoveSpeed}" Margin="0,2,0,5"/>
-                                                <TextBlock Text="慢速移动距离"/>
-                                                <TextBox Text="{Binding SlowMoveDist}" Margin="0,2,0,5"/>
-                                                <TextBlock Text="慢速速度"/>
-                                                <TextBox Text="{Binding SlowMoveSpeed}" Margin="0,2,0,5"/>
-                                            </StackPanel>
-                                        </GroupBox>
+                                        <TextBlock Text="控制卡类型" VerticalAlignment="Center"/>
+                                        <ComboBox Grid.Column="1"
+                                                  ItemsSource="{Binding MotionControllerTypes}"
+                                                  SelectedItem="{Binding MotionController.ControllerType}"
+                                                  Margin="5,0,15,0"/>
+                                        <TextBlock Grid.Column="2" Text="连接字符串" VerticalAlignment="Center"/>
+                                        <ComboBox Grid.Column="3"
+                                                  ItemsSource="{Binding MotionConnectionOptions}"
+                                                  Text="{Binding MotionController.ConnectionString, UpdateSourceTrigger=PropertyChanged}"
+                                                  IsEditable="True"
+                                                  Margin="5,0,0,0"/>
                                     </Grid>
-                                </StackPanel>
-                            </GroupBox>
+                                </GroupBox>
 
-                            <GroupBox Header="XY回零参数" Background="#D6EAF8" Padding="10">
-                                <StackPanel>
-                                    <WrapPanel Margin="0,0,0,10">
-                                        <TextBlock Text="初速度" VerticalAlignment="Center" Margin="5,0"/>
-                                        <TextBox Text="300" Width="80"/>
-                                        <TextBlock Text="搜索速度" VerticalAlignment="Center" Margin="15,0,5,0"/>
-                                        <TextBox Text="{Binding HomeSearchSpeed}" Width="80"/>
-                                        <TextBlock Text="反向慢速" VerticalAlignment="Center" Margin="15,0,5,0"/>
-                                        <TextBox Text="300" Width="80"/>
-                                        <TextBlock Text="Z相速度" VerticalAlignment="Center" Margin="15,0,5,0"/>
-                                        <TextBox Text="200" Width="80"/>
-                                    </WrapPanel>
-                                    <GroupBox Header="回零模式" Background="#4A77A8" Foreground="White">
-                                        <StackPanel Orientation="Horizontal" Margin="5">
-                                            <CheckBox Content="IO回零" IsChecked="{Binding IsIoHome}" Foreground="White" Margin="15,0"/>
-                                            <CheckBox Content="锁存" IsChecked="{Binding IsLatch}" Foreground="White" Margin="15,0"/>
-                                            <CheckBox Content="光栅尺回零" IsChecked="{Binding IsGratingHome}" Foreground="White" Margin="15,0"/>
+                                <GroupBox Header="轴参数配置" Background="{StaticResource Brush.Status.Blue.Subtle}" Padding="10">
+                                    <StackPanel>
+                                        <usercontrols:AxisParamEditorControl Header="X轴参数" AxisConfig="{Binding XAxis}"/>
+                                        <usercontrols:AxisParamEditorControl Header="Y轴参数" AxisConfig="{Binding YAxis}"/>
+                                        <usercontrols:AxisParamEditorControl Header="Z轴参数" AxisConfig="{Binding ZAxis}"/>
+                                    </StackPanel>
+                                </GroupBox>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+
+                    <TabItem Header="工艺参数">
+                        <Grid Margin="10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="320"/>
+                            </Grid.ColumnDefinitions>
+
+                            <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto">
+                                <StackPanel Margin="0,0,10,0">
+                                    <GroupBox Header="Z轴工艺参数"  Margin="0,0,0,10" Padding="10">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition/>
+                                                <ColumnDefinition/>
+                                                <ColumnDefinition/>
+                                            </Grid.ColumnDefinitions>
+                                            <GroupBox Header="头道参数"  Grid.Column="0" Margin="2">
+                                                <StackPanel Margin="5">
+                                                    <TextBlock Text="初速度"/>
+                                                    <TextBox Text="{Binding FirstPass.StartSpeed}" Margin="0,2,0,5"/>
+                                                    <TextBlock Text="驱动速度"/>
+                                                    <TextBox Text="{Binding FirstPass.DriveSpeed}" Margin="0,2,0,5"/>
+                                                    <TextBlock Text="加速度"/>
+                                                    <TextBox Text="{Binding FirstPass.Acceleration}" Margin="0,2,0,5"/>
+                                                    <TextBlock Text="延时"/>
+                                                    <TextBox Text="{Binding FirstPass.Delay}" Margin="0,2,0,5"/>
+                                                </StackPanel>
+                                            </GroupBox>
+                                            <GroupBox Header="二道参数"  Grid.Column="1" Margin="2">
+                                                <StackPanel Margin="5">
+                                                    <TextBlock Text="初速度"/>
+                                                    <TextBox Text="{Binding SecondPass.StartSpeed}" Margin="0,2,0,5"/>
+                                                    <TextBlock Text="驱动速度"/>
+                                                    <TextBox Text="{Binding SecondPass.DriveSpeed}" Margin="0,2,0,5"/>
+                                                    <TextBlock Text="加速度"/>
+                                                    <TextBox Text="{Binding SecondPass.Acceleration}" Margin="0,2,0,5"/>
+                                                    <TextBlock Text="延时"/>
+                                                    <TextBox Text="{Binding SecondPass.Delay}" Margin="0,2,0,5"/>
+                                                </StackPanel>
+                                            </GroupBox>
+                                            <GroupBox Header="探测参数"  Grid.Column="2" Margin="2">
+                                                <StackPanel Margin="5">
+                                                    <TextBlock Text="快速移动位置"/>
+                                                    <TextBox Text="{Binding FastMovePos}" Margin="0,2,0,5"/>
+                                                    <TextBlock Text="快速速度"/>
+                                                    <TextBox Text="{Binding FastMoveSpeed}" Margin="0,2,0,5"/>
+                                                    <TextBlock Text="慢速移动距离"/>
+                                                    <TextBox Text="{Binding SlowMoveDist}" Margin="0,2,0,5"/>
+                                                    <TextBlock Text="慢速速度"/>
+                                                    <TextBox Text="{Binding SlowMoveSpeed}" Margin="0,2,0,5"/>
+                                                </StackPanel>
+                                            </GroupBox>
+                                        </Grid>
+                                    </GroupBox>
+
+                                    <GroupBox Header="回零参数" Background="{StaticResource Brush.Status.Blue.Subtle}" Padding="10">
+                                        <StackPanel>
+                                            <GroupBox Header="回零模式" >
+                                                <StackPanel Orientation="Horizontal" Margin="5">
+                                                    <CheckBox Content="IO回零" IsChecked="{Binding IsIoHome}"  Margin="15,0"/>
+                                                    <CheckBox Content="锁存" IsChecked="{Binding IsLatch}"  Margin="15,0"/>
+                                                    <CheckBox Content="光栅尺回零" IsChecked="{Binding IsGratingHome}"  Margin="15,0"/>
+                                                </StackPanel>
+                                            </GroupBox>
+
+                                            <Grid Margin="0,10,0,0">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
+
+                                                <GroupBox Header="机械回零" Margin="0,0,5,0">
+                                                    <UniformGrid Columns="2" Margin="8">
+                                                        <TextBlock Text="搜索速度" VerticalAlignment="Center" Margin="0,0,6,6"/>
+                                                        <TextBox Text="{Binding HomeSearchSpeed}" Margin="0,0,0,6"/>
+                                                        <TextBlock Text="回零超时(ms)" VerticalAlignment="Center" Margin="0,0,6,6"/>
+                                                        <TextBox Text="{Binding AdtHoming.HomeTimeoutMs}" Margin="0,0,0,6"/>
+                                                        <TextBlock Text="脱离脉冲" VerticalAlignment="Center" Margin="0,0,6,6"/>
+                                                        <TextBox Text="{Binding AdtHoming.HomeBackoffPulse}" Margin="0,0,0,6"/>
+                                                        <TextBlock Text="初速度" VerticalAlignment="Center" Margin="0,0,6,6"/>
+                                                        <TextBox Text="{Binding AdtHoming.SlowHomeStartSpeed}" Margin="0,0,0,6"/>
+                                                        <TextBlock Text="速度" VerticalAlignment="Center" Margin="0,0,6,6"/>
+                                                        <TextBox Text="{Binding AdtHoming.SlowHomeSpeed}" Margin="0,0,0,6"/>
+                                                        <TextBlock Text="加速度" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                                        <TextBox Text="{Binding AdtHoming.SlowHomeAcceleration}"/>
+                                                    </UniformGrid>
+                                                </GroupBox>
+
+                                                <GroupBox Grid.Column="1" Header="光栅/锁存回零" Margin="5,0,5,0">
+                                                    <UniformGrid Columns="2" Margin="8">
+                                                        <TextBlock Text="初速度" VerticalAlignment="Center" Margin="0,0,6,6"/>
+                                                        <TextBox Text="{Binding AdtHoming.GratingHomeStartSpeed}" Margin="0,0,0,6"/>
+                                                        <TextBlock Text="速度" VerticalAlignment="Center" Margin="0,0,6,6"/>
+                                                        <TextBox Text="{Binding AdtHoming.GratingHomeSpeed}" Margin="0,0,0,6"/>
+                                                        <TextBlock Text="加速度" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                                        <TextBox Text="{Binding AdtHoming.GratingHomeAcceleration}"/>
+                                                    </UniformGrid>
+                                                </GroupBox>
+
+                                                <GroupBox Grid.Column="2" Header="Z轴专项" Margin="5,0,0,0">
+                                                    <StackPanel Margin="8">
+                                                        <UniformGrid Columns="2">
+                                                            <TextBlock Text="抬起脉冲" VerticalAlignment="Center" Margin="0,0,6,6"/>
+                                                            <TextBox Text="{Binding AdtHoming.ZHomeLiftPulse}" Margin="0,0,0,6"/>
+                                                        </UniformGrid>
+                                                        <CheckBox Content="Z机械回零朝正方向搜索"
+                                                                  IsChecked="{Binding AdtHoming.ZHomeTowardPositiveDirection}"
+                                                                  Margin="0,6,0,0"/>
+                                                    </StackPanel>
+                                                </GroupBox>
+                                            </Grid>
                                         </StackPanel>
                                     </GroupBox>
                                 </StackPanel>
-                            </GroupBox>
-                        </StackPanel>
-                    </ScrollViewer>
+                            </ScrollViewer>
 
-                    <GroupBox Grid.Column="1" Header="端口配置" Background="#FFA07A" Padding="10">
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="*"/>
-                                <RowDefinition Height="Auto"/>
-                            </Grid.RowDefinitions>
-
-                            <GroupBox Header="输入端口" BorderBrush="#888" Margin="0,0,0,10">
-                                <StackPanel>
-                                    <Grid Margin="0,5">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto"/>
-                                            <ColumnDefinition Width="60"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock Text="X机械零位" VerticalAlignment="Center"/>
-                                        <TextBox Grid.Column="1" Text="{Binding XLimitPort.PortIndex}" Margin="5,0"/>
-                                        <CheckBox Grid.Column="2" Content="低电平" IsChecked="{Binding XLimitPort.IsLowLevelActive}" VerticalAlignment="Center"/>
-                                    </Grid>
-                                </StackPanel>
-                            </GroupBox>
-
-                            <GroupBox Grid.Row="1" Header="输出端口" BorderBrush="#888">
-                                <Grid Margin="0,5">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="60"/>
-                                        <ColumnDefinition Width="*"/>
-                                    </Grid.ColumnDefinitions>
+                            <GroupBox Grid.Column="1" Header="端口配置" Background="{StaticResource Brush.Status.Yellow.Subtle}" Padding="10">
+                                <Grid>
                                     <Grid.RowDefinitions>
-                                        <RowDefinition/>
-                                        <RowDefinition/>
-                                        <RowDefinition/>
-                                        <RowDefinition/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="*"/>
+                                        <RowDefinition Height="Auto"/>
                                     </Grid.RowDefinitions>
-                                    <TextBlock Text="红灯" VerticalAlignment="Center"/>
-                                    <TextBox Grid.Column="1" Text="{Binding RedLightPort}" Margin="5,2"/>
-                                    <TextBlock Grid.Row="1" Text="绿灯" VerticalAlignment="Center"/>
-                                    <TextBox Grid.Row="1" Grid.Column="1" Text="0" Margin="5,2"/>
-                                    <TextBlock Grid.Row="2" Text="黄灯" VerticalAlignment="Center"/>
-                                    <TextBox Grid.Row="2" Grid.Column="1" Text="0" Margin="5,2"/>
-                                    <TextBlock Grid.Row="3" Text="蜂鸣器" VerticalAlignment="Center"/>
-                                    <TextBox Grid.Row="3" Grid.Column="1" Text="0" Margin="5,2"/>
+
+                                    <GroupBox Header="输入端口" BorderBrush="{StaticResource Brush.Border.Strong}" Margin="0,0,0,10">
+                                        <StackPanel>
+                                            <Grid Margin="0,5">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="60"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="X机械零位" VerticalAlignment="Center"/>
+                                                <TextBox Grid.Column="1" Text="{Binding XLimitPort.PortIndex}" Margin="5,0"/>
+                                                <CheckBox Grid.Column="2" Content="低电平" IsChecked="{Binding XLimitPort.IsLowLevelActive}" VerticalAlignment="Center"/>
+                                            </Grid>
+                                            <Grid Margin="0,5">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="60"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="Y机械零位" VerticalAlignment="Center"/>
+                                                <TextBox Grid.Column="1" Text="{Binding YLimitPort.PortIndex}" Margin="5,0"/>
+                                                <CheckBox Grid.Column="2" Content="低电平" IsChecked="{Binding YLimitPort.IsLowLevelActive}" VerticalAlignment="Center"/>
+                                            </Grid>
+                                            <Grid Margin="0,5">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="60"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="Z机械零位" VerticalAlignment="Center"/>
+                                                <TextBox Grid.Column="1" Text="{Binding AdtHoming.ZLimitPort.PortIndex}" Margin="5,0"/>
+                                                <CheckBox Grid.Column="2" Content="低电平" IsChecked="{Binding AdtHoming.ZLimitPort.IsLowLevelActive}" VerticalAlignment="Center"/>
+                                            </Grid>
+                                            <Grid Margin="0,5">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="60"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="X光栅零位" VerticalAlignment="Center"/>
+                                                <TextBox Grid.Column="1" Text="{Binding AdtHoming.XGratingPort.PortIndex}" Margin="5,0"/>
+                                                <CheckBox Grid.Column="2" Content="低电平" IsChecked="{Binding AdtHoming.XGratingPort.IsLowLevelActive}" VerticalAlignment="Center"/>
+                                            </Grid>
+                                            <Grid Margin="0,5">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="60"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="Y光栅零位" VerticalAlignment="Center"/>
+                                                <TextBox Grid.Column="1" Text="{Binding AdtHoming.YGratingPort.PortIndex}" Margin="5,0"/>
+                                                <CheckBox Grid.Column="2" Content="低电平" IsChecked="{Binding AdtHoming.YGratingPort.IsLowLevelActive}" VerticalAlignment="Center"/>
+                                            </Grid>
+                                        </StackPanel>
+                                    </GroupBox>
+
+                                    <GroupBox Grid.Row="1" Header="输出端口" BorderBrush="{StaticResource Brush.Border.Strong}">
+                                        <Grid Margin="0,5">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="60"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition/>
+                                                <RowDefinition/>
+                                                <RowDefinition/>
+                                                <RowDefinition/>
+                                            </Grid.RowDefinitions>
+                                            <TextBlock Text="红灯" VerticalAlignment="Center"/>
+                                            <TextBox Grid.Column="1" Text="{Binding RedLightPort}" Margin="5,2"/>
+                                            <TextBlock Grid.Row="1" Text="绿灯" VerticalAlignment="Center"/>
+                                            <TextBox Grid.Row="1" Grid.Column="1" Text="0" Margin="5,2"/>
+                                            <TextBlock Grid.Row="2" Text="黄灯" VerticalAlignment="Center"/>
+                                            <TextBox Grid.Row="2" Grid.Column="1" Text="0" Margin="5,2"/>
+                                            <TextBlock Grid.Row="3" Text="蜂鸣器" VerticalAlignment="Center"/>
+                                            <TextBox Grid.Row="3" Grid.Column="1" Text="0" Margin="5,2"/>
+                                        </Grid>
+                                    </GroupBox>
+
+                                    <StackPanel Grid.Row="3" Margin="0,10,0,0">
+                                        <CheckBox Content="调试模式" IsChecked="{Binding IsDebugMode}" Margin="0,5"/>
+                                    </StackPanel>
                                 </Grid>
                             </GroupBox>
-
-                            <StackPanel Grid.Row="3" Margin="0,10,0,0">
-                                <CheckBox Content="调试模式" IsChecked="{Binding IsDebugMode}" Margin="0,5"/>
-                            </StackPanel>
                         </Grid>
-                    </GroupBox>
-                </Grid>
+                    </TabItem>
+                </TabControl>
             </TabItem>
 
             <TabItem Header="相机调试">
@@ -214,7 +278,7 @@
             <TabItem Header="相机参数">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="10">
-                        <GroupBox Header="相机基础配置" Background="#DDEBF7" Padding="10" Margin="0,0,0,10">
+                        <GroupBox Header="相机基础配置" Background="{StaticResource Brush.Status.Blue.Subtle}" Padding="10" Margin="0,0,0,10">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="120"/>
@@ -236,7 +300,7 @@
                             </Grid>
                         </GroupBox>
 
-                        <GroupBox Header="像素尺寸" Background="#E2F0D9" Padding="10" Margin="0,0,0,10">
+                        <GroupBox Header="像素尺寸" Background="{StaticResource Brush.Status.Green.Subtle}" Padding="10" Margin="0,0,0,10">
                             <StackPanel>
                                 <Grid>
                                     <Grid.ColumnDefinitions>
@@ -260,7 +324,7 @@
                             </StackPanel>
                         </GroupBox>
 
-                        <GroupBox Header="视野尺寸" Background="#FCE4D6" Padding="10">
+                        <GroupBox Header="视野尺寸" Background="{StaticResource Brush.Status.Yellow.Subtle}" Padding="10">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="120"/>
@@ -275,7 +339,7 @@
                             </Grid>
                         </GroupBox>
 
-                        <GroupBox Header="分区扫描检测参数" Background="#E8F4FF" Padding="10" Margin="0,10,0,0">
+                        <GroupBox Header="分区扫描检测参数" Background="{StaticResource Brush.Status.Blue.Subtle}" Padding="10" Margin="0,10,0,0">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="140"/>
@@ -312,9 +376,9 @@
 
                             </Grid>
                         </GroupBox>
-                     </StackPanel>
-                 </ScrollViewer>
-             </TabItem>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
 
             <TabItem Header="一道探测参数">
                 <Grid Margin="10">
@@ -327,7 +391,7 @@
 
                     <TextBlock Grid.Row="0"
                                Text="0 代表本圈不探测，其他数字 N 代表本圈探测次数"
-                               Foreground="Green"
+                               Foreground="{StaticResource Brush.Status.Green}"
                                HorizontalAlignment="Center"
                                Margin="0,0,0,12"
                                FontSize="14"/>
@@ -379,7 +443,7 @@
 
                     <TextBlock Grid.Row="0"
                                Text="0 代表本圈不探测，其他数字 N 代表本圈探测次数"
-                               Foreground="Green"
+                               Foreground="{StaticResource Brush.Status.Green}"
                                HorizontalAlignment="Center"
                                Margin="0,0,0,12"
                                FontSize="14"/>
@@ -424,8 +488,8 @@
         <Border Grid.Column="1"
                 Margin="10,0,0,0"
                 Padding="12"
-                Background="#FFFFFF"
-                BorderBrush="#D0D0D0"
+                Background="{StaticResource Brush.Background}"
+                BorderBrush="{StaticResource Brush.Border}"
                 BorderThickness="1"
                 CornerRadius="6">
             <StackPanel>
@@ -436,7 +500,7 @@
 
                 <Button Height="38"
                         Margin="0,0,0,8"
-                        Background="#7FFF00"
+                        Background="{StaticResource Brush.Status.Green}"
                         FontWeight="Bold"
                         Content="保存"
                         Command="{Binding SaveConfigCommand}"/>
@@ -459,7 +523,7 @@
                            Margin="0,0,0,6"/>
                 <TextBlock Text="{Binding ModifiedParametersInfo}"
                            TextWrapping="Wrap"
-                           Foreground="#4F4F4F"/>
+                           Foreground="{StaticResource Brush.Foreground.Secondary}"/>
             </StackPanel>
         </Border>
     </Grid>

@@ -5,7 +5,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
              xmlns:vm="clr-namespace:Fredy.Drilling.Holes.ViewModels" xmlns:models="clr-namespace:Fredy.Drilling.Holes.Models"
              mc:Ignorable="d"
-             Background="#F0F0F0"
+             Background="{StaticResource Brush.Background.Subtle}"
         Title="冲孔补偿设置（单位:脉冲->mm更优）"
              d:DesignHeight="600" d:DesignWidth="500"
              d:DataContext="{d:DesignInstance Type=vm:PunchingCompensationViewModel, IsDesignTimeCreatable=True}">

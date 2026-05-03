@@ -1,8 +1,8 @@
-<Window x:Class="Fredy.Drilling.Holes.Views.CircleDetectionSettingsWindow"
+﻿<Window x:Class="Fredy.Drilling.Holes.Views.CircleDetectionSettingsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:uc="clr-namespace:Fredy.Drilling.Holes.UserControls"
-        Title="圆孔识别参数配置 / 实时预览" Height="800" Width="1200" WindowStartupLocation="CenterOwner" Background="#F5F5F5">
+        Title="圆孔识别参数配置 / 实时预览" Height="800" Width="1200" WindowStartupLocation="CenterOwner" Background="{StaticResource Brush.Background.Subtle}">
     <Grid Margin="10">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*" />
@@ -20,40 +20,40 @@
             </Grid.ColumnDefinitions>
 
             <!-- Original Preview with Overlays -->
-            <Border Grid.Row="0" Grid.Column="0" BorderBrush="#AAA" BorderThickness="1" Margin="5" Background="#111">
+            <Border Grid.Row="0" Grid.Column="0" BorderBrush="{StaticResource Brush.Border.Strong}" BorderThickness="1" Margin="5" Background="{StaticResource Brush.Surface.Dark}">
                 <Grid>
-                    <TextBlock Text="最终查找结果" Foreground="White" VerticalAlignment="Top" HorizontalAlignment="Left" Margin="5" Panel.ZIndex="1" IsHitTestVisible="False" Background="#88000000" Padding="4"/>
+                    <TextBlock Text="最终查找结果" Foreground="{StaticResource Brush.Foreground.Inverse}" VerticalAlignment="Top" HorizontalAlignment="Left" Margin="5" Panel.ZIndex="1" IsHitTestVisible="False" Background="{StaticResource Brush.Surface.DarkAlt}" Padding="4"/>
                     <uc:CameraViewerControl x:Name="PreviewViewer" />
                 </Grid>
             </Border>
 
             <!-- Binary Image -->
-            <Border Grid.Row="0" Grid.Column="1" BorderBrush="#AAA" BorderThickness="1" Margin="5" Background="#111">
+            <Border Grid.Row="0" Grid.Column="1" BorderBrush="{StaticResource Brush.Border.Strong}" BorderThickness="1" Margin="5" Background="{StaticResource Brush.Surface.Dark}">
                 <Grid>
-                    <TextBlock Text="1: 自适应阈值二值化" Foreground="White" VerticalAlignment="Top" HorizontalAlignment="Left" Margin="5" Panel.ZIndex="1" Background="#88000000" Padding="4"/>
+                    <TextBlock Text="1: 自适应阈值二值化" Foreground="{StaticResource Brush.Foreground.Inverse}" VerticalAlignment="Top" HorizontalAlignment="Left" Margin="5" Panel.ZIndex="1" Background="{StaticResource Brush.Surface.DarkAlt}" Padding="4"/>
                     <Image x:Name="ImageBinary" Stretch="Uniform" />
                 </Grid>
             </Border>
 
             <!-- Cleaned/Edge Image -->
-            <Border Grid.Row="1" Grid.Column="0" BorderBrush="#AAA" BorderThickness="1" Margin="5" Background="#111">
+            <Border Grid.Row="1" Grid.Column="0" BorderBrush="{StaticResource Brush.Border.Strong}" BorderThickness="1" Margin="5" Background="{StaticResource Brush.Surface.Dark}">
                 <Grid>
-                    <TextBlock Text="2: 形态学开运算去噪" Foreground="White" VerticalAlignment="Top" HorizontalAlignment="Left" Margin="5" Panel.ZIndex="1" Background="#88000000" Padding="4"/>
+                    <TextBlock Text="2: 形态学开运算去噪" Foreground="{StaticResource Brush.Foreground.Inverse}" VerticalAlignment="Top" HorizontalAlignment="Left" Margin="5" Panel.ZIndex="1" Background="{StaticResource Brush.Surface.DarkAlt}" Padding="4"/>
                     <Image x:Name="ImageEdges" Stretch="Uniform" />
                 </Grid>
             </Border>
 
             <!-- Contours/Circles Image -->
-            <Border Grid.Row="1" Grid.Column="1" BorderBrush="#AAA" BorderThickness="1" Margin="5" Background="#111">
+            <Border Grid.Row="1" Grid.Column="1" BorderBrush="{StaticResource Brush.Border.Strong}" BorderThickness="1" Margin="5" Background="{StaticResource Brush.Surface.Dark}">
                 <Grid>
-                    <TextBlock Text="3: Hough圆检测查找与标记" Foreground="White" VerticalAlignment="Top" HorizontalAlignment="Left" Margin="5" Panel.ZIndex="1" Background="#88000000" Padding="4"/>
+                    <TextBlock Text="3: Hough圆检测查找与标记" Foreground="{StaticResource Brush.Foreground.Inverse}" VerticalAlignment="Top" HorizontalAlignment="Left" Margin="5" Panel.ZIndex="1" Background="{StaticResource Brush.Surface.DarkAlt}" Padding="4"/>
                     <Image x:Name="ImageContours" Stretch="Uniform" />
                 </Grid>
             </Border>
         </Grid>
 
         <StackPanel Grid.Column="1" Orientation="Vertical">
-            <TextBlock Text="调整以下参数可以改变找圆容差，左侧图像将实时标出满足参数的提取结果：" TextWrapping="Wrap" Margin="0,0,0,15" Foreground="#666"/>
+            <TextBlock Text="调整以下参数可以改变找圆容差，左侧图像将实时标出满足参数的提取结果：" TextWrapping="Wrap" Margin="0,0,0,15" Foreground="{StaticResource Brush.Foreground.Muted}"/>
             <GroupBox Header="识别参数 (Hough Circles)" Padding="10" Margin="0,0,0,20">
                 <StackPanel>
                     <TextBlock Text="目标孔类型:" FontWeight="Medium"/>
@@ -64,24 +64,27 @@
 
                     <TextBlock Text="最小半径 (MinRadius):" FontWeight="Medium"/>
                     <Slider Minimum="5" Maximum="50" Value="{Binding MinRadius, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" TickFrequency="1" IsSnapToTickEnabled="True" Margin="0,5,0,0"/>
-                    <TextBlock Text="{Binding MinRadius, StringFormat={}{0:F0}}" HorizontalAlignment="Right" Foreground="Blue"/>
+                    <TextBlock Text="{Binding MinRadius, StringFormat={}{0:F0}}" HorizontalAlignment="Right" Foreground="{StaticResource Brush.Status.Blue}"/>
 
                     <TextBlock Text="最大半径 (MaxRadius):" Margin="0,15,0,0" FontWeight="Medium"/>
                     <Slider Minimum="10" Maximum="200" Value="{Binding MaxRadius, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" TickFrequency="1" IsSnapToTickEnabled="True" Margin="0,5,0,0"/>
-                    <TextBlock Text="{Binding MaxRadius, StringFormat={}{0:F0}}" HorizontalAlignment="Right" Foreground="Blue"/>
+                    <TextBlock Text="{Binding MaxRadius, StringFormat={}{0:F0}}" HorizontalAlignment="Right" Foreground="{StaticResource Brush.Status.Blue}"/>
 
                     <TextBlock Text="边缘检测阈值 (Param1):" Margin="0,15,0,0" FontWeight="Medium"/>
                     <Slider Minimum="10" Maximum="300" Value="{Binding Param1, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" TickFrequency="1" IsSnapToTickEnabled="True" Margin="0,5,0,0"/>
-                    <TextBlock Text="{Binding Param1, StringFormat={}{0:F0}}" HorizontalAlignment="Right" Foreground="Blue"/>
+                    <TextBlock Text="{Binding Param1, StringFormat={}{0:F0}}" HorizontalAlignment="Right" Foreground="{StaticResource Brush.Status.Blue}"/>
 
                     <TextBlock Text="累加器阈值-越小越灵敏 (Param2):" Margin="0,15,0,0" FontWeight="Medium"/>
                     <Slider Minimum="5" Maximum="100" Value="{Binding Param2, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" TickFrequency="1" IsSnapToTickEnabled="True" Margin="0,5,0,0"/>
-                    <TextBlock Text="{Binding Param2, StringFormat={}{0:F0}}" HorizontalAlignment="Right" Foreground="Blue"/>
+                    <TextBlock Text="{Binding Param2, StringFormat={}{0:F0}}" HorizontalAlignment="Right" Foreground="{StaticResource Brush.Status.Blue}"/>
                 </StackPanel>
             </GroupBox>
 
-            <Button Content="应用为全局参数" Height="45" Margin="0,0,0,10" Click="ApplyButton_Click" Background="#4CAF50" Foreground="White" FontSize="16" FontWeight="Bold"/>
+            <Button Content="应用为全局参数" Height="45" Margin="0,0,0,10" Click="ApplyButton_Click" Background="{StaticResource Brush.Status.Green}" Foreground="{StaticResource Brush.Foreground.Inverse}" FontSize="16" FontWeight="Bold"/>
             <Button Content="取消 / 关闭" Height="35" Click="CancelButton_Click" FontSize="14"/>
         </StackPanel>
     </Grid>
 </Window>
+
+
+

@@ -1,4 +1,4 @@
-<UserControl x:Class="Fredy.Drilling.Holes.UserControls.PunchProcessAuditControl"
+﻿<UserControl x:Class="Fredy.Drilling.Holes.UserControls.PunchProcessAuditControl"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -14,7 +14,7 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <Border BorderThickness="1" BorderBrush="#D6D6D6" Background="#F8FAFC" CornerRadius="6" Padding="10">
+        <Border BorderThickness="1" BorderBrush="{StaticResource Brush.Border}" Background="{StaticResource Brush.Background.Subtle}" CornerRadius="6" Padding="10">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="3*"/>
@@ -23,7 +23,7 @@
 
                 <StackPanel>
                     <TextBlock Text="冲孔流程审计" FontSize="18" FontWeight="Bold"/>
-                    <TextBlock Text="{Binding ProcessMode}" Margin="0,4,0,0" Foreground="#3B82F6" FontWeight="SemiBold"/>
+                    <TextBlock Text="{Binding ProcessMode}" Margin="0,4,0,0" Foreground="{StaticResource Brush.Status.Blue}" FontWeight="SemiBold"/>
                     <TextBlock Margin="0,6,0,0">
                         <Run Text="当前状态: "/>
                         <Run Text="{Binding CurrentState}" FontWeight="Bold"/>
@@ -59,28 +59,28 @@
                 <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                     <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
                         <Ellipse Width="12" Height="12" Fill="OrangeRed" Stroke="Yellow" StrokeThickness="1"/>
-                        <TextBlock Text=" 当前孔" VerticalAlignment="Center"/>
+                        <TextBlock Text=" 当前孔" VerticalAlignment="Center" />
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
                         <Ellipse Width="12" Height="12" Fill="DeepSkyBlue" Stroke="Black" StrokeThickness="1"/>
-                        <TextBlock Text=" 最近邻采样点" VerticalAlignment="Center"/>
+                        <TextBlock Text=" 最近邻采样点" VerticalAlignment="Center" />
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
                         <Ellipse Width="12" Height="12" Fill="ForestGreen"/>
-                        <TextBlock Text=" 已完成" VerticalAlignment="Center"/>
+                        <TextBlock Text=" 已完成" VerticalAlignment="Center" />
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
                         <Ellipse Width="12" Height="12" Fill="DimGray"/>
-                        <TextBlock Text=" 未完成" VerticalAlignment="Center"/>
+                        <TextBlock Text=" 未完成" VerticalAlignment="Center" />
                     </StackPanel>
-                    <TextBlock Text="滚轮缩放 / 左键拖动" VerticalAlignment="Center" Foreground="#94A3B8"/>
+                    <TextBlock Text="滚轮缩放 / 左键拖动" VerticalAlignment="Center" Foreground="{StaticResource Brush.Foreground.Muted}"/>
                 </StackPanel>
 
                 <Border Grid.Row="1"
                         x:Name="HeatmapViewport"
-                        BorderBrush="#D6D6D6"
+                        BorderBrush="{StaticResource Brush.Border}"
                         BorderThickness="1"
-                        Background="#0B1220"
+                        Background="{StaticResource Brush.Surface.Dark}"
                         CornerRadius="4"
                         Padding="6"
                         ClipToBounds="True"
@@ -91,18 +91,18 @@
                         LostMouseCapture="HeatmapViewport_LostMouseCapture">
                     <Grid x:Name="HeatmapContentLayer" RenderTransformOrigin="0,0">
                         <Canvas Width="940" Height="230" IsHitTestVisible="False">
-                            <Line X1="470" Y1="0" X2="470" Y2="230" Stroke="#334155" StrokeThickness="1" StrokeDashArray="3,3"/>
-                            <Line X1="0" Y1="115" X2="940" Y2="115" Stroke="#334155" StrokeThickness="1" StrokeDashArray="3,3"/>
-                            <Ellipse Width="6" Height="6" Fill="#94A3B8" Canvas.Left="467" Canvas.Top="112"/>
-                            <TextBlock Text="O(0,0)" Foreground="#94A3B8" FontSize="10" Canvas.Left="474" Canvas.Top="118"/>
-                            <TextBlock Text="+X" Foreground="#94A3B8" FontSize="10" Canvas.Left="918" Canvas.Top="118"/>
-                            <TextBlock Text="+Y" Foreground="#94A3B8" FontSize="10" Canvas.Left="474" Canvas.Top="2"/>
+                            <Line X1="470" Y1="0" X2="470" Y2="230" Stroke="{StaticResource Brush.Border.Dark}" StrokeThickness="1" StrokeDashArray="3,3"/>
+                            <Line X1="0" Y1="115" X2="940" Y2="115" Stroke="{StaticResource Brush.Border.Dark}" StrokeThickness="1" StrokeDashArray="3,3"/>
+                            <Ellipse Width="6" Height="6" Fill="{StaticResource Brush.Foreground.Muted}" Canvas.Left="467" Canvas.Top="112"/>
+                            <TextBlock Text="O(0,0)" Foreground="{StaticResource Brush.Foreground.Muted}" FontSize="10" Canvas.Left="474" Canvas.Top="118"/>
+                            <TextBlock Text="+X" Foreground="{StaticResource Brush.Foreground.Muted}" FontSize="10" Canvas.Left="918" Canvas.Top="118"/>
+                            <TextBlock Text="+Y" Foreground="{StaticResource Brush.Foreground.Muted}" FontSize="10" Canvas.Left="474" Canvas.Top="2"/>
 
                             <Line X1="{Binding LinkX1}"
                                   Y1="{Binding LinkY1}"
                                   X2="{Binding LinkX2}"
                                   Y2="{Binding LinkY2}"
-                                  Stroke="#FDE047"
+                                  Stroke="{StaticResource Brush.Status.Yellow}"
                                   StrokeThickness="1.5"
                                   StrokeDashArray="4,2"
                                   Visibility="{Binding LinkVisibility}"/>
@@ -160,3 +160,9 @@
         </GroupBox>
     </Grid>
 </UserControl>
+
+
+
+
+
+

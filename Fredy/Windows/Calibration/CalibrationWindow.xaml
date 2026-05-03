@@ -7,7 +7,7 @@
         xmlns:uc="clr-namespace:Fredy.Drilling.Holes.UserControls"
         mc:Ignorable="d" x:Name="thisWin"
         MaxHeight="1024" MaxWidth="1280" Height="Auto" 
-        Title="找圆定位 - 定位圆心" Width="1050" Background="#F0F0F0"
+        Title="找圆定位 - 定位圆心" Width="1050" Background="{StaticResource Brush.Background.Subtle}"
         d:DataContext="{d:DesignInstance Type=vm:CalibrationViewModel, IsDesignTimeCreatable=True}">
 
     <Grid Margin="15">
@@ -18,10 +18,10 @@
 
         <StackPanel Grid.Column="0" Margin="0,0,10,0">
             <Grid Height="160" Width="260" HorizontalAlignment="Left" Margin="20,0,0,0">
-                <Button Content="X-" Background="#A68D85" HorizontalAlignment="Left" VerticalAlignment="Center" Width="65" Height="65" FontSize="20" FontWeight="Bold" Command="{Binding MoveAxisCommand}" CommandParameter="X-"/>
-                <Button Content="X+" Background="#A68D85" HorizontalAlignment="Right" VerticalAlignment="Center" Width="65" Height="65" FontSize="20" FontWeight="Bold" Command="{Binding MoveAxisCommand}" CommandParameter="X+"/>
-                <Button Content="Y+" Background="#8EB933" HorizontalAlignment="Center" VerticalAlignment="Top" Width="65" Height="65" FontSize="20" FontWeight="Bold" Command="{Binding MoveAxisCommand}" CommandParameter="Y+"/>
-                <Button Content="Y-" Background="#8EB933" HorizontalAlignment="Center" VerticalAlignment="Bottom" Width="65" Height="65" FontSize="20" FontWeight="Bold" Command="{Binding MoveAxisCommand}" CommandParameter="Y-"/>
+                <Button Content="X-" Background="{StaticResource Brush.Status.Yellow}" HorizontalAlignment="Left" VerticalAlignment="Center" Width="65" Height="65" FontSize="20" FontWeight="Bold" Command="{Binding MoveAxisCommand}" CommandParameter="X-"/>
+                <Button Content="X+" Background="{StaticResource Brush.Status.Yellow}" HorizontalAlignment="Right" VerticalAlignment="Center" Width="65" Height="65" FontSize="20" FontWeight="Bold" Command="{Binding MoveAxisCommand}" CommandParameter="X+"/>
+                <Button Content="Y+" Background="{StaticResource Brush.Status.Green}" HorizontalAlignment="Center" VerticalAlignment="Top" Width="65" Height="65" FontSize="20" FontWeight="Bold" Command="{Binding MoveAxisCommand}" CommandParameter="Y+"/>
+                <Button Content="Y-" Background="{StaticResource Brush.Status.Green}" HorizontalAlignment="Center" VerticalAlignment="Bottom" Width="65" Height="65" FontSize="20" FontWeight="Bold" Command="{Binding MoveAxisCommand}" CommandParameter="Y-"/>
             </Grid>
 
             <StackPanel Orientation="Horizontal" Margin="0,20">
@@ -30,7 +30,7 @@
                           ItemsSource="{Binding JogStepOptions}" SelectedItem="{Binding JogStep}"/>
             </StackPanel>
 
-            <GroupBox Header="坐标点记录" Margin="0,10" Background="#F8F8F8">
+            <GroupBox Header="坐标点记录" Margin="0,10" Background="{StaticResource Brush.Background.Subtle}">
                 <StackPanel Margin="5">
                     <TextBlock Text="人工移动相机十字到边缘，记录 3 个或以上点位：" TextWrapping="Wrap" Margin="0,0,0,10" FontSize="14"/>
                     <Grid>
@@ -38,8 +38,8 @@
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
-                        <Button Content="记录边缘点" Height="40" FontSize="18" Margin="5" Command="{Binding RecordEdgePointCommand}" Background="#87CEEB"/>
-                        <Button Grid.Column="1" Content="清空记录" Height="40" FontSize="18" Margin="5" Command="{Binding ClearPointsCommand}" Background="#FFB6C1"/>
+                        <Button Content="记录边缘点" Height="40" FontSize="18" Margin="5" Command="{Binding RecordEdgePointCommand}" Background="{StaticResource Brush.Status.Blue.Subtle}"/>
+                        <Button Grid.Column="1" Content="清空记录" Height="40" FontSize="18" Margin="5" Command="{Binding ClearPointsCommand}" Background="{StaticResource Brush.Status.Red.Subtle}"/>
                     </Grid>
 
                     <DataGrid ItemsSource="{Binding EdgePoints}" AutoGenerateColumns="False" Height="150" Margin="5" IsReadOnly="True">
@@ -49,7 +49,7 @@
                         </DataGrid.Columns>
                     </DataGrid>
 
-                    <Button Content="计算圆心" Height="45" FontSize="20" FontWeight="Bold" Margin="5,10,5,5" Command="{Binding FitCircleCommand}" Background="#98FB98"/>
+                    <Button Content="计算圆心" Height="45" FontSize="20" FontWeight="Bold" Margin="5,10,5,5" Command="{Binding FitCircleCommand}" Background="{StaticResource Brush.Status.Green.Subtle}"/>
 
                     <Grid Margin="5">
                         <Grid.RowDefinitions>
@@ -62,18 +62,18 @@
                         </Grid.ColumnDefinitions>
                         <TextBlock Text="计算所得圆心：" FontSize="16" FontWeight="Bold" Grid.Row="0" Grid.Column="0" VerticalAlignment="Center"/>
                         <StackPanel Orientation="Horizontal" Grid.Row="0" Grid.Column="1" Margin="10,0,0,0">
-                            <TextBlock Text="{Binding CalculatedCenterX, StringFormat=X: {0:F3}}" Foreground="Red" FontSize="16" FontWeight="Bold" Margin="0,0,15,0"/>
-                            <TextBlock Text="{Binding CalculatedCenterY, StringFormat=Y: {0:F3}}" Foreground="Red" FontSize="16" FontWeight="Bold"/>
+                            <TextBlock Text="{Binding CalculatedCenterX, StringFormat=X: {0:F3}}" Foreground="{StaticResource Brush.Status.Red}" FontSize="16" FontWeight="Bold" Margin="0,0,15,0"/>
+                            <TextBlock Text="{Binding CalculatedCenterY, StringFormat=Y: {0:F3}}" Foreground="{StaticResource Brush.Status.Red}" FontSize="16" FontWeight="Bold"/>
                         </StackPanel>
                         <TextBlock Text="计算所得半径：" FontSize="16" FontWeight="Bold" Grid.Row="1" Grid.Column="0" Margin="0,10,0,0" VerticalAlignment="Center"/>
-                        <TextBlock Text="{Binding CalculatedRadius, StringFormat=R: {0:F3}}" Foreground="Red" FontSize="16" FontWeight="Bold" Grid.Row="1" Grid.Column="1" Margin="10,10,0,0"/>
+                        <TextBlock Text="{Binding CalculatedRadius, StringFormat=R: {0:F3}}" Foreground="{StaticResource Brush.Status.Red}" FontSize="16" FontWeight="Bold" Grid.Row="1" Grid.Column="1" Margin="10,10,0,0"/>
                     </Grid>
                 </StackPanel>
             </GroupBox>
         </StackPanel>
 
         <Grid Grid.Column="1">
-            <Border BorderBrush="Gray" BorderThickness="1" Background="#EAEAEA">
+            <Border BorderBrush="{StaticResource Brush.Border.Strong}" BorderThickness="1" Background="{StaticResource Brush.Background.Disabled}">
                 <uc:CameraViewerControl ImageMat="{Binding CameraPreviewMat}" />
             </Border>
         </Grid>

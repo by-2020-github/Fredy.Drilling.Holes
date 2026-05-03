@@ -13,7 +13,7 @@
         <converters:InverseBoolConverter x:Key="InverseBoolConverter"/>
     </UserControl.Resources>
 
-    <Grid Background="#F0F0F0">
+    <Grid Background="{StaticResource Brush.Background.Subtle}">
         <TabControl Margin="8" DataContext="{Binding RecipeViewModel, ElementName=Root}">
             <TabItem Header="基础信息设置">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
@@ -70,12 +70,12 @@
                                    VerticalAlignment="Center"
                                    FontSize="14"
                                    FontWeight="SemiBold"
-                                   Foreground="RoyalBlue"
+                                   Foreground="{StaticResource Brush.Status.Blue}"
                                    Text="{Binding TotalCount, StringFormat=共 {0} 个点位}"/>
 
                         <TextBlock Grid.Row="5" Text="说明" VerticalAlignment="Top" Margin="0,0,12,12" FontSize="14"/>
-                        <Border Grid.Row="5" Grid.Column="1" Padding="12" Background="#FFF8E1" BorderBrush="#FFE082" BorderThickness="1" CornerRadius="4">
-                            <TextBlock TextWrapping="Wrap" Foreground="#6D4C41" Text="基础信息页用于维护 Recipe 元数据。冲孔点位新增与维护请切换到第二个 Tab，工艺参数请切换到第三个 Tab。"/>
+                        <Border Grid.Row="5" Grid.Column="1" Padding="12" Background="{StaticResource Brush.Status.Yellow.Subtle}" BorderBrush="{StaticResource Brush.Status.Yellow}" BorderThickness="1" CornerRadius="4">
+                            <TextBlock TextWrapping="Wrap" Foreground="{StaticResource Brush.Foreground.Secondary}" Text="基础信息页用于维护 Recipe 元数据。冲孔点位新增与维护请切换到第二个 Tab，工艺参数请切换到第三个 Tab。"/>
                         </Border>
                     </Grid>
                 </ScrollViewer>
@@ -97,7 +97,7 @@
                         </StackPanel>
                         <TextBlock DockPanel.Dock="Right"
                                    VerticalAlignment="Center"
-                                   Foreground="#666666"
+                                   Foreground="{StaticResource Brush.Foreground.Muted}"
                                    Text="点集生成器将在独立窗口中打开，用于不同方式生成并预览点位。"/>
                     </DockPanel>
 
@@ -118,7 +118,7 @@
 
                     <TextBlock Grid.Row="0"
                                Text="0 代表本圈不探测，其他数字 N 代表本圈探测次数"
-                               Foreground="Green"
+                               Foreground="{StaticResource Brush.Status.Green}"
                                HorizontalAlignment="Center"
                                Margin="0,0,0,12"
                                FontSize="14"/>
@@ -176,7 +176,7 @@
 
                     <TextBlock Grid.Row="0"
                                Text="0 代表本圈不探测，其他数字 N 代表本圈探测次数"
-                               Foreground="Green"
+                               Foreground="{StaticResource Brush.Status.Green}"
                                HorizontalAlignment="Center"
                                Margin="0,0,0,12"
                                FontSize="14"/>
@@ -230,3 +230,4 @@
         </TabControl>
     </Grid>
 </UserControl>
+

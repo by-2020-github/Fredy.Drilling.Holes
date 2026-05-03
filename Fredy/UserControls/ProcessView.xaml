@@ -13,7 +13,7 @@
         <converters:InverseBoolConverter x:Key="InverseBoolConverter"/>
     </UserControl.Resources>
 
-    <Grid Margin="20" Background="#F0F0F0">
+    <Grid Margin="20" Background="{StaticResource Brush.Background.Subtle}">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*"/>
             <ColumnDefinition Width="200"/>
@@ -101,3 +101,4 @@
         </GroupBox>
     </Grid>
 </UserControl>
+

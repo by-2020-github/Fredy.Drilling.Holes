@@ -82,6 +82,7 @@ namespace Fredy.Drilling.Holes.ViewModels
 
         [ObservableProperty] private PortItem _xLimitPort = new() { PortIndex = 14 };
         [ObservableProperty] private PortItem _yLimitPort = new() { PortIndex = 14 };
+        private AdtHomingConfig _adtHoming = new();
         [ObservableProperty] private int _redLightPort = 14;
 
         [ObservableProperty] private bool _isDebugMode;
@@ -106,6 +107,12 @@ namespace Fredy.Drilling.Holes.ViewModels
         {
             get => _statusMessage;
             set => SetProperty(ref _statusMessage, value);
+        }
+
+        public AdtHomingConfig AdtHoming
+        {
+            get => _adtHoming;
+            set => SetProperty(ref _adtHoming, value);
         }
 
         public string ModifiedParametersInfo => BuildModifiedParametersInfo();
@@ -223,6 +230,7 @@ namespace Fredy.Drilling.Holes.ViewModels
                 IsGratingHome = IsGratingHome,
                 XLimitPort = ClonePort(XLimitPort),
                 YLimitPort = ClonePort(YLimitPort),
+                AdtHoming = CloneAdtHomingConfig(AdtHoming),
                 RedLightPort = RedLightPort,
                 IsDebugMode = IsDebugMode,
                 DetectionOffsetThreshold = DetectionOffsetThreshold,
@@ -286,6 +294,7 @@ namespace Fredy.Drilling.Holes.ViewModels
 
             XLimitPort = ClonePort(config.XLimitPort);
             YLimitPort = ClonePort(config.YLimitPort);
+            AdtHoming = CloneAdtHomingConfig(config.AdtHoming);
             RedLightPort = config.RedLightPort;
             IsDebugMode = config.IsDebugMode;
 
@@ -322,6 +331,11 @@ namespace Fredy.Drilling.Holes.ViewModels
                 BuildAxisParam(config.XAxis),
                 BuildAxisParam(config.YAxis),
                 BuildAxisParam(config.ZAxis));
+
+            if (_motionService.Hardware is HAL.MotionAdt8940 adt8940)
+            {
+                adt8940.ConfigureHoming(BuildAdtHomingOptions(config));
+            }
         }
 
         private static HAL.AxisParam BuildAxisParam(AxisParamConfig axisConfig)
@@ -334,6 +348,36 @@ namespace Fredy.Drilling.Holes.ViewModels
                 axisConfig.LeftLimit,
                 axisConfig.RightLimit,
                 axisConfig.PulsesPerMillimeter > 0 ? axisConfig.PulsesPerMillimeter : 1d);
+        }
+
+        private static HAL.MotionAdt8940.HomingOptions BuildAdtHomingOptions(AppConfig config)
+        {
+            var homing = config.AdtHoming ?? new AdtHomingConfig();
+            return new HAL.MotionAdt8940.HomingOptions(
+                config.HomeSearchSpeed,
+                config.IsIoHome,
+                config.IsLatch,
+                config.IsGratingHome,
+                BuildHomingPort(config.XLimitPort),
+                BuildHomingPort(config.YLimitPort),
+                BuildHomingPort(homing.ZLimitPort),
+                BuildHomingPort(homing.XGratingPort),
+                BuildHomingPort(homing.YGratingPort),
+                homing.HomeTimeoutMs,
+                homing.HomeBackoffPulse,
+                homing.ZHomeLiftPulse,
+                homing.ZHomeTowardPositiveDirection,
+                homing.SlowHomeStartSpeed,
+                homing.SlowHomeSpeed,
+                homing.SlowHomeAcceleration,
+                homing.GratingHomeStartSpeed,
+                homing.GratingHomeSpeed,
+                homing.GratingHomeAcceleration);
+        }
+
+        private static HAL.MotionAdt8940.HomingPort BuildHomingPort(PortItem port)
+        {
+            return new HAL.MotionAdt8940.HomingPort(port.PortIndex, port.IsLowLevelActive);
         }
 
         protected override void OnPropertyChanged(PropertyChangedEventArgs e)
@@ -361,6 +405,10 @@ namespace Fredy.Drilling.Holes.ViewModels
             ZAxis.PropertyChanged += NestedObject_PropertyChanged;
             XLimitPort.PropertyChanged += NestedObject_PropertyChanged;
             YLimitPort.PropertyChanged += NestedObject_PropertyChanged;
+            AdtHoming.PropertyChanged += NestedObject_PropertyChanged;
+            AdtHoming.ZLimitPort.PropertyChanged += NestedObject_PropertyChanged;
+            AdtHoming.XGratingPort.PropertyChanged += NestedObject_PropertyChanged;
+            AdtHoming.YGratingPort.PropertyChanged += NestedObject_PropertyChanged;
 
             DetectionRingItems.CollectionChanged += DetectionRingItems_CollectionChanged;
             SecondPassDetectionItems.CollectionChanged += SecondPassDetectionItems_CollectionChanged;
@@ -382,6 +430,10 @@ namespace Fredy.Drilling.Holes.ViewModels
             ZAxis.PropertyChanged -= NestedObject_PropertyChanged;
             XLimitPort.PropertyChanged -= NestedObject_PropertyChanged;
             YLimitPort.PropertyChanged -= NestedObject_PropertyChanged;
+            AdtHoming.PropertyChanged -= NestedObject_PropertyChanged;
+            AdtHoming.ZLimitPort.PropertyChanged -= NestedObject_PropertyChanged;
+            AdtHoming.XGratingPort.PropertyChanged -= NestedObject_PropertyChanged;
+            AdtHoming.YGratingPort.PropertyChanged -= NestedObject_PropertyChanged;
 
             DetectionRingItems.CollectionChanged -= DetectionRingItems_CollectionChanged;
             SecondPassDetectionItems.CollectionChanged -= SecondPassDetectionItems_CollectionChanged;
@@ -511,6 +563,20 @@ namespace Fredy.Drilling.Holes.ViewModels
             AddIfChanged(lines, "X机械零位低电平", _originalConfig.XLimitPort.IsLowLevelActive, current.XLimitPort.IsLowLevelActive);
             AddIfChanged(lines, "Y机械零位端口", _originalConfig.YLimitPort.PortIndex, current.YLimitPort.PortIndex);
             AddIfChanged(lines, "Y机械零位低电平", _originalConfig.YLimitPort.IsLowLevelActive, current.YLimitPort.IsLowLevelActive);
+            AddIfChanged(lines, "Z机械零位端口", _originalConfig.AdtHoming.ZLimitPort.PortIndex, current.AdtHoming.ZLimitPort.PortIndex);
+            AddIfChanged(lines, "Z机械零位低电平", _originalConfig.AdtHoming.ZLimitPort.IsLowLevelActive, current.AdtHoming.ZLimitPort.IsLowLevelActive);
+            AddIfChanged(lines, "X光栅零位端口", _originalConfig.AdtHoming.XGratingPort.PortIndex, current.AdtHoming.XGratingPort.PortIndex);
+            AddIfChanged(lines, "Y光栅零位端口", _originalConfig.AdtHoming.YGratingPort.PortIndex, current.AdtHoming.YGratingPort.PortIndex);
+            AddIfChanged(lines, "回零超时", _originalConfig.AdtHoming.HomeTimeoutMs, current.AdtHoming.HomeTimeoutMs);
+            AddIfChanged(lines, "回零脱离脉冲", _originalConfig.AdtHoming.HomeBackoffPulse, current.AdtHoming.HomeBackoffPulse);
+            AddIfChanged(lines, "Z回零抬起脉冲", _originalConfig.AdtHoming.ZHomeLiftPulse, current.AdtHoming.ZHomeLiftPulse);
+            AddIfChanged(lines, "Z机械回零朝正方向", _originalConfig.AdtHoming.ZHomeTowardPositiveDirection, current.AdtHoming.ZHomeTowardPositiveDirection);
+            AddIfChanged(lines, "慢速回零初速度", _originalConfig.AdtHoming.SlowHomeStartSpeed, current.AdtHoming.SlowHomeStartSpeed);
+            AddIfChanged(lines, "慢速回零速度", _originalConfig.AdtHoming.SlowHomeSpeed, current.AdtHoming.SlowHomeSpeed);
+            AddIfChanged(lines, "慢速回零加速度", _originalConfig.AdtHoming.SlowHomeAcceleration, current.AdtHoming.SlowHomeAcceleration);
+            AddIfChanged(lines, "光栅回零初速度", _originalConfig.AdtHoming.GratingHomeStartSpeed, current.AdtHoming.GratingHomeStartSpeed);
+            AddIfChanged(lines, "光栅回零速度", _originalConfig.AdtHoming.GratingHomeSpeed, current.AdtHoming.GratingHomeSpeed);
+            AddIfChanged(lines, "光栅回零加速度", _originalConfig.AdtHoming.GratingHomeAcceleration, current.AdtHoming.GratingHomeAcceleration);
             AddIfChanged(lines, "红灯端口", _originalConfig.RedLightPort, current.RedLightPort);
             AddIfChanged(lines, "调试模式", _originalConfig.IsDebugMode, current.IsDebugMode);
 
@@ -660,6 +726,27 @@ namespace Fredy.Drilling.Holes.ViewModels
             {
                 PortIndex = source.PortIndex,
                 IsLowLevelActive = source.IsLowLevelActive
+            };
+        }
+
+        private static AdtHomingConfig CloneAdtHomingConfig(AdtHomingConfig? source)
+        {
+            source ??= new AdtHomingConfig();
+            return new AdtHomingConfig
+            {
+                ZLimitPort = ClonePort(source.ZLimitPort),
+                XGratingPort = ClonePort(source.XGratingPort),
+                YGratingPort = ClonePort(source.YGratingPort),
+                HomeTimeoutMs = source.HomeTimeoutMs,
+                HomeBackoffPulse = source.HomeBackoffPulse,
+                ZHomeLiftPulse = source.ZHomeLiftPulse,
+                ZHomeTowardPositiveDirection = source.ZHomeTowardPositiveDirection,
+                SlowHomeStartSpeed = source.SlowHomeStartSpeed,
+                SlowHomeSpeed = source.SlowHomeSpeed,
+                SlowHomeAcceleration = source.SlowHomeAcceleration,
+                GratingHomeStartSpeed = source.GratingHomeStartSpeed,
+                GratingHomeSpeed = source.GratingHomeSpeed,
+                GratingHomeAcceleration = source.GratingHomeAcceleration
             };
         }
 

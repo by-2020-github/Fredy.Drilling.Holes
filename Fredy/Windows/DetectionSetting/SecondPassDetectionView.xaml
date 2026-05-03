@@ -7,7 +7,7 @@
              xmlns:models="clr-namespace:Fredy.Drilling.Holes.Models"
              mc:Ignorable="d" 
              Title="二道圈探测设置"
-             Background="#C0C0C0"
+             Background="{StaticResource Brush.Background.Subtle}"
              d:DesignHeight="600" d:DesignWidth="450"    
              d:DataContext="{d:DesignInstance Type=vm:SecondPassDetectionViewModel, IsDesignTimeCreatable=True}">
 
@@ -24,7 +24,7 @@
         </Grid.RowDefinitions>
 
         <TextBlock Grid.Row="0" Text="0 代表本圈不探测，其他数字 N 代表本圈探测次数" 
-                   Foreground="#008000" HorizontalAlignment="Center" Margin="0,0,0,15" FontSize="14"/>
+                   Foreground="{StaticResource Brush.Status.Green}" HorizontalAlignment="Center" Margin="0,0,0,15" FontSize="14"/>
 
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="0,0,0,10">
             <ItemsControl ItemsSource="{Binding DetectionItems}">

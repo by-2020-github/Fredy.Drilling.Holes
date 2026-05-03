@@ -6,7 +6,7 @@
              xmlns:vm="clr-namespace:Fredy.Drilling.Holes.ViewModels"
              xmlns:models="clr-namespace:Fredy.Drilling.Holes.Models"
              mc:Ignorable="d" 
-             Background="#C0C0C0"
+             Background="{StaticResource Brush.Background.Subtle}"
              Title="一道圈探测设置"
              d:DesignHeight="600" d:DesignWidth="450"
              d:DataContext="{d:DesignInstance Type=vm:DetectionViewModel, IsDesignTimeCreatable=True}">
@@ -23,7 +23,7 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <TextBlock Grid.Row="0" Foreground="Green" Margin="0,0,0,15" HorizontalAlignment="Center" FontSize="14">
+        <TextBlock Grid.Row="0" Foreground="{StaticResource Brush.Status.Green}" Margin="0,0,0,15" HorizontalAlignment="Center" FontSize="14">
             0 代表本圈不探测，其他数字 N 代表本圈探测次数
         </TextBlock>
 

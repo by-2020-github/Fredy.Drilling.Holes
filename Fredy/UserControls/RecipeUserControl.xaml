@@ -7,7 +7,7 @@
              xmlns:local="clr-namespace:Fredy.Drilling.Holes.UserControls"
              mc:Ignorable="d"
              d:DesignHeight="450" d:DesignWidth="800">
-    <Border Margin="8" BorderBrush="#D6D6D6" BorderThickness="1" Background="#FAFAFA" CornerRadius="6" Padding="6">
+    <Border Margin="8" BorderBrush="{StaticResource Brush.Border}" BorderThickness="1" Background="{StaticResource Brush.Background.Subtle}" CornerRadius="6" Padding="6">
         <TabControl>
             <TabItem Header="Map">
                 <Grid Margin="8">
@@ -17,10 +17,10 @@
                     </Grid.RowDefinitions>
 
                     <DockPanel Margin="0,0,0,8">
-                        <TextBlock Text="Recipe Map" FontSize="14" FontWeight="SemiBold" Foreground="#404040"/>
+                        <TextBlock Text="Recipe Map" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource Brush.Foreground.Secondary}"/>
                         <TextBlock DockPanel.Dock="Right"
                                    Text="{Binding RecipeViewModel.CompletedCount, ElementName=Root, StringFormat=已走: {0}, TargetNullValue=已走: 0}"
-                                   Foreground="#2E7D32"
+                                   Foreground="{StaticResource Brush.Status.Green}"
                                    FontWeight="SemiBold"/>
                     </DockPanel>
 
@@ -29,13 +29,13 @@
                             <Grid Width="360" Height="360">
                                 <Ellipse Width="320"
                                          Height="320"
-                                         Stroke="#B7B7B7"
+                                         Stroke="{StaticResource Brush.Border.Strong}"
                                          StrokeThickness="2"
-                                         Fill="White"
+                                         Fill="{StaticResource Brush.Background}"
                                          HorizontalAlignment="Center"
                                          VerticalAlignment="Center"/>
-                                <Line X1="180" Y1="20" X2="180" Y2="340" Stroke="#E6E6E6" StrokeThickness="1" StrokeDashArray="4,4"/>
-                                <Line X1="20" Y1="180" X2="340" Y2="180" Stroke="#E6E6E6" StrokeThickness="1" StrokeDashArray="4,4"/>
+                                <Line X1="180" Y1="20" X2="180" Y2="340" Stroke="{StaticResource Brush.Border}" StrokeThickness="1" StrokeDashArray="4,4"/>
+                                <Line X1="20" Y1="180" X2="340" Y2="180" Stroke="{StaticResource Brush.Border}" StrokeThickness="1" StrokeDashArray="4,4"/>
                                 <ItemsControl ItemsSource="{Binding DisplayPoints, ElementName=Root}">
                                     <ItemsControl.ItemsPanel>
                                         <ItemsPanelTemplate>
@@ -53,7 +53,7 @@
                                             <Ellipse Width="10"
                                                      Height="10"
                                                      Fill="{Binding Fill}"
-                                                     Stroke="White"
+                                                     Stroke="{StaticResource Brush.Background}"
                                                      StrokeThickness="1.2"
                                                      ToolTip="{Binding ToolTip}"/>
                                         </DataTemplate>
@@ -61,8 +61,8 @@
                                 </ItemsControl>
                                 <Ellipse Width="8"
                                          Height="8"
-                                         Fill="#E53935"
-                                         Stroke="White"
+                                         Fill="{StaticResource Brush.Status.Red}"
+                                         Stroke="{StaticResource Brush.Background}"
                                          StrokeThickness="1"
                                          HorizontalAlignment="Center"
                                          VerticalAlignment="Center"/>
@@ -71,7 +71,7 @@
 
                         <TextBlock Text="未加载 Recipe"
                                    FontSize="16"
-                                   Foreground="#909090"
+                                   Foreground="{StaticResource Brush.Foreground.Subtle}"
                                    HorizontalAlignment="Center"
                                    VerticalAlignment="Center">
                             <TextBlock.Style>
@@ -107,31 +107,32 @@
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
 
-                    <TextBlock Text="配方名称" Foreground="#7A7A7A" Margin="0,0,8,4"/>
+                    <TextBlock Text="配方名称" Foreground="{StaticResource Brush.Foreground.Muted}" Margin="0,0,8,4"/>
                     <TextBlock Grid.Column="1" Text="{Binding RecipeViewModel.RecipeName, ElementName=Root, TargetNullValue=-}" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,0,4"/>
 
-                    <TextBlock Grid.Row="1" Text="类型" Foreground="#7A7A7A" Margin="0,0,8,4"/>
+                    <TextBlock Grid.Row="1" Text="类型" Foreground="{StaticResource Brush.Foreground.Muted}" Margin="0,0,8,4"/>
                     <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding RecipeViewModel.TypeName, ElementName=Root, TargetNullValue=-}" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,0,4"/>
 
-                    <TextBlock Grid.Row="2" Text="圆半径" Foreground="#7A7A7A" Margin="0,0,8,4"/>
+                    <TextBlock Grid.Row="2" Text="圆半径" Foreground="{StaticResource Brush.Foreground.Muted}" Margin="0,0,8,4"/>
                     <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding RecipeViewModel.Radius, ElementName=Root, StringFormat={}{0:N3}, TargetNullValue=-}" FontWeight="SemiBold" Margin="0,0,0,4"/>
 
-                    <TextBlock Grid.Row="3" Text="总圈数" Foreground="#7A7A7A" Margin="0,0,8,4"/>
+                    <TextBlock Grid.Row="3" Text="总圈数" Foreground="{StaticResource Brush.Foreground.Muted}" Margin="0,0,8,4"/>
                     <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding RecipeViewModel.Rings, ElementName=Root, TargetNullValue=-}" FontWeight="SemiBold" Margin="0,0,0,4"/>
 
-                    <TextBlock Grid.Row="4" Text="总孔数" Foreground="#7A7A7A" Margin="0,0,8,4"/>
+                    <TextBlock Grid.Row="4" Text="总孔数" Foreground="{StaticResource Brush.Foreground.Muted}" Margin="0,0,8,4"/>
                     <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding RecipeViewModel.TotalCount, ElementName=Root, TargetNullValue=0}" FontWeight="SemiBold" Margin="0,0,0,4"/>
 
-                    <TextBlock Grid.Row="5" Text="已走孔数" Foreground="#7A7A7A" Margin="0,0,8,4"/>
-                    <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding RecipeViewModel.CompletedCount, ElementName=Root, TargetNullValue=0}" FontWeight="SemiBold" Foreground="#2E7D32" Margin="0,0,0,4"/>
+                    <TextBlock Grid.Row="5" Text="已走孔数" Foreground="{StaticResource Brush.Foreground.Muted}" Margin="0,0,8,4"/>
+                    <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding RecipeViewModel.CompletedCount, ElementName=Root, TargetNullValue=0}" FontWeight="SemiBold" Foreground="{StaticResource Brush.Status.Green}" Margin="0,0,0,4"/>
 
-                    <TextBlock Grid.Row="6" Text="未走孔数" Foreground="#7A7A7A" Margin="0,0,8,4"/>
-                    <TextBlock Grid.Row="6" Grid.Column="1" Text="{Binding RecipeViewModel.RemainingCount, ElementName=Root, TargetNullValue=0}" FontWeight="SemiBold" Foreground="#757575" Margin="0,0,0,4"/>
+                    <TextBlock Grid.Row="6" Text="未走孔数" Foreground="{StaticResource Brush.Foreground.Muted}" Margin="0,0,8,4"/>
+                    <TextBlock Grid.Row="6" Grid.Column="1" Text="{Binding RecipeViewModel.RemainingCount, ElementName=Root, TargetNullValue=0}" FontWeight="SemiBold" Foreground="{StaticResource Brush.Foreground.Secondary}" Margin="0,0,0,4"/>
 
-                    <TextBlock Grid.Row="7" Text="原点" Foreground="#7A7A7A" Margin="0,0,8,4"/>
+                    <TextBlock Grid.Row="7" Text="原点" Foreground="{StaticResource Brush.Foreground.Muted}" Margin="0,0,8,4"/>
                     <TextBlock Grid.Row="7" Grid.Column="1" Text="圆心 (0, 0)" FontWeight="SemiBold" Margin="0,0,0,4"/>
                 </Grid>
             </TabItem>
         </TabControl>
     </Border>
 </UserControl>
+

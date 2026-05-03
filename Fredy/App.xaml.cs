@@ -171,6 +171,11 @@ namespace Fredy.Drilling.Holes
                 BuildAxisParam(config.XAxis),
                 BuildAxisParam(config.YAxis),
                 BuildAxisParam(config.ZAxis));
+
+            if (motionService.Hardware is MotionAdt8940 adt8940)
+            {
+                adt8940.ConfigureHoming(BuildAdtHomingOptions(config));
+            }
         }
 
         private static AxisParam BuildAxisParam(Models.AxisParamConfig axisConfig)
@@ -183,6 +188,36 @@ namespace Fredy.Drilling.Holes
                 axisConfig.LeftLimit,
                 axisConfig.RightLimit,
                 axisConfig.PulsesPerMillimeter > 0 ? axisConfig.PulsesPerMillimeter : 1d);
+        }
+
+        private static MotionAdt8940.HomingOptions BuildAdtHomingOptions(Models.AppConfig config)
+        {
+            var homing = config.AdtHoming ?? new Models.AdtHomingConfig();
+            return new MotionAdt8940.HomingOptions(
+                config.HomeSearchSpeed,
+                config.IsIoHome,
+                config.IsLatch,
+                config.IsGratingHome,
+                BuildHomingPort(config.XLimitPort),
+                BuildHomingPort(config.YLimitPort),
+                BuildHomingPort(homing.ZLimitPort),
+                BuildHomingPort(homing.XGratingPort),
+                BuildHomingPort(homing.YGratingPort),
+                homing.HomeTimeoutMs,
+                homing.HomeBackoffPulse,
+                homing.ZHomeLiftPulse,
+                homing.ZHomeTowardPositiveDirection,
+                homing.SlowHomeStartSpeed,
+                homing.SlowHomeSpeed,
+                homing.SlowHomeAcceleration,
+                homing.GratingHomeStartSpeed,
+                homing.GratingHomeSpeed,
+                homing.GratingHomeAcceleration);
+        }
+
+        private static MotionAdt8940.HomingPort BuildHomingPort(Models.PortItem port)
+        {
+            return new MotionAdt8940.HomingPort(port.PortIndex, port.IsLowLevelActive);
         }
 
         private static void LogStartupInformation()

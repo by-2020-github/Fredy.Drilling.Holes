@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:Fredy.Drilling.Holes.ViewModels"        xmlns:uc="clr-namespace:Fredy.Drilling.Holes.UserControls"        mc:Ignorable="d"
         MaxHeight="1080" MaxWidth="1800"
-        Title="分区扫描" Height="Auto" Width="1480" Background="#F0F0F0"
+        Title="分区扫描" Height="Auto" Width="1480" Background="{StaticResource Brush.Background.Subtle}"
         d:DataContext="{d:DesignInstance Type=vm:ScanViewModel, IsDesignTimeCreatable=True}">
 
     <Window.Resources>
@@ -23,7 +23,7 @@
             <ColumnDefinition Width="380"/>
         </Grid.ColumnDefinitions>
 
-        <Border BorderBrush="#CCCCCC" BorderThickness="0,0,1,0" Padding="15">
+        <Border BorderBrush="{StaticResource Brush.Border}" BorderThickness="0,0,1,0" Padding="15">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
@@ -35,7 +35,7 @@
                 <StackPanel Grid.Row="0">
                     <StackPanel Orientation="Horizontal" Margin="0,5">
                         <TextBlock Text="工件类型：" FontSize="16"/>
-                        <TextBlock Text="{Binding Params.WorkpieceType}" Foreground="RoyalBlue" FontSize="16"/>
+                        <TextBlock Text="{Binding Params.WorkpieceType}" Foreground="{StaticResource Brush.Status.Blue}" FontSize="16"/>
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" Margin="0,5">
                         <TextBlock Text="工件直径(mm)：" FontSize="16"/>
@@ -61,7 +61,7 @@
                                  Text="{Binding Params.FovSize}"
                                  IsReadOnly="True"
                                  IsHitTestVisible="False"
-                                 Background="#F3F3F3"
+                                 Background="{StaticResource Brush.Background.Disabled}"
                                  Margin="2"/>
 
                         <TextBlock Grid.Row="1" Text="扫描扩展(mm):" VerticalAlignment="Center"/>
@@ -79,7 +79,7 @@
                 </StackPanel>
 
                 <StackPanel Grid.Row="1" Margin="0,20">
-                    <Button Content="计算扫描坐标" Height="46" Background="#E9967A"
+                    <Button Content="计算扫描坐标" Height="46" Background="{StaticResource Brush.Status.Yellow}"
                             FontSize="17" FontWeight="Bold" Command="{Binding CalculateCoordinatesCommand}"/>
 
                     <UniformGrid Columns="2" Margin="0,14,0,0">
@@ -134,8 +134,8 @@
                     <Button Content="识别并应用二道坐标校准"
                              Height="40"
                              Margin="0,12,0,0"
-                             Background="#6A5ACD"
-                             Foreground="White"
+                             Background="{StaticResource Brush.Status.Blue}"
+                             Foreground="{StaticResource Brush.Foreground.Inverse}"
                              Command="{Binding ApplySecondPassAlignmentCommand}"/>
                 </StackPanel>
 
@@ -150,7 +150,7 @@
                     <TextBlock Text="{Binding Params.TotalShots, StringFormat='总点数：{0}'}" FontSize="14" Margin="0,2"/>
                     <TextBlock Text="{Binding Params.ActualOverlapXPercent, StringFormat='列重叠：{0:F1}%'}" FontSize="14" Margin="0,2"/>
                     <TextBlock Text="{Binding Params.ActualOverlapYPercent, StringFormat='行重叠：{0:F1}%'}" FontSize="14" Margin="0,2"/>
-                    <ProgressBar Height="18" Margin="0,10,0,0" Value="{Binding Params.ProgressValue}" Maximum="100" Foreground="LimeGreen"/>
+                    <ProgressBar Height="18" Margin="0,10,0,0" Value="{Binding Params.ProgressValue}" Maximum="100" Foreground="{StaticResource Brush.Status.Green}"/>
                 </StackPanel>
 
                 <StackPanel Grid.Row="3" VerticalAlignment="Bottom">
@@ -162,7 +162,7 @@
             </Grid>
         </Border>
 
-        <Border Grid.Column="1" Background="#111111" Margin="8" Padding="8">
+        <Border Grid.Column="1" Background="{StaticResource Brush.Surface.Dark}" Margin="8" Padding="8">
             <Grid>
                 <uc:CameraViewerControl ImageMat="{Binding StitchedPreviewMat}" />
 
@@ -198,7 +198,7 @@
                 </ItemsControl>
 
                 <TextBlock Text="扫描拼接预览（网格透明叠加）"
-                           Foreground="#B0B0B0"
+                           Foreground="{StaticResource Brush.Foreground.Overlay}"
                            HorizontalAlignment="Left"
                            VerticalAlignment="Top"
                            Margin="8,4"/>
@@ -206,7 +206,7 @@
         </Border>
 
         <!-- 右侧：实时检测预览与列表 -->
-        <Border Grid.Column="2" BorderBrush="#CCCCCC" BorderThickness="1,0,0,0" Padding="10">
+        <Border Grid.Column="2" BorderBrush="{StaticResource Brush.Border}" BorderThickness="1,0,0,0" Padding="10">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
@@ -223,10 +223,10 @@
                 </StackPanel>
 
                 <!-- 当前拍照识别结果叠加图 -->
-                <Border Grid.Row="1" Background="#202020" BorderBrush="#555" BorderThickness="1">
+                <Border Grid.Row="1" Background="{StaticResource Brush.Surface.DarkAlt}" BorderBrush="{StaticResource Brush.Border.Dark}" BorderThickness="1">
                     <uc:CameraViewerControl ImageMat="{Binding LatestDetectionMat}" />
                 </Border>
-                <TextBlock Grid.Row="1" Text="当前单图识别效果预览" Foreground="#B0B0B0" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="8,4" IsHitTestVisible="False"/>
+                <TextBlock Grid.Row="1" Text="当前单图识别效果预览" Foreground="{StaticResource Brush.Foreground.Overlay}" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="8,4" IsHitTestVisible="False"/>
 
                 <TextBlock Grid.Row="2" Text="识别列表 (全局物理坐标, 尺寸等)" FontWeight="Bold" Margin="0,15,0,8"/>
 
@@ -236,7 +236,7 @@
                           IsReadOnly="True"
                           HeadersVisibility="Column"
                           GridLinesVisibility="Horizontal"
-                          Background="White">
+                          Background="{StaticResource Brush.Background}">
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="图序" Binding="{Binding ImageIndex}" Width="40"/>
                         <DataGridTextColumn Header="像素X" Binding="{Binding PixelX}" Width="55"/>

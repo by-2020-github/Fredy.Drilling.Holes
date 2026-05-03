@@ -7,19 +7,29 @@ namespace Fredy.Drilling.Holes.Converters
 {
     public class StatusColorConverter : IValueConverter
     {
-        // 默认 正常为绿，异常为红
+        private static readonly SolidColorBrush ReadyBrush = CreateBrush("#2E7D32");
+        private static readonly SolidColorBrush NotReadyBrush = CreateBrush("#D32F2F");
+
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
             if (value is bool isReady && isReady)
             {
-                return Brushes.LimeGreen; // 或使用 #00FF00
+                return ReadyBrush;
             }
-            return Brushes.Red;
+
+            return NotReadyBrush;
         }
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
         {
             throw new NotImplementedException();
+        }
+
+        private static SolidColorBrush CreateBrush(string color)
+        {
+            var brush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(color));
+            brush.Freeze();
+            return brush;
         }
     }
 }

@@ -12,6 +12,7 @@ namespace HAL
         private IntPtr _frameBuffer = IntPtr.Zero;
         private uint _payloadSize;
         private bool _isGrabbing;
+        private volatile bool _isClosing;
 
         public bool IsConnected { get; private set; }
 
@@ -90,6 +91,7 @@ namespace HAL
                     _payloadSize = (uint)payload.nCurValue;
                     _frameBuffer = Marshal.AllocHGlobal((int)_payloadSize);
 
+                    _isClosing = false;
                     IsConnected = true;
                     return true;
                 }
@@ -103,6 +105,8 @@ namespace HAL
 
         public void Close()
         {
+            _isClosing = true;
+
             lock (_syncRoot)
             {
                 if (_camera is not null)
@@ -133,14 +137,19 @@ namespace HAL
         {
             lock (_syncRoot)
             {
-                if (!IsConnected || _camera is null || _frameBuffer == IntPtr.Zero)
+                if (_isClosing || !IsConnected || _camera is null || _frameBuffer == IntPtr.Zero)
                 {
-                    throw new InvalidOperationException("Camera is not connected.");
+                    throw new OperationCanceledException("Camera is closing.");
                 }
 
                 var triggerRet = _camera.MV_CC_SetCommandValue_NET("TriggerSoftware");
                 if (triggerRet != MyCamera.MV_OK)
                 {
+                    if (_isClosing || !IsConnected || !_isGrabbing)
+                    {
+                        throw new OperationCanceledException("Camera trigger canceled because camera is closing.");
+                    }
+
                     throw new InvalidOperationException($"Trigger failed: 0x{triggerRet:X8}");
                 }
 
@@ -148,6 +157,11 @@ namespace HAL
                 var nRet = _camera.MV_CC_GetOneFrameTimeout_NET(_frameBuffer, _payloadSize, ref frameInfo, 1000);
                 if (nRet != MyCamera.MV_OK)
                 {
+                    if (_isClosing || !IsConnected || !_isGrabbing)
+                    {
+                        throw new OperationCanceledException("Camera grab canceled because camera is closing.");
+                    }
+
                     throw new InvalidOperationException($"Grab failed: 0x{nRet:X8}");
                 }
 
