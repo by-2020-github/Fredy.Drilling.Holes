@@ -844,7 +844,9 @@ namespace Fredy.Drilling.Holes.ViewModels
                 Deceleration = source.Deceleration,
                 LeftLimit = source.LeftLimit,
                 RightLimit = source.RightLimit,
-                PulsesPerMillimeter = source.PulsesPerMillimeter
+                PulsesPerMillimeter = source.PulsesPerMillimeter,
+                UseActualPositionFeedback = source.UseActualPositionFeedback,
+                InPositionTolerance = source.InPositionTolerance
             };
         }
 
