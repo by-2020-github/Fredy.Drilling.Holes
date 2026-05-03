@@ -1,4 +1,4 @@
-﻿<Window x:Class="Fredy.Drilling.Holes.Views.ManualControlView"
+﻿<Window x:Class="Fredy.Drilling.Holes.Views.CameraPunchOffsetCalibrationWindow"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
@@ -9,8 +9,8 @@
              mc:Ignorable="d" Background="{StaticResource Brush.Background.Subtle}"
              d:DesignHeight="700" d:DesignWidth="1100"
             MaxHeight="1024" MaxWidth="1280" Height="Auto" 
-             Title="手动控制"
-             d:DataContext="{d:DesignInstance Type=vm:ManualControlViewModel, IsDesignTimeCreatable=True}">
+              Title="相机/冲针偏移校准"
+              d:DataContext="{d:DesignInstance Type=vm:CameraPunchOffsetCalibrationViewModel, IsDesignTimeCreatable=True}">
 
     <Grid Margin="15">
         <Grid.ColumnDefinitions>

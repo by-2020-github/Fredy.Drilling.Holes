@@ -17,9 +17,9 @@ using System.Windows.Media.Imaging;
 
 namespace Fredy.Drilling.Holes.ViewModels
 {
-    public partial class ManualControlViewModel : ObservableObject, IDisposable
+    public partial class CameraPunchOffsetCalibrationViewModel : ObservableObject, IDisposable
     {
-        private readonly ILogger<ManualControlViewModel>? _logger;
+        private readonly ILogger<CameraPunchOffsetCalibrationViewModel>? _logger;
         private readonly IMotionService? _motionService;
         private readonly IIOCard? _ioCard;
         private readonly IHardwareStateService? _hardwareStateService;
@@ -46,12 +46,12 @@ namespace Fredy.Drilling.Holes.ViewModels
         public ObservableCollection<GpioItem> GpioIn { get; } = new();
         public ObservableCollection<GpioItem> GpioOut { get; } = new();
 
-        public ManualControlViewModel()
+        public CameraPunchOffsetCalibrationViewModel()
         {
             InitializeCollections();
         }
 
-        public ManualControlViewModel(ILogger<ManualControlViewModel> logger, IMotionService motionService, IIOCard ioCard, IHardwareStateService hardwareStateService, ICamera camera)
+        public CameraPunchOffsetCalibrationViewModel(ILogger<CameraPunchOffsetCalibrationViewModel> logger, IMotionService motionService, IIOCard ioCard, IHardwareStateService hardwareStateService, ICamera camera)
             : this()
         {
             _logger = logger;

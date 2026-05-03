@@ -19,24 +19,24 @@ using System.ComponentModel;
 namespace Fredy.Drilling.Holes.Views
 {
     /// <summary>
-    /// ManualControlView.xaml 的交互逻辑
+    /// CameraPunchOffsetCalibrationWindow.xaml 的交互逻辑
     /// </summary>
-    public partial class ManualControlView : Window
+    public partial class CameraPunchOffsetCalibrationWindow : Window
     {
-        public ManualControlView()
+        public CameraPunchOffsetCalibrationWindow()
         {
             InitializeComponent();
 
             if (!DesignerProperties.GetIsInDesignMode(this))
             {
-                DataContext ??= App.ServiceProvider.GetRequiredService<ManualControlViewModel>();
-                Closed += ManualControlView_Closed;
+                DataContext ??= App.ServiceProvider.GetRequiredService<CameraPunchOffsetCalibrationViewModel>();
+                Closed += CameraPunchOffsetCalibrationWindow_Closed;
             }
         }
 
-        private void ManualControlView_Closed(object? sender, EventArgs e)
+        private void CameraPunchOffsetCalibrationWindow_Closed(object? sender, EventArgs e)
         {
-            Closed -= ManualControlView_Closed;
+            Closed -= CameraPunchOffsetCalibrationWindow_Closed;
             if (DataContext is IDisposable disposable)
             {
                 disposable.Dispose();

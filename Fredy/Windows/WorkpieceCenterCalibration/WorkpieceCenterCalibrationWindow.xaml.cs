@@ -17,12 +17,12 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Fredy.Drilling.Holes.Views
 {
-    public partial class CalibrationWindow : Window
+    public partial class WorkpieceCenterCalibrationWindow : Window
     {
-        public CalibrationWindow()
+        public WorkpieceCenterCalibrationWindow()
         {
             InitializeComponent();
-            DataContext = App.ServiceProvider.GetRequiredService<CalibrationViewModel>();
+            DataContext = App.ServiceProvider.GetRequiredService<WorkpieceCenterCalibrationViewModel>();
         }
 
         protected override void OnClosed(EventArgs e)

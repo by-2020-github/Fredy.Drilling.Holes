@@ -47,6 +47,13 @@ namespace Fredy.Drilling.Holes.ViewModels
         [ObservableProperty] private ImageSource? _previewImage;
         [ObservableProperty] private string _statusMessage = "等待执行九点标定";
         [ObservableProperty] private bool _isRunning;
+        [ObservableProperty] private double _currentX;
+        [ObservableProperty] private double _currentY;
+        [ObservableProperty] private double _currentZ;
+        [ObservableProperty] private double _relativeMoveStep = 1;
+        [ObservableProperty] private double _absoluteTargetX;
+        [ObservableProperty] private double _absoluteTargetY;
+        [ObservableProperty] private double _absoluteTargetZ;
 
         public event Action<bool?>? RequestClose;
 
@@ -58,6 +65,11 @@ namespace Fredy.Drilling.Holes.ViewModels
         {
             _motionService = motionService;
             _camera = camera;
+
+            if (_motionService is not null)
+            {
+                RefreshAxisPositions();
+            }
         }
 
         [RelayCommand]
@@ -91,6 +103,111 @@ namespace Fredy.Drilling.Holes.ViewModels
             };
 
             RequestClose?.Invoke(true);
+        }
+
+        [RelayCommand]
+        private void RefreshPosition()
+        {
+            RefreshAxisPositions();
+        }
+
+        [RelayCommand]
+        private async Task MoveRelativeAsync(string? axis)
+        {
+            if (_motionService is null)
+            {
+                StatusMessage = "缺少运动控制服务";
+                return;
+            }
+
+            if (RelativeMoveStep <= 0)
+            {
+                StatusMessage = "相对移动步长必须大于0";
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(axis))
+            {
+                StatusMessage = "未指定移动轴";
+                return;
+            }
+
+            try
+            {
+                switch (axis.ToUpperInvariant())
+                {
+                    case "X+":
+                        await _motionService.MoveXAsync(CurrentX + RelativeMoveStep, Math.Max(1, _motionService.XAxis.Velocity), true);
+                        break;
+                    case "X-":
+                        await _motionService.MoveXAsync(CurrentX - RelativeMoveStep, Math.Max(1, _motionService.XAxis.Velocity), true);
+                        break;
+                    case "Y+":
+                        await _motionService.MoveYAsync(CurrentY + RelativeMoveStep, Math.Max(1, _motionService.YAxis.Velocity), true);
+                        break;
+                    case "Y-":
+                        await _motionService.MoveYAsync(CurrentY - RelativeMoveStep, Math.Max(1, _motionService.YAxis.Velocity), true);
+                        break;
+                    case "Z+":
+                        await _motionService.MoveZAsync(CurrentZ + RelativeMoveStep, Math.Max(1, _motionService.ZAxis.Velocity), true);
+                        break;
+                    case "Z-":
+                        await _motionService.MoveZAsync(CurrentZ - RelativeMoveStep, Math.Max(1, _motionService.ZAxis.Velocity), true);
+                        break;
+                    default:
+                        StatusMessage = $"不支持的移动轴: {axis}";
+                        return;
+                }
+
+                RefreshAxisPositions();
+                StatusMessage = $"相对移动完成: {axis} {RelativeMoveStep:F3} mm";
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"相对移动失败: {ex.Message}";
+            }
+        }
+
+        [RelayCommand]
+        private async Task MoveAbsoluteAsync(string? axis)
+        {
+            if (_motionService is null)
+            {
+                StatusMessage = "缺少运动控制服务";
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(axis))
+            {
+                StatusMessage = "未指定移动轴";
+                return;
+            }
+
+            try
+            {
+                switch (axis.ToUpperInvariant())
+                {
+                    case "X":
+                        await _motionService.MoveXAsync(AbsoluteTargetX, Math.Max(1, _motionService.XAxis.Velocity), true);
+                        break;
+                    case "Y":
+                        await _motionService.MoveYAsync(AbsoluteTargetY, Math.Max(1, _motionService.YAxis.Velocity), true);
+                        break;
+                    case "Z":
+                        await _motionService.MoveZAsync(AbsoluteTargetZ, Math.Max(1, _motionService.ZAxis.Velocity), true);
+                        break;
+                    default:
+                        StatusMessage = $"不支持的移动轴: {axis}";
+                        return;
+                }
+
+                RefreshAxisPositions();
+                StatusMessage = $"绝对移动完成: {axis}";
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"绝对移动失败: {ex.Message}";
+            }
         }
 
         [RelayCommand]
@@ -394,6 +511,29 @@ namespace Fredy.Drilling.Holes.ViewModels
             pixelSizeX = (XStep / xPixelSteps.Average()) * 1000.0;
             pixelSizeY = (YStep / yPixelSteps.Average()) * 1000.0;
             return true;
+        }
+
+        private void RefreshAxisPositions()
+        {
+            if (_motionService is null)
+            {
+                return;
+            }
+
+            try
+            {
+                CurrentX = _motionService.GetXPosition();
+                CurrentY = _motionService.GetYPosition();
+                CurrentZ = _motionService.GetZPosition();
+
+                AbsoluteTargetX = CurrentX;
+                AbsoluteTargetY = CurrentY;
+                AbsoluteTargetZ = CurrentZ;
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"读取当前位置失败: {ex.Message}";
+            }
         }
 
         private static Mat CreateVirtualTriangleTemplate(int width, int height)

@@ -51,4 +51,8 @@
     <None Include="Windows\ParamConfig\old\ProcessManager.cs" />
     <None Include="Windows\ParamConfig\old\ProcessParameters.cs" />
   </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Windows\ManulControl\" />
+  </ItemGroup>
 </Project>

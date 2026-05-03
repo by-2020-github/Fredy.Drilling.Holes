@@ -61,6 +61,78 @@
                 </StackPanel>
             </GroupBox>
 
+            <GroupBox Header="位置调整" Padding="10" Margin="0,0,0,10">
+                <StackPanel>
+                    <WrapPanel Margin="0,0,0,8">
+                        <TextBlock Text="当前 X" VerticalAlignment="Center"/>
+                        <TextBlock Text="{Binding CurrentX, StringFormat=F3}" Margin="6,0,16,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="当前 Y" VerticalAlignment="Center"/>
+                        <TextBlock Text="{Binding CurrentY, StringFormat=F3}" Margin="6,0,16,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="当前 Z" VerticalAlignment="Center"/>
+                        <TextBlock Text="{Binding CurrentZ, StringFormat=F3}" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                    </WrapPanel>
+
+                    <Grid Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="90"/>
+                            <ColumnDefinition Width="90"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Text="相对步长(mm)" VerticalAlignment="Center"/>
+                        <TextBox Grid.Row="0" Grid.Column="1" Width="80" Text="{Binding RelativeMoveStep, UpdateSourceTrigger=PropertyChanged}"/>
+
+                        <TextBlock Grid.Row="0" Grid.Column="2" Text="X 轴" VerticalAlignment="Center" Margin="0,0,0,6"/>
+                        <UniformGrid Grid.Row="0" Grid.Column="2" Columns="2" Margin="48,0,0,6">
+                            <Button Content="负向" Margin="0,0,6,0" Command="{Binding MoveRelativeCommand}" CommandParameter="X-"/>
+                            <Button Content="正向" Command="{Binding MoveRelativeCommand}" CommandParameter="X+"/>
+                        </UniformGrid>
+
+                        <TextBlock Grid.Row="1" Grid.Column="2" Text="Y 轴" VerticalAlignment="Center" Margin="0,0,0,6"/>
+                        <UniformGrid Grid.Row="1" Grid.Column="2" Columns="2" Margin="48,0,0,6">
+                            <Button Content="负向" Margin="0,0,6,0" Command="{Binding MoveRelativeCommand}" CommandParameter="Y-"/>
+                            <Button Content="正向" Command="{Binding MoveRelativeCommand}" CommandParameter="Y+"/>
+                        </UniformGrid>
+
+                        <TextBlock Grid.Row="2" Grid.Column="2" Text="Z 轴" VerticalAlignment="Center"/>
+                        <UniformGrid Grid.Row="2" Grid.Column="2" Columns="2" Margin="48,0,0,0">
+                            <Button Content="负向" Margin="0,0,6,0" Command="{Binding MoveRelativeCommand}" CommandParameter="Z-"/>
+                            <Button Content="正向" Command="{Binding MoveRelativeCommand}" CommandParameter="Z+"/>
+                        </UniformGrid>
+                    </Grid>
+
+                    
+                    <Grid Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="80"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="80"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="80"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="绝对 X" VerticalAlignment="Center"/>
+                        <TextBox Grid.Column="1" Margin="6,0,12,0" Text="{Binding AbsoluteTargetX, UpdateSourceTrigger=PropertyChanged}"/>
+                        <TextBlock Grid.Column="2" Text="绝对 Y" VerticalAlignment="Center"/>
+                        <TextBox Grid.Column="3" Margin="6,0,12,0" Text="{Binding AbsoluteTargetY, UpdateSourceTrigger=PropertyChanged}"/>
+                        <TextBlock Grid.Column="4" Text="绝对 Z" VerticalAlignment="Center"/>
+                        <TextBox Grid.Column="5" Margin="6,0,0,0" Text="{Binding AbsoluteTargetZ, UpdateSourceTrigger=PropertyChanged}"/>
+                    </Grid>
+
+                    <WrapPanel>
+                        <Button Content="移动到 X" Width="90" Command="{Binding MoveAbsoluteCommand}" CommandParameter="X"/>
+                        <Button Content="移动到 Y" Width="90" Margin="8,0,0,0" Command="{Binding MoveAbsoluteCommand}" CommandParameter="Y"/>
+                        <Button Content="移动到 Z" Width="90" Margin="8,0,0,0" Command="{Binding MoveAbsoluteCommand}" CommandParameter="Z"/>
+                        <Button Content="刷新坐标" Width="90" Margin="8,0,0,0" Command="{Binding RefreshPositionCommand}"/>
+                    </WrapPanel>
+                </StackPanel>
+            </GroupBox>
+
             <GroupBox Header="结果" Padding="10">
                 <StackPanel>
                     <TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap"/>

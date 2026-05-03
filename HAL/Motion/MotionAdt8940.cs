@@ -177,7 +177,8 @@ namespace HAL
             var axis = GetAxisParam(axisNo);
 
             ExecuteNative(
-                (out int pos) => adt8940a1.adt8940a1_get_actual_pos(_cardNo, axisNo, out pos),
+                //(out int pos) => adt8940a1.adt8940a1_get_actual_pos(_cardNo, axisNo, out pos),
+                (out int pos) => adt8940a1.adt8940a1_get_command_pos(_cardNo, axisNo, out pos),
                 $"Get position for axis {axisNo}",
                 out var position);
 

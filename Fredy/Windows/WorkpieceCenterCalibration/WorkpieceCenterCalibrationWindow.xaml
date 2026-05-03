@@ -1,4 +1,4 @@
-﻿<Window x:Class="Fredy.Drilling.Holes.Views.CalibrationWindow"
+﻿<Window x:Class="Fredy.Drilling.Holes.Views.WorkpieceCenterCalibrationWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -7,8 +7,8 @@
         xmlns:uc="clr-namespace:Fredy.Drilling.Holes.UserControls"
         mc:Ignorable="d" x:Name="thisWin"
         MaxHeight="1024" MaxWidth="1280" Height="Auto" 
-        Title="找圆定位 - 定位圆心" Width="1050" Background="{StaticResource Brush.Background.Subtle}"
-        d:DataContext="{d:DesignInstance Type=vm:CalibrationViewModel, IsDesignTimeCreatable=True}">
+        Title="工件圆心校准" Width="1050" Background="{StaticResource Brush.Background.Subtle}"
+        d:DataContext="{d:DesignInstance Type=vm:WorkpieceCenterCalibrationViewModel, IsDesignTimeCreatable=True}">
 
     <Grid Margin="15">
         <Grid.ColumnDefinitions>

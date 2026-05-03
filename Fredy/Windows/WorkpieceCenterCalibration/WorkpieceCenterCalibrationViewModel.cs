@@ -15,9 +15,9 @@ using System.Windows.Media.Imaging;
 
 namespace Fredy.Drilling.Holes.ViewModels
 {
-    public partial class CalibrationViewModel : ObservableObject, IDisposable
+    public partial class WorkpieceCenterCalibrationViewModel : ObservableObject, IDisposable
     {
-        private readonly ILogger<CalibrationViewModel>? _logger;
+        private readonly ILogger<WorkpieceCenterCalibrationViewModel>? _logger;
         private readonly IMotionService? _motionService;
         private readonly IHardwareStateService? _hardwareStateService;
         private readonly ICamera? _camera;
@@ -40,11 +40,11 @@ namespace Fredy.Drilling.Holes.ViewModels
 
         public ObservableCollection<System.Windows.Point> EdgePoints { get; } = new();
 
-        public CalibrationViewModel()
+        public WorkpieceCenterCalibrationViewModel()
         {
         }
 
-        public CalibrationViewModel(ILogger<CalibrationViewModel> logger, IMotionService motionService, IHardwareStateService hardwareStateService, ICamera camera)
+        public WorkpieceCenterCalibrationViewModel(ILogger<WorkpieceCenterCalibrationViewModel> logger, IMotionService motionService, IHardwareStateService hardwareStateService, ICamera camera)
         {
             _logger = logger;
             _motionService = motionService;

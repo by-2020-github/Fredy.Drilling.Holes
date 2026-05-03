@@ -34,7 +34,9 @@ namespace Fredy.Drilling.Holes
             try
             {
                 var serviceCollection = new ServiceCollection();
-                ConfigureServices(serviceCollection, logStore);
+                var configService = new ConfigService();
+                var hardwareInitializationResult = EvaluateHardwareInitialization(configService.CurrentConfig);
+                ConfigureServices(serviceCollection, logStore, configService, hardwareInitializationResult);
 
                 ServiceProvider = serviceCollection.BuildServiceProvider();
                 InitializeMotionService();
@@ -48,6 +50,8 @@ namespace Fredy.Drilling.Holes
                 var mainWindow = ServiceProvider.GetRequiredService<MainWindow>();
                 MainWindow = mainWindow;
                 mainWindow.Show();
+
+                ShowHardwareInitializationMessage(hardwareInitializationResult);
             }
             catch (Exception ex)
             {
@@ -82,14 +86,17 @@ namespace Fredy.Drilling.Holes
                 .CreateLogger();
         }
 
-        private void ConfigureServices(IServiceCollection services, IAppLogStore logStore)
+        private void ConfigureServices(
+            IServiceCollection services,
+            IAppLogStore logStore,
+            ConfigService configService,
+            HardwareInitializationResult hardwareInitializationResult)
         {
-            var configService = new ConfigService();
             services.AddSingleton(configService);
             var config = configService.CurrentConfig;
 
             // 注册硬件 - 相机
-            if (config.Camera.CameraType == "模拟相机")
+            if (config.Camera.CameraType == "模拟相机" || hardwareInitializationResult.UseSimulatedCamera)
             {
                 services.AddSingleton<ICamera, CameraSimulator>();
             }
@@ -99,7 +106,7 @@ namespace Fredy.Drilling.Holes
             }
 
             // 注册硬件 - 运动控制与 IO
-            if (config.MotionController.ControllerType == "ADT8940")
+            if (config.MotionController.ControllerType == "ADT8940" && !hardwareInitializationResult.UseSimulatedMotion)
             {
                 services.AddSingleton<MotionAdt8940>();
                 services.AddSingleton<IMoton>(sp => sp.GetRequiredService<MotionAdt8940>());
@@ -140,13 +147,85 @@ namespace Fredy.Drilling.Holes
             services.AddTransient<ConfigWindow>(); // 每次打开配置页面都创建一个新的实例
 
             services.AddSingleton<MainViewModel>();
-            services.AddTransient<ManualControlViewModel>();
+            services.AddTransient<CameraPunchOffsetCalibrationViewModel>();
             services.AddTransient<DetectionViewModel>();
             services.AddTransient<PunchingCompensationViewModel>();
             services.AddTransient<SecondPassDetectionViewModel>();
-            services.AddTransient<CalibrationViewModel>();
+            services.AddTransient<WorkpieceCenterCalibrationViewModel>();
 
             services.AddSingleton<MainWindow>();
+        }
+
+        private static HardwareInitializationResult EvaluateHardwareInitialization(Models.AppConfig config)
+        {
+            bool useSimulatedCamera = config.Camera.CameraType == "模拟相机";
+            bool useSimulatedMotion = config.MotionController.ControllerType != "ADT8940";
+            string? cameraFallbackReason = null;
+            string? motionFallbackReason = null;
+
+            if (!useSimulatedCamera)
+            {
+                try
+                {
+                    using ICamera camera = new HkCamera();
+                    if (!camera.Open())
+                    {
+                        useSimulatedCamera = true;
+                        cameraFallbackReason = "真实相机初始化失败，已自动切换为模拟相机。";
+                    }
+                }
+                catch (Exception ex)
+                {
+                    useSimulatedCamera = true;
+                    cameraFallbackReason = $"真实相机初始化失败，已自动切换为模拟相机。原因：{ex.Message}";
+                }
+            }
+
+            if (!useSimulatedMotion)
+            {
+                try
+                {
+                    var motion = new MotionAdt8940();
+                    var motionService = new MotionManager(motion);
+                    motionService.EnableAll();
+                    motionService.DisableAll();
+                }
+                catch (Exception ex)
+                {
+                    useSimulatedMotion = true;
+                    motionFallbackReason = $"真实运动控制器初始化失败，已自动切换为模拟运动与 IO 设备。原因：{ex.Message}";
+                }
+            }
+
+            if (cameraFallbackReason is not null)
+            {
+                Log.Warning(cameraFallbackReason);
+            }
+
+            if (motionFallbackReason is not null)
+            {
+                Log.Warning(motionFallbackReason);
+            }
+
+            return new HardwareInitializationResult(
+                useSimulatedCamera,
+                useSimulatedMotion,
+                cameraFallbackReason,
+                motionFallbackReason);
+        }
+
+        private static void ShowHardwareInitializationMessage(HardwareInitializationResult result)
+        {
+            if (string.IsNullOrWhiteSpace(result.CameraFallbackReason) && string.IsNullOrWhiteSpace(result.MotionFallbackReason))
+            {
+                return;
+            }
+
+            var message = string.Join(
+                Environment.NewLine,
+                new[] { result.CameraFallbackReason, result.MotionFallbackReason }.Where(static x => !string.IsNullOrWhiteSpace(x)));
+
+            MessageBox.Show(message, "硬件初始化提示", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
 
         private static void InitializePathManager()
@@ -264,5 +343,11 @@ namespace Fredy.Drilling.Holes
             Log.Error(e.Exception, "捕获到未观察的任务异常");
             e.SetObserved();
         }
+
+        private sealed record HardwareInitializationResult(
+            bool UseSimulatedCamera,
+            bool UseSimulatedMotion,
+            string? CameraFallbackReason,
+            string? MotionFallbackReason);
     }
 }

@@ -28,6 +28,7 @@ namespace Fredy.Drilling.Holes.ViewModels
         private readonly IAppLogStore? _logStore;
         private readonly ILogger<MainViewModel>? _logger;
         private readonly ICamera? _camera;
+        private readonly IHardwareController? _hardwareController;
         private readonly RecipeService? _recipeService;
         private readonly IHardwareStateService? _hardwareStateService;
         private readonly ISecondPassAlignmentContext? _secondPassAlignmentContext;
@@ -95,6 +96,7 @@ namespace Fredy.Drilling.Holes.ViewModels
             ILogger<MainViewModel> logger,
             RecipeService recipeService,
             ICamera camera,
+            IHardwareController hardwareController,
             IHardwareStateService hardwareStateService,
             ISecondPassAlignmentContext secondPassAlignmentContext)
         {
@@ -103,6 +105,7 @@ namespace Fredy.Drilling.Holes.ViewModels
             _logger = logger;
             _recipeService = recipeService;
             _camera = camera;
+            _hardwareController = hardwareController;
             _hardwareStateService = hardwareStateService;
             _secondPassAlignmentContext = secondPassAlignmentContext;
             Logs = logStore.Entries;
@@ -346,13 +349,10 @@ namespace Fredy.Drilling.Holes.ViewModels
         {
             Window? window = winName switch
             {
-                "Manual" => new ManualControlView(),
+                "CameraPunchOffsetCalibration" => new CameraPunchOffsetCalibrationWindow(),
                 "Config" => new ConfigWindow(),
                 "PartScan" => new ScanWindow(),
-                "Calibration" => new CalibrationWindow(),
-                "Compensation" => new PunchingCompensationView(),
-                "Detection" => new DetectionView(),
-                "SecondPassDetection" => new SecondPassDetectionView(),
+                "WorkpieceCenterCalibration" => new WorkpieceCenterCalibrationWindow(),
                 "RecipeWin" => new RecipeWindow(),
                 _ => null
             };
@@ -371,7 +371,7 @@ namespace Fredy.Drilling.Holes.ViewModels
 
             try
             {
-                window.ShowDialog();
+                window.Show();
                 _logger?.LogInformation("弹出窗口: {WinName}", winName);
             }
             finally
@@ -482,7 +482,7 @@ namespace Fredy.Drilling.Holes.ViewModels
         {
             IHardwareController hardwareController = IsSimulate
                 ? new MockHardwareController()
-                : new HardwareSimulation();
+                : _hardwareController ?? throw new InvalidOperationException("未注入实际硬件控制器。");
 
             return new PunchStateMachine(hardwareController);
         }

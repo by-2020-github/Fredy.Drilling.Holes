@@ -100,11 +100,11 @@
             </Border>
 
             <UniformGrid Columns="1" Margin="0,10">
-                <Button Content="手动页面" Style="{StaticResource NavButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="Manual"/>
+                <Button Content="校针" Style="{StaticResource NavButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="CameraPunchOffsetCalibration"/>
                 <Button Content="参数配置" Style="{StaticResource NavButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="Config"/>
                 <Button Content="分区扫描" Style="{StaticResource NavButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="PartScan"/>
                 <Button Content="配方编辑" Style="{StaticResource NavButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="RecipeWin"/>
-                <Button Content="位置校准" Style="{StaticResource NavButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="Calibration"/>
+                <Button Content="位置校准" Style="{StaticResource NavButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="WorkpieceCenterCalibration"/>
             </UniformGrid>
 
             <StackPanel Margin="0,10">
