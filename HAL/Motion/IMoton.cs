@@ -12,7 +12,9 @@ namespace HAL
         double Deceleration,
         double? LeftLimit = null,
         double? RightLimit = null,
-        double PulsesPerMillimeter = 1d);
+        double PulsesPerMillimeter = 1d,
+        bool UseActualPositionFeedback = false,
+        double? InPositionTolerance = null);
 
     public interface IMoton
     {

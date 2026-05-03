@@ -21,6 +21,8 @@
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
             <TextBlock Text="轴号" VerticalAlignment="Center" Margin="0,0,8,8"/>
@@ -40,6 +42,31 @@
 
             <TextBlock Grid.Row="3" Text="每mm脉冲数" VerticalAlignment="Center" Margin="0,0,8,0"/>
             <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding AxisConfig.PulsesPerMillimeter, RelativeSource={RelativeSource AncestorType=UserControl}, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,12,0"/>
+
+            <TextBlock Grid.Row="4" Text="实际位置反馈" VerticalAlignment="Center" Margin="0,8,8,0"/>
+            <CheckBox Grid.Row="4"
+                      Grid.Column="1"
+                      Grid.ColumnSpan="3"
+                      Content="控制器直接提供实际位置反馈"
+                      IsChecked="{Binding AxisConfig.UseActualPositionFeedback, RelativeSource={RelativeSource AncestorType=UserControl}, UpdateSourceTrigger=PropertyChanged}"
+                      Margin="0,8,0,0"/>
+
+            <TextBlock Grid.Row="5" Text="到位误差(mm)" VerticalAlignment="Center" Margin="0,8,8,0"/>
+            <TextBox Grid.Row="5"
+                     Grid.Column="1"
+                     Text="{Binding AxisConfig.InPositionTolerance, RelativeSource={RelativeSource AncestorType=UserControl}, UpdateSourceTrigger=PropertyChanged, TargetNullValue=''}"
+                     Margin="0,8,12,0">
+                <TextBox.Style>
+                    <Style TargetType="TextBox">
+                        <Setter Property="IsEnabled" Value="False"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding AxisConfig.UseActualPositionFeedback, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="False">
+                                <Setter Property="IsEnabled" Value="True"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBox.Style>
+            </TextBox>
         </Grid>
     </GroupBox>
 </UserControl>

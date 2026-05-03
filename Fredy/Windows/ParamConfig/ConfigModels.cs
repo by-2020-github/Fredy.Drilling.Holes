@@ -22,6 +22,8 @@ namespace Fredy.Drilling.Holes.Models
         [ObservableProperty] private double? _leftLimit;
         [ObservableProperty] private double? _rightLimit;
         [ObservableProperty] private double _pulsesPerMillimeter = 1d;
+        [ObservableProperty] private bool _useActualPositionFeedback;
+        [ObservableProperty] private double? _inPositionTolerance;
     }
 
     // 端口项 (编号 + 低电平取反)
@@ -151,11 +153,11 @@ namespace Fredy.Drilling.Holes.Models
 
         public MotionParams SecondPass { get; set; } = new();
 
-        public AxisParamConfig XAxis { get; set; } = new() { AxisNo = 1, PulsesPerMillimeter = 1d };
+        public AxisParamConfig XAxis { get; set; } = new() { AxisNo = 1, PulsesPerMillimeter = 1d, UseActualPositionFeedback = false };
 
-        public AxisParamConfig YAxis { get; set; } = new() { AxisNo = 2, PulsesPerMillimeter = 1d };
+        public AxisParamConfig YAxis { get; set; } = new() { AxisNo = 2, PulsesPerMillimeter = 1d, UseActualPositionFeedback = false };
 
-        public AxisParamConfig ZAxis { get; set; } = new() { AxisNo = 3, PulsesPerMillimeter = 1d };
+        public AxisParamConfig ZAxis { get; set; } = new() { AxisNo = 3, PulsesPerMillimeter = 1d, UseActualPositionFeedback = false };
 
         public double FastMovePos { get; set; } = -22.0;
 

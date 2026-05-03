@@ -177,8 +177,9 @@ namespace HAL
             var axis = GetAxisParam(axisNo);
 
             ExecuteNative(
-                //(out int pos) => adt8940a1.adt8940a1_get_actual_pos(_cardNo, axisNo, out pos),
-                (out int pos) => adt8940a1.adt8940a1_get_command_pos(_cardNo, axisNo, out pos),
+                axis.UseActualPositionFeedback
+                    ? (out int pos) => adt8940a1.adt8940a1_get_actual_pos(_cardNo, axisNo, out pos)
+                    : (out int pos) => adt8940a1.adt8940a1_get_command_pos(_cardNo, axisNo, out pos),
                 $"Get position for axis {axisNo}",
                 out var position);
 
@@ -694,6 +695,8 @@ namespace HAL
 
         private async Task WaitForAxisStopAsync(int axisNo, CancellationToken cancellationToken)
         {
+            var axis = GetAxisParam(axisNo);
+
             try
             {
                 while (true)
@@ -707,7 +710,17 @@ namespace HAL
 
                     if (motionStatus == 0)
                     {
-                        return;
+                        if (axis.UseActualPositionFeedback || !axis.InPositionTolerance.HasValue)
+                        {
+                            return;
+                        }
+
+                        var commandPosition = ToMillimeter(GetCommandPosition(axisNo), axis);
+                        var actualPosition = ToMillimeter(GetActualPosition(axisNo), axis);
+                        if (Math.Abs(commandPosition - actualPosition) <= NormalizeInPositionTolerance(axis.InPositionTolerance.Value))
+                        {
+                            return;
+                        }
                     }
 
                     await Task.Delay(PollInterval, cancellationToken).ConfigureAwait(false);
@@ -831,6 +844,16 @@ namespace HAL
             return position;
         }
 
+        private int GetActualPosition(int axisNo)
+        {
+            ExecuteNative(
+                (out int pos) => adt8940a1.adt8940a1_get_actual_pos(_cardNo, axisNo, out pos),
+                $"Get actual position for axis {axisNo}",
+                out var position);
+
+            return position;
+        }
+
         private int GetLockPositionPulse(int axisNo)
         {
             ExecuteNative(
@@ -895,7 +918,12 @@ namespace HAL
 
         private static AxisParam CreateDefaultAxisParam(int axisNo)
         {
-            return new AxisParam(axisNo, 0, 0, 0, PulsesPerMillimeter: 1d);
+            return new AxisParam(axisNo, 0, 0, 0, PulsesPerMillimeter: 1d, UseActualPositionFeedback: false, InPositionTolerance: null);
+        }
+
+        private static double NormalizeInPositionTolerance(double tolerance)
+        {
+            return tolerance >= 0d ? tolerance : 0d;
         }
 
         private static double NormalizePulseEquivalent(double pulseEquivalent)

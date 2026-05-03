@@ -76,9 +76,9 @@ namespace Fredy.Drilling.Holes.ViewModels
         [ObservableProperty] private MotionParams _zAxisBase = new();
         [ObservableProperty] private MotionParams _firstPass = new();
         [ObservableProperty] private MotionParams _secondPass = new();
-        [ObservableProperty] private AxisParamConfig _xAxis = new() { AxisNo = 1, PulsesPerMillimeter = 1d };
-        [ObservableProperty] private AxisParamConfig _yAxis = new() { AxisNo = 2, PulsesPerMillimeter = 1d };
-        [ObservableProperty] private AxisParamConfig _zAxis = new() { AxisNo = 3, PulsesPerMillimeter = 1d };
+        [ObservableProperty] private AxisParamConfig _xAxis = new() { AxisNo = 1, PulsesPerMillimeter = 1d, UseActualPositionFeedback = false };
+        [ObservableProperty] private AxisParamConfig _yAxis = new() { AxisNo = 2, PulsesPerMillimeter = 1d, UseActualPositionFeedback = false };
+        [ObservableProperty] private AxisParamConfig _zAxis = new() { AxisNo = 3, PulsesPerMillimeter = 1d, UseActualPositionFeedback = false };
 
         [ObservableProperty] private double _fastMovePos = -22.0;
         [ObservableProperty] private int _fastMoveSpeed = 9000;
@@ -358,7 +358,9 @@ namespace Fredy.Drilling.Holes.ViewModels
                 axisConfig.Deceleration,
                 axisConfig.LeftLimit,
                 axisConfig.RightLimit,
-                axisConfig.PulsesPerMillimeter > 0 ? axisConfig.PulsesPerMillimeter : 1d);
+                axisConfig.PulsesPerMillimeter > 0 ? axisConfig.PulsesPerMillimeter : 1d,
+                axisConfig.UseActualPositionFeedback,
+                axisConfig.InPositionTolerance);
         }
 
         private static HAL.MotionAdt8940.HomingOptions BuildAdtHomingOptions(AppConfig config)
