@@ -274,7 +274,7 @@ namespace Fredy.Drilling.Holes.UserControls
                     return;
                 }
 
-                _camera.StartContinuousGrab();
+                await Task.Run(() => _camera.StartContinuousGrab());
                 _isContinuousGrabbing = true;
                 UpdateCameraSubscription();
                 RefreshCameraStatus();
@@ -348,7 +348,7 @@ namespace Fredy.Drilling.Holes.UserControls
             {
                 if (_camera.IsContinuousGrabbing)
                 {
-                    _camera.StopContinuousGrab();
+                    await Task.Run(() => _camera.StopContinuousGrab());
                 }
             }
             finally

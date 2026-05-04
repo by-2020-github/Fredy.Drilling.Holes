@@ -22,9 +22,9 @@ namespace HAL
 
         void ConfigureAxes(params AxisParam[] axes);
 
-        Task MoveAbsoluteAsync(int axisNo, double position, bool wait, CancellationToken cancellationToken = default);
+        Task MoveAbsoluteAsync(int axisNo, double position, bool wait, double? velocity = null, CancellationToken cancellationToken = default);
 
-        Task MoveRelativeAsync(int axisNo, double distance, bool wait, CancellationToken cancellationToken = default);
+        Task MoveRelativeAsync(int axisNo, double distance, bool wait, double? velocity = null, CancellationToken cancellationToken = default);
 
         Task HomeAsync(int axisNo, bool wait, CancellationToken cancellationToken = default);
 

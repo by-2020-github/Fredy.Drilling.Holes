@@ -240,7 +240,7 @@ namespace Fredy.Drilling.Holes.UserControls
         private Task MoveAbsoluteAsync()
         {
             return ExecuteMotionAsync(
-                motion => motion.MoveAbsoluteAsync(AxisNo, AbsolutePosition, WaitForCompletion),
+                motion => motion.MoveAbsoluteAsync(AxisNo, AbsolutePosition, WaitForCompletion, DriveSpeed),
                 $"轴 {AxisNo} 绝对移动到 {AbsolutePosition:F3}。",
                 $"轴 {AxisNo} 绝对移动",
                 refreshPositionAfterExecute: WaitForCompletion);
@@ -250,7 +250,7 @@ namespace Fredy.Drilling.Holes.UserControls
         private Task MoveRelativeAsync()
         {
             return ExecuteMotionAsync(
-                motion => motion.MoveRelativeAsync(AxisNo, RelativeDistance, WaitForCompletion),
+                motion => motion.MoveRelativeAsync(AxisNo, RelativeDistance, WaitForCompletion, DriveSpeed),
                 $"轴 {AxisNo} 相对移动 {RelativeDistance:F3}。",
                 $"轴 {AxisNo} 相对移动",
                 refreshPositionAfterExecute: WaitForCompletion);

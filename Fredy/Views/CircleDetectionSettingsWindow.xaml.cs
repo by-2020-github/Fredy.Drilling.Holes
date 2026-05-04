@@ -53,7 +53,7 @@ namespace Fredy.Drilling.Holes.Views
 
         private void ApplyButton_Click(object sender, RoutedEventArgs e)
         {
-            ViewModel.SaveConfigCommand.Execute(null);
+            ViewModel.SaveConfigCommand?.Execute(null);
             this.DialogResult = true;
             this.Close();
         }

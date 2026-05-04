@@ -341,7 +341,7 @@ public partial class HkCameraControl : UserControl
         await CloseCurrentCameraAsync();
     }
 
-    private void BnStartGrab_Click(object? sender, RoutedEventArgs e)
+    private async void BnStartGrab_Click(object? sender, RoutedEventArgs e)
     {
         if (_camera is null)
         {
@@ -368,7 +368,7 @@ public partial class HkCameraControl : UserControl
 
             if (!previewCamera.IsContinuousGrabbing)
             {
-                previewCamera.StartContinuousGrab();
+                await Task.Run(() => previewCamera.StartContinuousGrab());
             }
 
             _isGrabbing = true;
@@ -504,7 +504,7 @@ public partial class HkCameraControl : UserControl
             {
                 if (_camera.IsContinuousGrabbing)
                 {
-                    _camera.StopContinuousGrab();
+                    await Task.Run(() => _camera.StopContinuousGrab());
                 }
             }
             catch
@@ -955,6 +955,23 @@ public partial class HkCameraControl : UserControl
 
         try
         {
+            if (_camera.IsContinuousGrabbing)
+            {
+                var triggerCamera = _camera as HkCamera;
+                if (triggerCamera is null)
+                {
+                    return;
+                }
+
+                var triggerRet = triggerCamera.TriggerSoftware();
+                if (triggerRet != MyCamera.MV_OK)
+                {
+                    throw new InvalidOperationException($"软触发失败，错误码: 0x{triggerRet:X8}");
+                }
+
+                return;
+            }
+
             var frame = await _camera.GrabAsync();
             PreviewCamera_ImageGrabbed(_camera, frame);
         }

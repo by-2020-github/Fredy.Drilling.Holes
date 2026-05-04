@@ -11,6 +11,7 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -104,6 +105,7 @@ namespace Fredy.Drilling.Holes.ViewModels
         [RelayCommand]
         private async Task StartScanAsync()
         {
+            var totalStopwatch = Stopwatch.StartNew();
             ShowGridOverlay = true;
             _hasPendingAlignmentTransform = false;
             _lastMatchedPointCount = 0;
@@ -149,20 +151,35 @@ namespace Fredy.Drilling.Holes.ViewModels
             }
 
             Params.ScanStatus = "正在执行Z字形软触发扫描...";
+            _logger.Debug("扫描初始化完成，耗时 {ElapsedMilliseconds} ms", totalStopwatch.ElapsedMilliseconds);
 
             try
             {
                 for (int i = 0; i < _scanPoints.Count; i++)
                 {
+                    var shotStopwatch = Stopwatch.StartNew();
                     token.ThrowIfCancellationRequested();
                     var shot = _scanPoints[i];
+                    _logger.Debug("扫描点 {Index}/{Total} 开始，ShotIndex={ShotIndex}, X={X:F3}, Y={Y:F3}", i + 1, _scanPoints.Count, shot.ShotIndex, shot.X, shot.Y);
 
+                    var moveStopwatch = Stopwatch.StartNew();
                     await MoveToScanPointAsync(shot, token);
-                    await Task.Delay(Math.Max(1, Params.SettleTime), token);
+                    moveStopwatch.Stop();
+                    _logger.Debug("扫描点 {Index}/{Total} 移动完成，耗时 {ElapsedMilliseconds} ms", i + 1, _scanPoints.Count, moveStopwatch.ElapsedMilliseconds);
 
+                    var settleStopwatch = Stopwatch.StartNew();
+                    await Task.Delay(Math.Max(1, Params.SettleTime), token);
+                    settleStopwatch.Stop();
+                    _logger.Debug("扫描点 {Index}/{Total} 稳定等待完成，耗时 {ElapsedMilliseconds} ms", i + 1, _scanPoints.Count, settleStopwatch.ElapsedMilliseconds);
+
+                    var captureStopwatch = Stopwatch.StartNew();
                     var captured = await CaptureFrameAsync(token);
+                    captureStopwatch.Stop();
+                    _logger.Debug("扫描点 {Index}/{Total} 图像采集完成，耗时 {ElapsedMilliseconds} ms，是否为空={IsNull}", i + 1, _scanPoints.Count, captureStopwatch.ElapsedMilliseconds, captured is null);
+
                     if (captured is not null)
                     {
+                        var detectStopwatch = Stopwatch.StartNew();
                         if (_capturedTileMats.TryGetValue(shot.ShotIndex, out var oldTile))
                         {
                             oldTile.Dispose();
@@ -174,6 +191,8 @@ namespace Fredy.Drilling.Holes.ViewModels
                         {
                             _detectedHoleCandidates.AddRange(tileHoles);
                         }
+                        detectStopwatch.Stop();
+                        _logger.Debug("扫描点 {Index}/{Total} 孔检测完成，耗时 {ElapsedMilliseconds} ms，当前新增候选孔 {TileHoleCount} 个，累计 {TotalHoleCount} 个", i + 1, _scanPoints.Count, detectStopwatch.ElapsedMilliseconds, tileHoles.Count, _detectedHoleCandidates.Count);
                      }
 
                     Params.PhotoIndex = i + 1;
@@ -188,27 +207,41 @@ namespace Fredy.Drilling.Holes.ViewModels
 
                     if (captured is not null)
                     {
+                        var stitchStopwatch = Stopwatch.StartNew();
                         await System.Windows.Application.Current.Dispatcher.InvokeAsync(() => UpdateIncrementalStitchedCanvas(shot.ShotIndex, captured));
+                        stitchStopwatch.Stop();
+                        _logger.Debug("扫描点 {Index}/{Total} UI 拼接预览更新完成，耗时 {ElapsedMilliseconds} ms", i + 1, _scanPoints.Count, stitchStopwatch.ElapsedMilliseconds);
                     }
 
                     Params.ScanStatus = captured is null
                         ? $"扫描中 {i + 1}/{_scanPoints.Count}（当前帧为空）"
                         : $"扫描并拼接中 {i + 1}/{_scanPoints.Count}，已拼接 {_capturedTileMats.Count} 张，检测候选孔 {_detectedHoleCandidates.Count} 个";
+
+                    shotStopwatch.Stop();
+                    _logger.Debug("扫描点 {Index}/{Total} 处理完成，总耗时 {ElapsedMilliseconds} ms", i + 1, _scanPoints.Count, shotStopwatch.ElapsedMilliseconds);
                 }
 
                 Params.ScanStatus = "扫描完成，已完成实时拼接。";
                 _logger.Information("扫描完成，已拍摄 {CapturedTileCount} 张，检测候选孔 {HoleCount} 个", _capturedTileMats.Count, _detectedHoleCandidates.Count);
+
+                var finalizeStopwatch = Stopwatch.StartNew();
                 FinalizeSecondPassAlignmentPreparation();
+                finalizeStopwatch.Stop();
+                _logger.Debug("扫描结束后处理完成，耗时 {ElapsedMilliseconds} ms", finalizeStopwatch.ElapsedMilliseconds);
+                totalStopwatch.Stop();
+                _logger.Debug("StartScanAsync 总耗时 {ElapsedMilliseconds} ms", totalStopwatch.ElapsedMilliseconds);
             }
             catch (OperationCanceledException)
             {
+                totalStopwatch.Stop();
                 Params.ScanStatus = "扫描已停止。";
-                _logger.Information("扫描被取消");
+                _logger.Information("扫描被取消，总耗时 {ElapsedMilliseconds} ms", totalStopwatch.ElapsedMilliseconds);
             }
             catch (Exception ex)
             {
+                totalStopwatch.Stop();
                 Params.ScanStatus = $"扫描失败：{ex.Message}";
-                _logger.Error(ex, "扫描流程失败");
+                _logger.Error(ex, "扫描流程失败，总耗时 {ElapsedMilliseconds} ms", totalStopwatch.ElapsedMilliseconds);
             }
         }
 
@@ -711,8 +744,9 @@ namespace Fredy.Drilling.Holes.ViewModels
              var xVelocity = _motionService.XAxis.Velocity > 0 ? _motionService.XAxis.Velocity : 100;
              var yVelocity = _motionService.YAxis.Velocity > 0 ? _motionService.YAxis.Velocity : 100;
 
-             await _motionService.MoveXAsync(shot.X, xVelocity, true, cancellationToken).ConfigureAwait(false);
-             await _motionService.MoveYAsync(shot.Y, yVelocity, true, cancellationToken).ConfigureAwait(false);
+             await Task.WhenAll(
+                 _motionService.MoveXAsync(shot.X, xVelocity, true, cancellationToken),
+                 _motionService.MoveYAsync(shot.Y, yVelocity, true, cancellationToken)).ConfigureAwait(false);
          }
 
          private async Task<Mat?> CaptureFrameAsync(CancellationToken cancellationToken)

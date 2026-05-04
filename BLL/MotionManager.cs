@@ -240,10 +240,9 @@ namespace BLL
             Action<AxisParam> updateAxis)
         {
             ValidateAxisLimit(axis, position);
-            var updatedAxis = axis with { Velocity = velocity };
-            updateAxis(updatedAxis);
-            await _motion.EnableAsync(updatedAxis.AxisNo).ConfigureAwait(false);
-            await _motion.MoveAbsoluteAsync(updatedAxis.AxisNo, position, wait, cancellationToken).ConfigureAwait(false);
+            updateAxis(axis);
+            await _motion.EnableAsync(axis.AxisNo).ConfigureAwait(false);
+            await _motion.MoveAbsoluteAsync(axis.AxisNo, position, wait, velocity, cancellationToken).ConfigureAwait(false);
         }
 
         private static void ValidateAxisLimit(AxisParam axis, double position)

@@ -145,16 +145,17 @@ namespace Fredy.Drilling.Holes
             Directory.CreateDirectory(logDirectory);
 
             Log.Logger = new LoggerConfiguration()
-                .MinimumLevel.Information()
+                .MinimumLevel.Debug()
                 .Enrich.FromLogContext()
-                .WriteTo.Debug(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}")
+                .WriteTo.Debug(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}", restrictedToMinimumLevel: Serilog.Events.LogEventLevel.Verbose)
                 .WriteTo.File(
                     Path.Combine(logDirectory, "fredy-.log"),
                     rollingInterval: RollingInterval.Day,
                     retainedFileCountLimit: 14,
                     shared: true,
+                    restrictedToMinimumLevel: Serilog.Events.LogEventLevel.Debug,
                     outputTemplate: "[{Timestamp:yyyy-MM-dd HH:mm:ss.fff} {Level:u3}] {Message:lj}{NewLine}{Exception}")
-                .WriteTo.Sink(new SerilogObservableSink(logStore))
+                .WriteTo.Sink(new SerilogObservableSink(logStore), restrictedToMinimumLevel: Serilog.Events.LogEventLevel.Verbose)
                 .CreateLogger();
         }
 

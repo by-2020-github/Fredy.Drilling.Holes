@@ -1,37 +1,37 @@
 using MvCamCtrl.NET;
+using Serilog;
 using System;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
-using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
-using Serilog;
 
 namespace HAL
 {
     public sealed class HkCamera : ICamera
     {
+        private const int ContinuousGrabMaxFps = 20;
+        private static readonly TimeSpan ContinuousGrabInterval = TimeSpan.FromMilliseconds(1000.0 / ContinuousGrabMaxFps);
         private const int SingleGrabTimeoutMilliseconds = 3000;
         private static readonly ILogger Logger = Log.ForContext<HkCamera>();
 
         private readonly object _syncRoot = new();
-        private readonly MyCamera.cbOutputExdelegate _imageCallback;
 
         private readonly AutoResetEvent _singleGrabLock = new(true);
-        private readonly AutoResetEvent _singleGrabSignal = new(false);
+        private readonly ManualResetEventSlim _noActiveGrabOperations = new(true);
         private MyCamera? _camera;
         private bool _isGrabbing;
         private bool _isContinuousGrabbing;
-        private bool _isWaitingForSingleGrab;
         private volatile bool _isClosing;
-        private CameraArgs? _singleGrabFrame;
-        private Exception? _singleGrabException;
         private bool _sdkAcquired;
         private long _lastCallbackFrameId;
         private DateTime? _lastCallbackTimestamp;
+        private CancellationTokenSource? _continuousGrabCancellationTokenSource;
+        private Task? _continuousGrabTask;
+        private int _activeGrabOperations;
 
         public HkCamera()
         {
-            _imageCallback = OnImageGrabbed;
         }
 
         public bool IsConnected { get; private set; }
@@ -116,13 +116,6 @@ namespace HAL
                     _camera.MV_CC_SetEnumValueByString_NET("TriggerMode", "On");
                     _camera.MV_CC_SetEnumValueByString_NET("TriggerSource", "Software");
 
-                    nRet = _camera.MV_CC_RegisterImageCallBackEx_NET(_imageCallback, IntPtr.Zero);
-                    if (nRet != MyCamera.MV_OK)
-                    {
-                        Close();
-                        return false;
-                    }
-
                     nRet = _camera.MV_CC_StartGrabbing_NET();
                     if (nRet != MyCamera.MV_OK)
                     {
@@ -149,31 +142,40 @@ namespace HAL
         public void Close()
         {
             _isClosing = true;
+            Task? continuousGrabTask;
+            CancellationTokenSource? continuousGrabCancellationTokenSource;
 
             lock (_syncRoot)
             {
                 _isContinuousGrabbing = false;
+                _continuousGrabCancellationTokenSource?.Cancel();
+                continuousGrabCancellationTokenSource = _continuousGrabCancellationTokenSource;
+                _continuousGrabCancellationTokenSource = null;
+                continuousGrabTask = _continuousGrabTask;
+                _continuousGrabTask = null;
 
+                ConnectionString = null;
+                IsConnected = false;
+                _isGrabbing = false;
+            }
+
+            WaitForContinuousGrabTaskToStop(continuousGrabTask);
+            WaitForActiveGrabOperationsToComplete();
+
+            lock (_syncRoot)
+            {
                 if (_camera is not null)
                 {
-                    if (_isGrabbing)
-                    {
-                        _camera.MV_CC_StopGrabbing_NET();
-                        _isGrabbing = false;
-                    }
-
+                    _camera.MV_CC_StopGrabbing_NET();
                     _camera.MV_CC_CloseDevice_NET();
                     _camera.MV_CC_DestroyDevice_NET();
                     _camera = null;
                 }
 
-                ConnectionString = null;
-                IsConnected = false;
-                _singleGrabFrame = null;
-                _isWaitingForSingleGrab = false;
-                _singleGrabSignal.Set();
                 ReleaseSdkIfNeeded();
             }
+
+            continuousGrabCancellationTokenSource?.Dispose();
         }
 
         public CameraArgs Grab()
@@ -182,76 +184,30 @@ namespace HAL
 
             try
             {
-                lock (_syncRoot)
-                {
-                    EnsureCameraReady();
-
-                    if (_isContinuousGrabbing)
-                    {
-                        throw new InvalidOperationException("Camera is in continuous grab mode.");
-                    }
-
-                    _singleGrabSignal.Reset();
-                    _singleGrabFrame = null;
-                    _singleGrabException = null;
-                    _isWaitingForSingleGrab = true;
-
-                    var triggerRet = _camera!.MV_CC_SetCommandValue_NET("TriggerSoftware");
-                    if (triggerRet != MyCamera.MV_OK)
-                    {
-                        _isWaitingForSingleGrab = false;
-
-                        if (_isClosing || !IsConnected || !_isGrabbing)
-                        {
-                            throw new OperationCanceledException("Camera trigger canceled because camera is closing.");
-                        }
-
-                        throw new InvalidOperationException($"Trigger failed: 0x{triggerRet:X8}");
-                    }
-                }
-
-                if (!_singleGrabSignal.WaitOne(SingleGrabTimeoutMilliseconds))
-                {
-                    lock (_syncRoot)
-                    {
-                        _isWaitingForSingleGrab = false;
-                        _singleGrabFrame = null;
-                        _singleGrabException = null;
-
-                        if (_isClosing || !IsConnected || _camera is null || !_isGrabbing)
-                        {
-                            throw new OperationCanceledException("Camera grab canceled because camera is closing.");
-                        }
-
-                        Logger.Warning("Camera single grab timed out waiting for image callback. Last callback frame id: {LastCallbackFrameId}, last callback timestamp: {LastCallbackTimestamp}, connection: {IsConnected}, grabbing: {IsGrabbing}",
-                            _lastCallbackFrameId,
-                            _lastCallbackTimestamp,
-                            IsConnected,
-                            _isGrabbing);
-                    }
-
-                    throw new TimeoutException("Grab timed out waiting for image callback.");
-                }
-
                 CameraArgs result;
-                lock (_syncRoot)
-                {
-                    _isWaitingForSingleGrab = false;
 
-                    if (_singleGrabException is not null)
+                try
+                {
+                    result = GrabSingleFrameSynchronously(SingleGrabTimeoutMilliseconds);
+                }
+                catch (TimeoutException firstTimeoutException)
+                {
+                    Logger.Warning(firstTimeoutException,
+                        "Camera single grab timed out during synchronous frame acquisition. Attempting automatic recovery. Last frame id: {LastFrameId}, last frame timestamp: {LastFrameTimestamp}, connection: {IsConnected}, grabbing: {IsGrabbing}",
+                        _lastCallbackFrameId,
+                        _lastCallbackTimestamp,
+                        IsConnected,
+                        _isGrabbing);
+
+                    var connectionString = ConnectionString;
+                    if (!TryRecoverAfterGrabFailure(connectionString))
                     {
-                        var singleGrabException = _singleGrabException;
-                        _singleGrabException = null;
-                        _singleGrabFrame = null;
-                        ExceptionDispatchInfo.Capture(singleGrabException).Throw();
+                        throw;
                     }
 
-                    result = _singleGrabFrame ?? throw new InvalidOperationException("Grab failed because callback frame data is unavailable.");
-                    _singleGrabFrame = null;
-                    _singleGrabException = null;
+                    result = GrabSingleFrameSynchronously(SingleGrabTimeoutMilliseconds);
                 }
 
-                ImageGrabbed?.Invoke(this, result);
                 return result;
             }
             finally
@@ -262,11 +218,18 @@ namespace HAL
 
         public Task<CameraArgs> GrabAsync()
         {
-            return Task.Run(Grab);
+            return Task.Run(() =>
+            {
+                var result = Grab();
+                QueueImageGrabbed(result);
+                return result;
+            });
         }
 
         public void StartContinuousGrab()
         {
+            CancellationTokenSource continuousGrabCancellationTokenSource;
+
             lock (_syncRoot)
             {
                 EnsureCameraReady();
@@ -276,18 +239,32 @@ namespace HAL
                     throw new InvalidOperationException("Camera is already in continuous grab mode.");
                 }
 
-                var nRet = _camera!.MV_CC_SetEnumValue_NET("TriggerMode", (uint)MyCamera.MV_CAM_TRIGGER_MODE.MV_TRIGGER_MODE_OFF);
-                if (nRet != MyCamera.MV_OK)
+                var triggerModeRet = _camera!.MV_CC_SetEnumValue_NET("TriggerMode", (uint)MyCamera.MV_CAM_TRIGGER_MODE.MV_TRIGGER_MODE_ON);
+                if (triggerModeRet != MyCamera.MV_OK)
                 {
-                    throw new InvalidOperationException($"Start continuous grab failed: 0x{nRet:X8}");
+                    throw new InvalidOperationException($"Set trigger mode failed: 0x{triggerModeRet:X8}");
                 }
 
+                var triggerSourceRet = _camera.MV_CC_SetEnumValue_NET("TriggerSource", (uint)MyCamera.MV_CAM_TRIGGER_SOURCE.MV_TRIGGER_SOURCE_SOFTWARE);
+                if (triggerSourceRet != MyCamera.MV_OK)
+                {
+                    throw new InvalidOperationException($"Set trigger source failed: 0x{triggerSourceRet:X8}");
+                }
+
+                _continuousGrabCancellationTokenSource?.Cancel();
+                _continuousGrabCancellationTokenSource?.Dispose();
+                continuousGrabCancellationTokenSource = new CancellationTokenSource();
+                _continuousGrabCancellationTokenSource = continuousGrabCancellationTokenSource;
                 _isContinuousGrabbing = true;
+                _continuousGrabTask = Task.Run(() => ContinuousGrabLoopAsync(continuousGrabCancellationTokenSource.Token));
             }
         }
 
         public void StopContinuousGrab()
         {
+            Task? continuousGrabTask;
+            CancellationTokenSource? continuousGrabCancellationTokenSource;
+
             lock (_syncRoot)
             {
                 EnsureCameraReady();
@@ -297,10 +274,16 @@ namespace HAL
                     throw new InvalidOperationException("Camera is not in continuous grab mode.");
                 }
 
-                _camera!.MV_CC_SetEnumValue_NET("TriggerMode", (uint)MyCamera.MV_CAM_TRIGGER_MODE.MV_TRIGGER_MODE_ON);
-                _camera.MV_CC_SetEnumValue_NET("TriggerSource", (uint)MyCamera.MV_CAM_TRIGGER_SOURCE.MV_TRIGGER_SOURCE_SOFTWARE);
                 _isContinuousGrabbing = false;
+                _continuousGrabCancellationTokenSource?.Cancel();
+                continuousGrabCancellationTokenSource = _continuousGrabCancellationTokenSource;
+                _continuousGrabCancellationTokenSource = null;
+                continuousGrabTask = _continuousGrabTask;
+                _continuousGrabTask = null;
             }
+
+            WaitForContinuousGrabTaskToStop(continuousGrabTask);
+            continuousGrabCancellationTokenSource?.Dispose();
         }
 
         public void SetExposureTime(double exposureTime)
@@ -364,9 +347,18 @@ namespace HAL
         public void Dispose()
         {
             Close();
-            _singleGrabSignal.Dispose();
+            _noActiveGrabOperations.Dispose();
             _singleGrabLock.Dispose();
             GC.SuppressFinalize(this);
+        }
+
+        public int TriggerSoftware()
+        {
+            lock (_syncRoot)
+            {
+                EnsureCameraReady();
+                return _camera!.MV_CC_SetCommandValue_NET("TriggerSoftware");
+            }
         }
 
         private void EnsureCameraReady()
@@ -383,9 +375,286 @@ namespace HAL
             }
         }
 
+        private CameraArgs GrabSingleFrameSynchronously(int timeoutMilliseconds)
+        {
+            MyCamera camera;
+            uint payloadSize;
+
+            lock (_syncRoot)
+            {
+                EnsureCameraReady();
+
+                if (_isContinuousGrabbing)
+                {
+                    Logger.Debug("GrabSingleFrameSynchronously is running while continuous grab loop is active.");
+                }
+
+                camera = _camera!;
+                payloadSize = GetPayloadSizeUnsafe(camera);
+                BeginGrabOperationUnsafe();
+            }
+
+            var frameBuffer = Marshal.AllocHGlobal((int)payloadSize);
+
+            try
+            {
+                var triggerRet = camera.MV_CC_SetCommandValue_NET("TriggerSoftware");
+                if (triggerRet != MyCamera.MV_OK)
+                {
+                    if (IsCameraUnavailableForGrab(camera))
+                    {
+                        throw new OperationCanceledException("Camera trigger canceled because camera is closing.");
+                    }
+
+                    throw new InvalidOperationException($"Trigger failed: 0x{triggerRet:X8}");
+                }
+
+                var frameInfo = new MyCamera.MV_FRAME_OUT_INFO_EX();
+                var grabRet = camera.MV_CC_GetOneFrameTimeout_NET(frameBuffer, payloadSize, ref frameInfo, timeoutMilliseconds);
+                if (grabRet != MyCamera.MV_OK)
+                {
+                    if (IsCameraUnavailableForGrab(camera))
+                    {
+                        throw new OperationCanceledException("Camera grab canceled because camera is closing.");
+                    }
+
+                    Logger.Warning("Camera single grab timed out during synchronous acquisition. SDK ret: 0x{GrabRet:X8}, last callback frame id: {LastCallbackFrameId}, last callback timestamp: {LastCallbackTimestamp}, connection: {IsConnected}, grabbing: {IsGrabbing}",
+                        grabRet,
+                        _lastCallbackFrameId,
+                        _lastCallbackTimestamp,
+                        IsConnected,
+                        _isGrabbing);
+
+                    throw new TimeoutException($"Grab timed out waiting for image data. SDK ret: 0x{grabRet:X8}");
+                }
+
+                var result = BuildFrameArgs(camera, frameBuffer, frameInfo.nFrameLen, frameInfo);
+
+                lock (_syncRoot)
+                {
+                    _lastCallbackFrameId = frameInfo.nFrameNum;
+                    _lastCallbackTimestamp = DateTime.Now;
+                }
+
+                return result;
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(frameBuffer);
+                EndGrabOperation();
+            }
+        }
+
+        private uint GetPayloadSizeUnsafe(MyCamera camera)
+        {
+            var payload = new MyCamera.MVCC_INTVALUE();
+            var ret = camera.MV_CC_GetIntValue_NET("PayloadSize", ref payload);
+            if (ret != MyCamera.MV_OK || payload.nCurValue == 0)
+            {
+                throw new InvalidOperationException($"Get payload size failed: 0x{ret:X8}");
+            }
+
+            return payload.nCurValue;
+        }
+
+        private bool TryRecoverAfterGrabFailure(string? connectionString)
+        {
+            try
+            {
+                lock (_syncRoot)
+                {
+                    if (_isClosing || !IsConnected || _camera is null)
+                    {
+                        return false;
+                    }
+
+                    if (_isGrabbing)
+                    {
+                        var stopRet = _camera.MV_CC_StopGrabbing_NET();
+                        if (stopRet == MyCamera.MV_OK)
+                        {
+                            _isGrabbing = false;
+                        }
+                        else
+                        {
+                            Logger.Warning("Camera stop grabbing during recovery failed: 0x{StopRet:X8}", stopRet);
+                        }
+                    }
+
+                    var startRet = _camera.MV_CC_StartGrabbing_NET();
+                    if (startRet == MyCamera.MV_OK)
+                    {
+                        _isGrabbing = true;
+                        Logger.Information("Camera grabbing recovered by restarting stream.");
+                        return true;
+                    }
+
+                    Logger.Warning("Camera start grabbing during recovery failed: 0x{StartRet:X8}", startRet);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Warning(ex, "Camera stream restart recovery failed. Will try reopen camera.");
+            }
+
+            try
+            {
+                Close();
+                var reopened = Open(connectionString);
+                if (reopened)
+                {
+                    Logger.Information("Camera recovered by reopening device.");
+                }
+                else
+                {
+                    Logger.Warning("Camera reopen recovery failed.");
+                }
+
+                return reopened;
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex, "Camera reopen recovery failed with exception.");
+                return false;
+            }
+        }
+
         private bool IsCameraHandleValid()
         {
             return _camera is not null && _camera.MV_CC_IsDeviceConnected_NET();
+        }
+
+        private void BeginGrabOperationUnsafe()
+        {
+            _activeGrabOperations++;
+            _noActiveGrabOperations.Reset();
+        }
+
+        private void EndGrabOperation()
+        {
+            lock (_syncRoot)
+            {
+                if (_activeGrabOperations <= 0)
+                {
+                    return;
+                }
+
+                _activeGrabOperations--;
+                if (_activeGrabOperations == 0)
+                {
+                    _noActiveGrabOperations.Set();
+                }
+            }
+        }
+
+        private void WaitForActiveGrabOperationsToComplete()
+        {
+            try
+            {
+                _noActiveGrabOperations.Wait();
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex, "Waiting for active grab operations to stop failed.");
+            }
+        }
+
+        private bool IsCameraUnavailableForGrab(MyCamera camera)
+        {
+            lock (_syncRoot)
+            {
+                return _isClosing || !IsConnected || !ReferenceEquals(_camera, camera) || !_isGrabbing;
+            }
+        }
+
+        private async Task ContinuousGrabLoopAsync(CancellationToken cancellationToken)
+        {
+            try
+            {
+                while (!cancellationToken.IsCancellationRequested)
+                {
+                    var stopwatch = Stopwatch.StartNew();
+
+                    try
+                    {
+                        await GrabAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                    {
+                        break;
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Error(ex, "Continuous grab loop failed.");
+                    }
+
+                    var remainingDelay = ContinuousGrabInterval - stopwatch.Elapsed;
+                    if (remainingDelay > TimeSpan.Zero)
+                    {
+                        try
+                        {
+                            await Task.Delay(remainingDelay, cancellationToken).ConfigureAwait(false);
+                        }
+                        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                        {
+                            break;
+                        }
+                    }
+                }
+            }
+            finally
+            {
+                lock (_syncRoot)
+                {
+                    if (_continuousGrabCancellationTokenSource is not null && _continuousGrabCancellationTokenSource.Token == cancellationToken)
+                    {
+                        _continuousGrabCancellationTokenSource = null;
+                    }
+
+                    _isContinuousGrabbing = false;
+                }
+            }
+        }
+
+        private void WaitForContinuousGrabTaskToStop(Task? continuousGrabTask)
+        {
+            if (continuousGrabTask is null)
+            {
+                return;
+            }
+
+            try
+            {
+                continuousGrabTask.Wait();
+            }
+            catch (AggregateException ex) when (ex.InnerExceptions.Count == 1 && ex.InnerException is OperationCanceledException)
+            {
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex, "Waiting for continuous grab task to stop failed.");
+            }
+        }
+
+        private void QueueImageGrabbed(CameraArgs args)
+        {
+            var imageGrabbed = ImageGrabbed;
+            if (imageGrabbed is null)
+            {
+                return;
+            }
+
+            _ = Task.Run(() =>
+            {
+                try
+                {
+                    imageGrabbed.Invoke(this, args);
+                }
+                catch (Exception ex)
+                {
+                    Logger.Error(ex, "ImageGrabbed event handler failed.");
+                }
+            });
         }
 
         private bool TryGetFloatValue(string key, out double value)
@@ -429,10 +698,8 @@ namespace HAL
         {
             _isGrabbing = false;
             _isContinuousGrabbing = false;
-            _isWaitingForSingleGrab = false;
             IsConnected = false;
-            _singleGrabFrame = null;
-            _singleGrabSignal.Set();
+            _continuousGrabCancellationTokenSource?.Cancel();
         }
 
         private void ReleaseSdkIfNeeded()
@@ -446,7 +713,7 @@ namespace HAL
             _sdkAcquired = false;
         }
 
-        private CameraArgs BuildFrameArgs(IntPtr sourceBuffer, uint sourceBufferLength, MyCamera.MV_FRAME_OUT_INFO_EX frameInfo)
+        private CameraArgs BuildFrameArgs(MyCamera camera, IntPtr sourceBuffer, uint sourceBufferLength, MyCamera.MV_FRAME_OUT_INFO_EX frameInfo)
         {
             var width = frameInfo.nWidth;
             var height = frameInfo.nHeight;
@@ -526,16 +793,11 @@ namespace HAL
                 };
             }
 
-            return ConvertToBgr(sourceBuffer, sourceBufferLength, frameInfo);
+            return ConvertToBgr(camera, sourceBuffer, sourceBufferLength, frameInfo);
         }
 
-        private CameraArgs ConvertToBgr(IntPtr sourceBuffer, uint sourceBufferLength, MyCamera.MV_FRAME_OUT_INFO_EX frameInfo)
+        private CameraArgs ConvertToBgr(MyCamera camera, IntPtr sourceBuffer, uint sourceBufferLength, MyCamera.MV_FRAME_OUT_INFO_EX frameInfo)
         {
-            if (_camera is null)
-            {
-                throw new InvalidOperationException("Camera is not connected.");
-            }
-
             var dstLen = frameInfo.nWidth * frameInfo.nHeight * 3;
             var dstBuffer = Marshal.AllocHGlobal((int)dstLen);
 
@@ -555,7 +817,7 @@ namespace HAL
                     nRes = new uint[4]
                 };
 
-                var nRet = _camera.MV_CC_ConvertPixelType_NET(ref convertParam);
+                var nRet = camera.MV_CC_ConvertPixelType_NET(ref convertParam);
                 if (nRet != MyCamera.MV_OK || convertParam.nDstLen == 0)
                 {
                     throw new InvalidOperationException($"Convert pixel type failed: 0x{nRet:X8}");
@@ -587,64 +849,6 @@ namespace HAL
             var data = new byte[copyLength];
             Marshal.Copy(sourceBuffer, data, 0, copyLength);
             return data;
-        }
-
-        private void OnImageGrabbed(IntPtr pData, ref MyCamera.MV_FRAME_OUT_INFO_EX pFrameInfo, IntPtr pUser)
-        {
-            CameraArgs? singleGrabResult = null;
-            CameraArgs? continuousResult = null;
-
-            try
-            {
-                lock (_syncRoot)
-                {
-                    if (_isClosing || !IsConnected || _camera is null || pData == IntPtr.Zero)
-                    {
-                        return;
-                    }
-
-                    var currentFrame = BuildFrameArgs(pData, pFrameInfo.nFrameLen, pFrameInfo);
-                    _lastCallbackFrameId = pFrameInfo.nFrameNum;
-                    _lastCallbackTimestamp = DateTime.Now;
-
-                    if (_isWaitingForSingleGrab)
-                    {
-                        _singleGrabFrame = currentFrame;
-                        singleGrabResult = currentFrame;
-                    }
-
-                    if (_isContinuousGrabbing)
-                    {
-                        continuousResult = currentFrame;
-                    }
-                }
-
-                if (singleGrabResult is not null)
-                {
-                    _singleGrabSignal.Set();
-                }
-
-                if (continuousResult is not null)
-                {
-                    ImageGrabbed?.Invoke(this, continuousResult);
-                }
-            }
-            catch (Exception ex)
-            {
-                Logger.Error(ex, "HkCamera image callback failed. WaitingForSingleGrab={IsWaitingForSingleGrab}, Continuous={IsContinuousGrabbing}, LastCallbackFrameId={LastCallbackFrameId}",
-                    _isWaitingForSingleGrab,
-                    _isContinuousGrabbing,
-                    _lastCallbackFrameId);
-
-                lock (_syncRoot)
-                {
-                    if (_isWaitingForSingleGrab)
-                    {
-                        _singleGrabException = ex;
-                        _singleGrabSignal.Set();
-                    }
-                }
-            }
         }
 
         private static MyCamera.MV_CC_DEVICE_INFO? GetTargetDeviceInfo(MyCamera.MV_CC_DEVICE_INFO_LIST deviceList, string? connectionString)

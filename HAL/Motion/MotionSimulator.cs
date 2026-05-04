@@ -7,7 +7,7 @@ namespace HAL
 {
     public sealed class MotionSimulator : IMoton
     {
-        private const double SimulatedSpeed = 100d;
+        private const double DefaultSimulatedSpeed = 100d;
         private const double PositionTolerance = 0.001d;
         private static readonly TimeSpan UpdateInterval = TimeSpan.FromMilliseconds(20);
 
@@ -100,15 +100,15 @@ namespace HAL
 
         public Task HomeAsync(int axisNo, bool wait, CancellationToken cancellationToken = default)
         {
-            return MoveCoreAsync(axisNo, 0d, wait, cancellationToken);
+            return MoveCoreAsync(axisNo, 0d, wait, velocity: null, cancellationToken: cancellationToken);
         }
 
-        public Task MoveAbsoluteAsync(int axisNo, double position, bool wait, CancellationToken cancellationToken = default)
+        public Task MoveAbsoluteAsync(int axisNo, double position, bool wait, double? velocity = null, CancellationToken cancellationToken = default)
         {
-            return MoveCoreAsync(axisNo, position, wait, cancellationToken);
+            return MoveCoreAsync(axisNo, position, wait, velocity: velocity, cancellationToken: cancellationToken);
         }
 
-        public Task MoveRelativeAsync(int axisNo, double distance, bool wait, CancellationToken cancellationToken = default)
+        public Task MoveRelativeAsync(int axisNo, double distance, bool wait, double? velocity = null, CancellationToken cancellationToken = default)
         {
             var axisState = GetAxisState(axisNo);
             double target;
@@ -118,7 +118,7 @@ namespace HAL
                 target = axisState.Position + distance;
             }
 
-            return MoveCoreAsync(axisNo, target, wait, cancellationToken);
+            return MoveCoreAsync(axisNo, target, wait, velocity: velocity, cancellationToken: cancellationToken);
         }
 
         public Task StopAllAsync(int[] axisNos)
@@ -169,7 +169,7 @@ namespace HAL
             return _axes.GetOrAdd(axisNo, static _ => new AxisState());
         }
 
-        private Task MoveCoreAsync(int axisNo, double targetPosition, bool wait, CancellationToken cancellationToken)
+        private Task MoveCoreAsync(int axisNo, double targetPosition, bool wait, double? velocity, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -191,7 +191,7 @@ namespace HAL
 
             CancelMotion(previousMotion);
 
-            var motionTask = SimulateMoveAsync(axisState, motionCts, targetPosition);
+            var motionTask = SimulateMoveAsync(axisNo, axisState, motionCts, targetPosition, velocity);
             if (wait)
             {
                 return motionTask;
@@ -210,8 +210,10 @@ namespace HAL
                 TaskScheduler.Default);
         }
 
-        private static async Task SimulateMoveAsync(AxisState axisState, CancellationTokenSource motionCts, double targetPosition)
+        private async Task SimulateMoveAsync(int axisNo, AxisState axisState, CancellationTokenSource motionCts, double targetPosition, double? velocity)
         {
+            var simulatedSpeed = GetSimulatedSpeed(axisNo, velocity);
+
             try
             {
                 while (true)
@@ -237,7 +239,7 @@ namespace HAL
 
                     var step = Math.Sign(remainingDistance) * Math.Min(
                         Math.Abs(remainingDistance),
-                        SimulatedSpeed * UpdateInterval.TotalSeconds);
+                        simulatedSpeed * UpdateInterval.TotalSeconds);
 
                     await Task.Delay(UpdateInterval, motionCts.Token).ConfigureAwait(false);
 
@@ -259,6 +261,21 @@ namespace HAL
 
                 motionCts.Dispose();
             }
+        }
+
+        private double GetSimulatedSpeed(int axisNo, double? velocity)
+        {
+            if (velocity.HasValue && velocity.Value > 0)
+            {
+                return velocity.Value;
+            }
+
+            if (_axisParams.TryGetValue(axisNo, out var axis) && axis.Velocity > 0)
+            {
+                return axis.Velocity;
+            }
+
+            return DefaultSimulatedSpeed;
         }
 
         private sealed class AxisState

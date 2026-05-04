@@ -202,14 +202,14 @@ namespace HAL
             return Task.CompletedTask;
         }
 
-        public Task MoveAbsoluteAsync(int axisNo, double position, bool wait, CancellationToken cancellationToken = default)
+        public Task MoveAbsoluteAsync(int axisNo, double position, bool wait, double? velocity = null, CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
             EnsureAxisReady(axisNo);
             EnsureAxisEnabled(axisNo);
             var axis = GetAxisParam(axisNo);
 
-            ConfigureMotion(axisNo);
+            ConfigureMotion(axisNo, velocity, axis);
 
             var targetPulse = ToPulse(position, axis);
             var currentPulse = GetCommandPosition(axisNo);
@@ -510,14 +510,14 @@ namespace HAL
             }
         }
 
-        public Task MoveRelativeAsync(int axisNo, double distance, bool wait, CancellationToken cancellationToken = default)
+        public Task MoveRelativeAsync(int axisNo, double distance, bool wait, double? velocity = null, CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
             EnsureAxisReady(axisNo);
             EnsureAxisEnabled(axisNo);
             var axis = GetAxisParam(axisNo);
 
-            ConfigureMotion(axisNo);
+            ConfigureMotion(axisNo, velocity, axis);
 
             var pulseDistance = ToPulse(distance, axis);
             if (pulseDistance == 0)
@@ -784,6 +784,17 @@ namespace HAL
             ExecuteNative(() => adt8940a1.adt8940a1_set_acc(_cardNo, axisNo, ToCardAcceleration(_acceleration)), $"Set acceleration for axis {axisNo}");
         }
 
+        private void ConfigureMotion(int axisNo, double? velocity, AxisParam axis)
+        {
+            var driveSpeed = ResolveDriveSpeed(axis, velocity);
+            var acceleration = ResolveAcceleration(axis);
+            var startSpeed = Math.Min(Math.Max(1, _startSpeed), driveSpeed);
+
+            ExecuteNative(() => adt8940a1.adt8940a1_set_startv(_cardNo, axisNo, startSpeed), $"Set start speed for axis {axisNo}");
+            ExecuteNative(() => adt8940a1.adt8940a1_set_speed(_cardNo, axisNo, driveSpeed), $"Set drive speed for axis {axisNo}");
+            ExecuteNative(() => adt8940a1.adt8940a1_set_acc(_cardNo, axisNo, ToCardAcceleration(acceleration)), $"Set acceleration for axis {axisNo}");
+        }
+
         private void ConfigureMotion(int axisNo, int startSpeed, int driveSpeed, int acceleration)
         {
             ExecuteNative(() => adt8940a1.adt8940a1_set_startv(_cardNo, axisNo, Math.Max(1, startSpeed)), $"Set start speed for axis {axisNo}");
@@ -934,6 +945,31 @@ namespace HAL
         private static int ToCardAcceleration(int acceleration)
         {
             return Math.Clamp((int)Math.Ceiling(acceleration / 125d), 1, 64000);
+        }
+
+        private int ResolveDriveSpeed(AxisParam axis, double? velocity)
+        {
+            if (velocity.HasValue && velocity.Value > 0)
+            {
+                return Math.Max(1, (int)Math.Ceiling(velocity.Value));
+            }
+
+            if (axis.Velocity > 0)
+            {
+                return Math.Max(1, (int)Math.Ceiling(axis.Velocity));
+            }
+
+            return _driveSpeed;
+        }
+
+        private int ResolveAcceleration(AxisParam axis)
+        {
+            if (axis.Acceleration > 0)
+            {
+                return Math.Max(1, (int)Math.Ceiling(axis.Acceleration));
+            }
+
+            return _acceleration;
         }
 
         private static void ValidateAxisNo(int axisNo)
