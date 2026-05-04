@@ -26,7 +26,8 @@ namespace Fredy.Drilling.Holes.Views
 
             var motionService = App.ServiceProvider.GetService<IMotionService>();
             var camera = App.ServiceProvider.GetService<ICamera>();
-            var viewModel = new NinePointCalibrationViewModel(motionService, camera)
+            var logger = App.ServiceProvider.GetRequiredService<Serilog.ILogger>();
+            var viewModel = new NinePointCalibrationViewModel(motionService, camera, logger)
             {
                 ManualPixelSizeX = configViewModel.Camera.PixelSizeX,
                 ManualPixelSizeY = configViewModel.Camera.PixelSizeY

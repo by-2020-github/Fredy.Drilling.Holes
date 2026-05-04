@@ -86,6 +86,11 @@ namespace HAL
         bool IsConnected { get; }
 
         /// <summary>
+        /// 是否处于连续采集模式
+        /// </summary>
+        bool IsContinuousGrabbing { get; }
+
+        /// <summary>
         /// 打开相机
         /// </summary>
         bool Open();
@@ -105,6 +110,16 @@ namespace HAL
         /// 异步软触发拍照，防止 UI 卡顿
         /// </summary>
         Task<CameraArgs> GrabAsync();
+
+        /// <summary>
+        /// 启动连续采集
+        /// </summary>
+        void StartContinuousGrab();
+
+        /// <summary>
+        /// 停止连续采集
+        /// </summary>
+        void StopContinuousGrab();
 
         /// <summary>
         /// 设置曝光时间

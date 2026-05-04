@@ -1,3 +1,4 @@
+using Serilog;
 using System;
 
 namespace BLL
@@ -6,18 +7,21 @@ namespace BLL
     public class Adt8940Controller : IHardwareController
     {
         private readonly IMotionService _motionManager;
+        private readonly ILogger _logger;
         private HAL.MotionAdt8940 AdtMotion => _motionManager.Hardware as HAL.MotionAdt8940 ?? 
             throw new InvalidOperationException("底层硬件不是 MotionAdt8940 实现，无法使用 ADT8940Controller 特定功能。");
 
-        public Adt8940Controller(IMotionService motionManager)
+        public Adt8940Controller(IMotionService motionManager, ILogger logger)
         {
             _motionManager = motionManager ?? throw new ArgumentNullException(nameof(motionManager));
+            _logger = (logger ?? Log.Logger).ForContext<Adt8940Controller>();
         }
 
         public bool Initialize()
         {
             // 利用 Manager 确保所有轴使能（虽然 Manager 有的方法是 EnableAll，但可以复用）
             _motionManager.EnableAll();
+            _logger.Information("ADT8940 控制器已初始化");
             return true;
         }
 
@@ -102,6 +106,7 @@ namespace BLL
         public void Close()
         {
             _motionManager.DisableAll();
+            _logger.Information("ADT8940 控制器已关闭");
         }
     }
 }

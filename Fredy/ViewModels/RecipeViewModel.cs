@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.Input;
 using Fredy.Drilling.Holes.Models;
 using Fredy.Drilling.Holes.Services;
 using Microsoft.Extensions.DependencyInjection;
+using Serilog;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -108,6 +109,7 @@ namespace Fredy.Drilling.Holes.ViewModels
     {
         private readonly Recipe _recipe;
         private readonly RecipePunchParameters _punchParameters;
+        private readonly ILogger _logger;
         private string _recipeName = string.Empty;
         private string _typeName = string.Empty;
         private double _radius;
@@ -119,8 +121,14 @@ namespace Fredy.Drilling.Holes.ViewModels
         private IReadOnlyDictionary<int, (double X, double Y)>? _matchedPoints;
 
         public RecipeViewModel(Recipe recipe)
+            : this(recipe, Log.Logger)
+        {
+        }
+
+        public RecipeViewModel(Recipe recipe, ILogger logger)
         {
             _recipe = recipe;
+            _logger = (logger ?? Log.Logger).ForContext<RecipeViewModel>();
             recipe.PunchParameters ??= new RecipePunchParameters();
             recipe.ProcessParameters ??= new RecipeProcessParameters();
             _punchParameters = recipe.PunchParameters;
@@ -153,6 +161,7 @@ namespace Fredy.Drilling.Holes.ViewModels
             }
 
             InitializeDetectionParameters(ResolveDefaultConfig());
+            _logger.Information("配方视图模型已初始化: {RecipeName}", _recipeName);
         }
 
         public string RecipeName
@@ -303,6 +312,7 @@ namespace Fredy.Drilling.Holes.ViewModels
 
             ApplyOrderedPunchPoints(orderedPoints);
             SelectedPunchPoint = PunchPoints.FirstOrDefault();
+            _logger.Information("配方点位已整体替换，共 {Count} 个", PunchPoints.Count);
         }
 
         private static AppConfig? ResolveDefaultConfig()
@@ -455,6 +465,7 @@ namespace Fredy.Drilling.Holes.ViewModels
 
             DetectionOffsetThreshold = 0;
             SyncFirstPassDetectionToRecipe();
+            _logger.Information("头道探测参数已重置");
         }
 
         private void ResetSecondPassDetection()
@@ -466,6 +477,7 @@ namespace Fredy.Drilling.Holes.ViewModels
 
             SecondPassOffsetThreshold = 0;
             SyncSecondPassDetectionToRecipe();
+            _logger.Information("二道探测参数已重置");
         }
 
         private void AddPunchPoint()
@@ -487,6 +499,7 @@ namespace Fredy.Drilling.Holes.ViewModels
 
             PunchPoints.Add(point);
             SelectedPunchPoint = point;
+            _logger.Information("已新增配方点位: 圈={RingNumber}, 序号={SequenceIndex}", point.RingNumber, point.SequenceIndex);
         }
 
         private void RemoveSelectedPunchPoint()
@@ -496,8 +509,10 @@ namespace Fredy.Drilling.Holes.ViewModels
                 return;
             }
 
-            PunchPoints.Remove(SelectedPunchPoint);
+            var removedPoint = SelectedPunchPoint;
+            PunchPoints.Remove(removedPoint);
             SelectedPunchPoint = null;
+            _logger.Information("已删除配方点位: 圈={RingNumber}, 序号={SequenceIndex}", removedPoint.RingNumber, removedPoint.SequenceIndex);
         }
 
         private void SortPunchPoints()
@@ -510,6 +525,7 @@ namespace Fredy.Drilling.Holes.ViewModels
                 .ToList();
 
             ApplyOrderedPunchPoints(orderedPoints);
+            _logger.Information("配方点位已排序");
         }
 
         private bool CanRemoveSelectedPunchPoint()

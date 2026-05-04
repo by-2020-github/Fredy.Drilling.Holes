@@ -1,4 +1,5 @@
 using HAL;
+using Serilog;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -17,17 +18,20 @@ namespace BLL
         private readonly SemaphoreSlim _refreshLock = new(1, 1);
         private readonly CancellationTokenSource _disposeCts = new();
         private readonly Task _backgroundTask;
+        private readonly ILogger _logger;
 
         private HardwareStateSnapshot _currentState = HardwareStateSnapshot.Empty;
 
-        public HardwareStateService(IMotionService motionService, IIOCard ioCard, ICamera camera)
+        public HardwareStateService(IMotionService motionService, IIOCard ioCard, ICamera camera, ILogger logger)
         {
             _motionService = motionService ?? throw new ArgumentNullException(nameof(motionService));
             _ioCard = ioCard ?? throw new ArgumentNullException(nameof(ioCard));
             _camera = camera ?? throw new ArgumentNullException(nameof(camera));
+            _logger = (logger ?? Log.Logger).ForContext<HardwareStateService>();
             InputCount = ioCard.InputCount;
             OutputCount = ioCard.OutputCount;
             _backgroundTask = Task.Run(BackgroundRefreshLoopAsync);
+            _logger.Information("硬件状态服务已启动，输入点数={InputCount}，输出点数={OutputCount}", InputCount, OutputCount);
         }
 
         public int InputCount { get; }
@@ -63,6 +67,7 @@ namespace BLL
             {
                 _refreshLock.Dispose();
                 _disposeCts.Dispose();
+                _logger.Information("硬件状态服务已释放");
             }
         }
 
@@ -94,8 +99,9 @@ namespace BLL
             {
                 throw;
             }
-            catch
+            catch (Exception ex)
             {
+                _logger.Warning(ex, "硬件状态刷新失败，已回退到当前缓存状态");
                 PublishSnapshot(_currentState with
                 {
                     IsMotionCardReady = false,

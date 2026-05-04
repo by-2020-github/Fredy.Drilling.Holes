@@ -1,5 +1,6 @@
 ﻿using Common.Models;
 using HAL;
+using Serilog;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
@@ -9,6 +10,7 @@ namespace BLL
     public sealed class MotionManager : IMotionService
     {
         private readonly IMoton _motion;
+        private readonly ILogger _logger;
 
         public IMoton Hardware => _motion;
 
@@ -17,13 +19,26 @@ namespace BLL
         public AxisParam ZAxis { get; private set; } = new(3, 0, 0, 0);
 
         public MotionManager(IMoton motion)
+            : this(motion, Log.Logger)
+        {
+        }
+
+        public MotionManager(IMoton motion, ILogger logger)
         {
             _motion = motion ?? throw new ArgumentNullException(nameof(motion));
+            _logger = (logger ?? Log.Logger).ForContext<MotionManager>();
             _motion.ConfigureAxes(XAxis, YAxis, ZAxis);
+            _logger.Information("运动服务已初始化");
         }
 
         public MotionManager(IMoton motion, AxisParam xAxis, AxisParam yAxis, AxisParam zAxis)
-            : this(motion)
+            : this(motion, Log.Logger)
+        {
+            ConfigureAxes(xAxis, yAxis, zAxis);
+        }
+
+        public MotionManager(IMoton motion, AxisParam xAxis, AxisParam yAxis, AxisParam zAxis, ILogger logger)
+            : this(motion, logger)
         {
             ConfigureAxes(xAxis, yAxis, zAxis);
         }
@@ -34,6 +49,7 @@ namespace BLL
             YAxis = yAxis;
             ZAxis = zAxis;
             _motion.ConfigureAxes(XAxis, YAxis, ZAxis);
+            _logger.Information("运动轴参数已更新: X轴={XAxisNo}, Y轴={YAxisNo}, Z轴={ZAxisNo}", XAxis.AxisNo, YAxis.AxisNo, ZAxis.AxisNo);
         }
 
         public void ConfigureXAxis(AxisParam axis)

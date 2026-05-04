@@ -20,6 +20,7 @@ using Common.Models;
 using Common.Services;
 using Common.Tools;
 using Microsoft.Win32;
+using Serilog;
 
 namespace Fredy.Drilling.Holes.ViewModels
 {
@@ -31,6 +32,7 @@ namespace Fredy.Drilling.Holes.ViewModels
         private readonly ConfigService? _configService;
         private readonly ISecondPassAlignmentContext? _secondPassAlignmentContext;
         private readonly RecipeService? _recipeService;
+        private readonly ILogger _logger;
         private readonly CircleDetector _circleDetector = new();
         private readonly List<ScanShotPoint> _scanPoints = new();
         private readonly Dictionary<int, Mat> _capturedTileMats = new();
@@ -53,22 +55,23 @@ namespace Fredy.Drilling.Holes.ViewModels
         [ObservableProperty] private bool _showGridOverlay = true;
 
         public ScanViewModel()
-            : this(null, null, null, null, null)
+            : this(null, null, null, null, null, null)
         {
         }
 
         public ScanViewModel(ConfigService? configService)
-            : this(null, null, configService, null, null)
+            : this(null, null, configService, null, null, null)
         {
         }
 
-        public ScanViewModel(ICamera? camera, IMotionService? motionService, ConfigService? configService, ISecondPassAlignmentContext? secondPassAlignmentContext, RecipeService? recipeService)
+        public ScanViewModel(ICamera? camera, IMotionService? motionService, ConfigService? configService, ISecondPassAlignmentContext? secondPassAlignmentContext, RecipeService? recipeService, ILogger? logger)
          {
              _camera = camera;
              _motionService = motionService;
              _configService = configService;
              _secondPassAlignmentContext = secondPassAlignmentContext;
-            _recipeService = recipeService;
+              _recipeService = recipeService;
+              _logger = (logger ?? Log.Logger).ForContext<ScanViewModel>();
              PreviewGridCells = new ObservableCollection<ScanGridCellVisual>();
              LoadDefaultsFromConfig(_configService?.CurrentConfig);
              Params.ScanStatus = "等待计算...";
@@ -104,6 +107,8 @@ namespace Fredy.Drilling.Holes.ViewModels
             ShowGridOverlay = true;
             _hasPendingAlignmentTransform = false;
             _lastMatchedPointCount = 0;
+
+            _logger.Information("开始扫描流程，当前扫描点数：{ScanPointCount}", _scanPoints.Count);
 
              if (_scanPoints.Count == 0)
              {
@@ -192,15 +197,18 @@ namespace Fredy.Drilling.Holes.ViewModels
                 }
 
                 Params.ScanStatus = "扫描完成，已完成实时拼接。";
+                _logger.Information("扫描完成，已拍摄 {CapturedTileCount} 张，检测候选孔 {HoleCount} 个", _capturedTileMats.Count, _detectedHoleCandidates.Count);
                 FinalizeSecondPassAlignmentPreparation();
             }
             catch (OperationCanceledException)
             {
                 Params.ScanStatus = "扫描已停止。";
+                _logger.Information("扫描被取消");
             }
             catch (Exception ex)
             {
                 Params.ScanStatus = $"扫描失败：{ex.Message}";
+                _logger.Error(ex, "扫描流程失败");
             }
         }
 
@@ -209,6 +217,7 @@ namespace Fredy.Drilling.Holes.ViewModels
         {
             _scanCancellationTokenSource?.Cancel();
             Params.ScanStatus = "正在停止扫描...";
+            _logger.Information("请求停止扫描");
         }
 
         [RelayCommand]
@@ -247,10 +256,12 @@ namespace Fredy.Drilling.Holes.ViewModels
                 Params.DeduplicateToleranceMm = config.ScanDeduplicateToleranceMm;
 
                 Params.ScanStatus = "检测参数已保存到配置。";
+                _logger.Information("扫描检测参数已保存");
             }
             catch (Exception ex)
             {
                 Params.ScanStatus = $"保存检测参数失败：{ex.Message}";
+                _logger.Error(ex, "保存扫描检测参数失败");
             }
         }
  
@@ -323,10 +334,12 @@ namespace Fredy.Drilling.Holes.ViewModels
                 StitchedPreviewMat = preview.Clone();
                 oldMat?.Dispose();
                 Params.ScanStatus = $"{sourceName}检测完成：识别圆孔 {detection.Circles.Count} 个。";
+                _logger.Information("{SourceName}检测完成，识别圆孔 {CircleCount} 个", sourceName, detection.Circles.Count);
             }
             catch (Exception ex)
             {
                 Params.ScanStatus = $"{sourceName}检测失败：{ex.Message}";
+                _logger.Error(ex, "{SourceName}检测失败", sourceName);
             }
         }
 
@@ -351,6 +364,8 @@ namespace Fredy.Drilling.Holes.ViewModels
             {
                 _hasPendingAlignmentTransform = false;
                 _lastMatchedPointCount = 0;
+
+                _logger.Information("开始应用二道坐标校准，已拍摄图像数：{CapturedTileCount}", _capturedTileMats.Count);
 
                 _detectedHoleCandidates.Clear();
                 _detectedHoleCoordinates.Clear();
@@ -389,11 +404,13 @@ namespace Fredy.Drilling.Holes.ViewModels
                 {
                     _secondPassAlignmentContext.SetMatchedPoints(_pendingMatchedPoints);
                     Params.ScanStatus = $"二道坐标校准成功，已写入匹配结果（匹配点 {_lastMatchedPointCount}），可返回主界面继续二道冲孔。";
+                    _logger.Information("二道坐标校准成功，匹配点数：{MatchedPointCount}", _lastMatchedPointCount);
                 }
             }
             catch (Exception ex)
             {
                 Params.ScanStatus = $"应用二道校准失败：{ex.Message}";
+                _logger.Error(ex, "应用二道坐标校准失败");
             }
         }
 
@@ -411,6 +428,12 @@ namespace Fredy.Drilling.Holes.ViewModels
             double pixelSizeYmm = Math.Max(0.0001, pixelSizeYUm / 1000.0);
 
             using var detectorInput = tile.Clone();
+            _logger.Information("扫描图块检测开始，序号 {PhotoIndex}，图像尺寸 {Width}x{Height}，通道数 {Channels}，像素格式 {Type}",
+                photoIndex,
+                detectorInput.Width,
+                detectorInput.Height,
+                detectorInput.Channels(),
+                detectorInput.Type());
             using var detection = DetectCircles(detectorInput);
             
             System.Windows.Application.Current.Dispatcher.Invoke(() =>

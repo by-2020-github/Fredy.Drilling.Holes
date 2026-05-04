@@ -2,6 +2,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.Drawing;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading.Tasks;
 using OpenCvSharp;
 using Point = OpenCvSharp.Point;
@@ -16,10 +17,20 @@ namespace HAL
         private readonly int _width = 1920;
         private readonly int _height = 1080;
         private readonly Random _random = new();
+        private readonly Timer _continuousGrabTimer;
+        private int _continuousGrabReentrancyGuard;
+        private bool _isContinuousGrabbing;
 
         public bool IsConnected => _isConnected;
 
+        public bool IsContinuousGrabbing => _isContinuousGrabbing;
+
         public event EventHandler<CameraArgs>? ImageGrabbed;
+
+        public CameraSimulator()
+        {
+            _continuousGrabTimer = new Timer(OnContinuousGrabTimerTick, null, Timeout.Infinite, Timeout.Infinite);
+        }
 
         public bool Open()
         {
@@ -32,6 +43,7 @@ namespace HAL
 
         public void Close()
         {
+            StopContinuousGrab();
             _isConnected = false;
             Console.WriteLine("Simulator Camera Closed.");
         }
@@ -83,6 +95,38 @@ namespace HAL
             return await Task.Run(() => Grab());
         }
 
+        public void StartContinuousGrab()
+        {
+            if (!_isConnected)
+            {
+                throw new InvalidOperationException("Camera not connected.");
+            }
+
+            if (_isContinuousGrabbing)
+            {
+                throw new InvalidOperationException("Camera is already in continuous grab mode.");
+            }
+
+            _isContinuousGrabbing = true;
+            _continuousGrabTimer.Change(TimeSpan.Zero, TimeSpan.FromMilliseconds(33));
+        }
+
+        public void StopContinuousGrab()
+        {
+            if (!_isConnected)
+            {
+                throw new InvalidOperationException("Camera not connected.");
+            }
+
+            if (!_isContinuousGrabbing)
+            {
+                throw new InvalidOperationException("Camera is not in continuous grab mode.");
+            }
+
+            _isContinuousGrabbing = false;
+            _continuousGrabTimer.Change(Timeout.Infinite, Timeout.Infinite);
+        }
+
         public void SetExposureTime(double exposureTime) => _exposureTime = exposureTime;
 
         public void SetGain(double gain) => _gain = gain;
@@ -112,7 +156,33 @@ namespace HAL
 
         public void Dispose()
         {
+            _continuousGrabTimer.Dispose();
             Close();
+        }
+
+        private void OnContinuousGrabTimerTick(object? state)
+        {
+            if (!_isContinuousGrabbing || !_isConnected)
+            {
+                return;
+            }
+
+            if (Interlocked.Exchange(ref _continuousGrabReentrancyGuard, 1) == 1)
+            {
+                return;
+            }
+
+            try
+            {
+                Grab();
+            }
+            catch
+            {
+            }
+            finally
+            {
+                Interlocked.Exchange(ref _continuousGrabReentrancyGuard, 0);
+            }
         }
     }
 }

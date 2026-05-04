@@ -14,7 +14,8 @@ namespace Fredy.Drilling.Holes.Views
             InitializeComponent();
 
             var configService = App.ServiceProvider.GetRequiredService<Services.ConfigService>();
-            ViewModel = new CircleDetectionSettingsViewModel(configService);
+            var logger = App.ServiceProvider.GetRequiredService<Serilog.ILogger>();
+            ViewModel = new CircleDetectionSettingsViewModel(configService, logger);
             DataContext = ViewModel;
 
             ViewModel.OnSettingsChanged += () =>

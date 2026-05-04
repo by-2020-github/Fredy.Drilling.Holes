@@ -5,13 +5,46 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d" d:DesignWidth="600" d:DesignHeight="400">
     <Grid Background="{StaticResource Brush.Surface.Dark}" ClipToBounds="True">
-        <Grid x:Name="Viewport" 
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0"
+                Padding="8"
+                Background="White">
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Setter Property="Visibility" Value="Visible"/>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding ShowCaptureButtons, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="False">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+            <Menu Background="White">
+                <MenuItem Header="单张拍照"
+                          Click="GrabSingle_Click"
+                          IsEnabled="{Binding CanGrabSingle, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
+                <MenuItem Header="开始连续拍照"
+                          Click="StartContinuousGrab_Click"
+                          IsEnabled="{Binding CanStartContinuousGrab, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
+                <MenuItem Header="停止连续拍照"
+                          Click="StopContinuousGrab_Click"
+                          IsEnabled="{Binding CanStopContinuousGrab, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
+            </Menu>
+        </Border>
+
+        <Grid Grid.Row="1"
+              x:Name="Viewport"
               Background="Transparent"
               MouseLeftButtonDown="OnMouseLeftButtonDown"
               MouseLeftButtonUp="OnMouseLeftButtonUp"
               MouseMove="OnMouseMove"
               MouseWheel="OnMouseWheel">
-            
+
             <Grid.ContextMenu>
                 <ContextMenu>
                     <MenuItem Header="重置视图" Click="ResetView_Click"/>
@@ -28,30 +61,6 @@
                 </ContextMenu>
             </Grid.ContextMenu>
 
-            <Border HorizontalAlignment="Left"
-                    VerticalAlignment="Top"
-                    Margin="12"
-                    Padding="8"
-                    Panel.ZIndex="10"
-                    Background="#66000000"
-                    CornerRadius="6">
-                <Border.Style>
-                    <Style TargetType="Border">
-                        <Setter Property="Visibility" Value="Visible"/>
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding ShowCaptureButtons, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="False">
-                                <Setter Property="Visibility" Value="Collapsed"/>
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Border.Style>
-                <StackPanel Orientation="Horizontal">
-                    <Button Content="单张拍照" Click="GrabSingle_Click" Padding="12,4" MinWidth="84"/>
-                    <Button Content="开始连续拍照" Click="StartContinuousGrab_Click" Margin="8,0,0,0" Padding="12,4" MinWidth="108"/>
-                    <Button Content="停止连续拍照" Click="StopContinuousGrab_Click" Margin="8,0,0,0" Padding="12,4" MinWidth="108"/>
-                </StackPanel>
-            </Border>
-
             <Grid x:Name="ContentLayer" RenderTransformOrigin="0.5,0.5">
                 <Grid.RenderTransform>
                     <TransformGroup>
@@ -61,19 +70,16 @@
                 </Grid.RenderTransform>
 
                 <Image x:Name="DisplayImage" Source="{Binding ImageSource, RelativeSource={RelativeSource AncestorType=UserControl}}" Stretch="Uniform" SizeChanged="DisplayImage_SizeChanged"/>
-                
-                <!-- Cross -->
+
                 <Grid x:Name="CenterCross" Width="48" Height="48" HorizontalAlignment="Center" VerticalAlignment="Center">
                     <Line X1="24" Y1="0" X2="24" Y2="48" Stroke="#FF5252" StrokeThickness="1"/>
                     <Line X1="0" Y1="24" X2="48" Y2="24" Stroke="#FF5252" StrokeThickness="1"/>
                 </Grid>
 
-                <!-- Circle Overlays (Dynamic) -->
                 <Canvas x:Name="OverlayCanvas" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
 
-                <!-- ROI Rectangle -->
                 <Canvas x:Name="ROICanvas" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Visibility="Collapsed">
-                    <Rectangle x:Name="ROIRect" Stroke="Lime" StrokeThickness="2" StrokeDashArray="4,4" Fill="#3300FF00" 
+                    <Rectangle x:Name="ROIRect" Stroke="Lime" StrokeThickness="2" StrokeDashArray="4,4" Fill="#3300FF00"
                                MouseLeftButtonDown="ROIRect_MouseDown" MouseLeftButtonUp="ROIRect_MouseUp" MouseMove="ROIRect_MouseMove"/>
                 </Canvas>
             </Grid>
@@ -91,6 +97,35 @@
                 </TextBlock.Style>
             </TextBlock>
         </Grid>
+
+        <Border Grid.Row="2"
+                Padding="8,6"
+                Background="White">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Column="0"
+                           Foreground="Black"
+                           VerticalAlignment="Center"
+                           Text="{Binding CameraConnectionStatusText, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
+
+                <TextBlock Grid.Column="1"
+                           Foreground="Black"
+                           VerticalAlignment="Center"
+                           HorizontalAlignment="Center"
+                           Text="{Binding CameraGrabModeStatusText, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
+
+                <TextBlock Grid.Column="2"
+                           Foreground="Black"
+                           VerticalAlignment="Center"
+                           HorizontalAlignment="Right"
+                           Text="{Binding CameraLatestFrameStatusText, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
+            </Grid>
+        </Border>
     </Grid>
 </UserControl>
 

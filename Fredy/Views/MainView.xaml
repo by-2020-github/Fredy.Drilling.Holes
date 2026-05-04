@@ -30,13 +30,7 @@
                 <uc:CameraViewerControl ImageSource="{Binding CurrentCameraImage}" 
                                         Margin="0,0,0,0"/>
 
-                <TextBlock Text="当前相机图像"
-                           Margin="12,10,12,0"
-                           HorizontalAlignment="Left"
-                           VerticalAlignment="Top"
-                           Foreground="{StaticResource Brush.Foreground}"
-                           FontSize="16"
-                           FontWeight="SemiBold"/>
+             
 
                 <Border Width="340"
                         Height="320"

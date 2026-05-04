@@ -1,3 +1,4 @@
+using Serilog;
 using System;
 using System.Collections.Generic;
 
@@ -32,6 +33,18 @@ namespace BLL
 
     public sealed class SecondPassAlignmentContext : ISecondPassAlignmentContext
     {
+        private readonly ILogger _logger;
+
+        public SecondPassAlignmentContext()
+            : this(Log.Logger)
+        {
+        }
+
+        public SecondPassAlignmentContext(ILogger logger)
+        {
+            _logger = (logger ?? Log.Logger).ForContext<SecondPassAlignmentContext>();
+        }
+
         public bool IsReady { get; private set; }
 
         public IReadOnlyDictionary<int, (double X, double Y)> MatchedPoints { get; private set; } = new Dictionary<int, (double X, double Y)>();
@@ -42,6 +55,7 @@ namespace BLL
         {
             MatchedPoints = matchedPoints;
             IsReady = true;
+            _logger.Information("二道对位结果已更新，匹配孔位数={MatchedCount}", matchedPoints.Count);
             AlignmentChanged?.Invoke(this, EventArgs.Empty);
         }
 
@@ -49,6 +63,7 @@ namespace BLL
         {
             MatchedPoints = new Dictionary<int, (double X, double Y)>();
             IsReady = false;
+            _logger.Information("二道对位结果已清空");
             AlignmentChanged?.Invoke(this, EventArgs.Empty);
         }
     }

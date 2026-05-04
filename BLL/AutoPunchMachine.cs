@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Serilog;
 
 namespace BLL
 {
@@ -28,6 +29,7 @@ namespace BLL
         private double _currentTargetY;
         private double _rawTargetX;
         private double _rawTargetY;
+        private readonly ILogger _logger;
 
         private readonly record struct SurfaceSample(double X, double Y, double SurfaceZ);
         private readonly record struct CompensationResult(
@@ -44,8 +46,15 @@ namespace BLL
         public Func<double, double, (double X, double Y)>? HoleCoordinateTransformer { get; set; }
 
         public PunchStateMachine(IHardwareController hardware)
+            : this(hardware, global::Serilog.Log.Logger)
+        {
+        }
+
+        public PunchStateMachine(IHardwareController hardware, ILogger logger)
         {
             Hardware = hardware ?? throw new ArgumentNullException(nameof(hardware));
+            _logger = (logger ?? global::Serilog.Log.Logger).ForContext<PunchStateMachine>();
+            _logger.Information("冲孔状态机已创建");
         }
 
         /// <summary>
@@ -62,6 +71,7 @@ namespace BLL
                     _currentState = value;
                     // 触发状态改变事件
                     StateChanged?.Invoke(this, new StateChangedEventArgs(oldState, _currentState, CurrentHoleIndex));
+                    _logger.Information("状态切换: {OldState} -> {NewState}, 当前孔位索引: {HoleIndex}", oldState, _currentState, CurrentHoleIndex);
                 }
             }
         }
@@ -312,6 +322,11 @@ namespace BLL
                         compensationResult.NearestSampleSurfaceZ,
                         compensationResult.NearestDistance,
                         compensationResult.SampleCount));
+                    _logger.Information("孔位#{HoleIndex}补偿={Compensation}, 最近邻距离={Distance}, 采样点数量={SampleCount}",
+                        CurrentHoleIndex,
+                        compensationResult.Compensation,
+                        compensationResult.NearestDistance,
+                        compensationResult.SampleCount);
                     double contactDiff = Hardware.CalculateDifference();
 
                     if (ProcessType == PunchProcessType.SecondPass)
@@ -459,6 +474,7 @@ namespace BLL
         // 以下方法全部改为触发事件，交由UI处理
         private void Log(string msg)
         {
+            _logger.Information("{Message}", msg);
             MessageReported?.Invoke(this, new MessageEventArgs(msg));
         }
 
@@ -469,16 +485,19 @@ namespace BLL
                 CompletionStatus = PunchCompletionStatus.AbnormalFinished;
             }
 
+            _logger.Warning("{Message}", msg);
             MessageReported?.Invoke(this, new MessageEventArgs(msg, isAlarm: true));
         }
 
         private void ShowWarningDialog(string msg)
         {
+            _logger.Warning("{Message}", msg);
             MessageReported?.Invoke(this, new MessageEventArgs(msg, isAlarm: true, requiresUserAction: true));
         }
 
         private void ShowAdjustmentDialog(string msg)
         {
+            _logger.Information("{Message}", msg);
             MessageReported?.Invoke(this, new MessageEventArgs(msg, isAlarm: false, requiresUserAction: true));
         }
 

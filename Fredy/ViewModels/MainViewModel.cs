@@ -9,6 +9,7 @@ using Fredy.Drilling.Holes.Windows.PunchAudit;
 using Fredy.Drilling.Holes.Windows.Recipe;
 using HAL;
 using Microsoft.Extensions.Logging;
+using Serilog;
 using System;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -41,6 +42,7 @@ namespace Fredy.Drilling.Holes.ViewModels
         private bool _isCameraPreviewSuspended;
         private PunchProcessAuditViewModel? _punchAuditViewModel;
         private PunchAuditWindow? _punchAuditWindow;
+        private readonly Serilog.ILogger? _serilogLogger;
 
         [ObservableProperty] private MachineStatus _status = new();
         [ObservableProperty] private bool _isSimulate;
@@ -94,6 +96,7 @@ namespace Fredy.Drilling.Holes.ViewModels
             IAppLogStore logStore,
             IAppLogExportService logExportService,
             ILogger<MainViewModel> logger,
+            Serilog.ILogger serilogLogger,
             RecipeService recipeService,
             ICamera camera,
             IHardwareController hardwareController,
@@ -103,6 +106,7 @@ namespace Fredy.Drilling.Holes.ViewModels
             _logStore = logStore;
             _logExportService = logExportService;
             _logger = logger;
+            _serilogLogger = serilogLogger.ForContext<MainViewModel>();
             _recipeService = recipeService;
             _camera = camera;
             _hardwareController = hardwareController;
@@ -481,10 +485,10 @@ namespace Fredy.Drilling.Holes.ViewModels
         private PunchStateMachine CreatePunchStateMachine()
         {
             IHardwareController hardwareController = IsSimulate
-                ? new MockHardwareController()
+                ? new MockHardwareController(_serilogLogger ?? Log.Logger)
                 : _hardwareController ?? throw new InvalidOperationException("未注入实际硬件控制器。");
 
-            return new PunchStateMachine(hardwareController);
+            return new PunchStateMachine(hardwareController, _serilogLogger ?? Log.Logger);
         }
 
         private async Task RunPunchingProcessAsync(RecipeViewModel recipeViewModel, PunchStateMachine punchStateMachine, PunchProcessType processType, CancellationToken cancellationToken)
@@ -594,7 +598,7 @@ namespace Fredy.Drilling.Holes.ViewModels
 
         private void ShowPunchAuditWindow(RecipeViewModel recipeViewModel, bool isSimulation, bool isFirstPass)
         {
-            _punchAuditViewModel ??= new PunchProcessAuditViewModel();
+            _punchAuditViewModel ??= new PunchProcessAuditViewModel(_serilogLogger ?? Log.Logger);
             _punchAuditViewModel.Initialize(recipeViewModel, isSimulation, isFirstPass);
 
             if (_punchAuditWindow is null || !_punchAuditWindow.IsLoaded)

@@ -1,6 +1,5 @@
 using System;
 using System.ComponentModel;
-using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -59,6 +58,60 @@ namespace Fredy.Drilling.Holes.UserControls
             set => SetValue(ShowCaptureButtonsProperty, value);
         }
 
+        public static readonly DependencyProperty CameraConnectionStatusTextProperty = DependencyProperty.Register(
+            nameof(CameraConnectionStatusText), typeof(string), typeof(CameraViewerControl), new PropertyMetadata("相机状态：未连接"));
+
+        public string CameraConnectionStatusText
+        {
+            get => (string)GetValue(CameraConnectionStatusTextProperty);
+            set => SetValue(CameraConnectionStatusTextProperty, value);
+        }
+
+        public static readonly DependencyProperty CameraGrabModeStatusTextProperty = DependencyProperty.Register(
+            nameof(CameraGrabModeStatusText), typeof(string), typeof(CameraViewerControl), new PropertyMetadata("采集模式：单张/空闲"));
+
+        public string CameraGrabModeStatusText
+        {
+            get => (string)GetValue(CameraGrabModeStatusTextProperty);
+            set => SetValue(CameraGrabModeStatusTextProperty, value);
+        }
+
+        public static readonly DependencyProperty CameraLatestFrameStatusTextProperty = DependencyProperty.Register(
+            nameof(CameraLatestFrameStatusText), typeof(string), typeof(CameraViewerControl), new PropertyMetadata("最新帧：-"));
+
+        public string CameraLatestFrameStatusText
+        {
+            get => (string)GetValue(CameraLatestFrameStatusTextProperty);
+            set => SetValue(CameraLatestFrameStatusTextProperty, value);
+        }
+
+        public static readonly DependencyProperty CanGrabSingleProperty = DependencyProperty.Register(
+            nameof(CanGrabSingle), typeof(bool), typeof(CameraViewerControl), new PropertyMetadata(true));
+
+        public bool CanGrabSingle
+        {
+            get => (bool)GetValue(CanGrabSingleProperty);
+            set => SetValue(CanGrabSingleProperty, value);
+        }
+
+        public static readonly DependencyProperty CanStartContinuousGrabProperty = DependencyProperty.Register(
+            nameof(CanStartContinuousGrab), typeof(bool), typeof(CameraViewerControl), new PropertyMetadata(true));
+
+        public bool CanStartContinuousGrab
+        {
+            get => (bool)GetValue(CanStartContinuousGrabProperty);
+            set => SetValue(CanStartContinuousGrabProperty, value);
+        }
+
+        public static readonly DependencyProperty CanStopContinuousGrabProperty = DependencyProperty.Register(
+            nameof(CanStopContinuousGrab), typeof(bool), typeof(CameraViewerControl), new PropertyMetadata(false));
+
+        public bool CanStopContinuousGrab
+        {
+            get => (bool)GetValue(CanStopContinuousGrabProperty);
+            set => SetValue(CanStopContinuousGrabProperty, value);
+        }
+
         private static void OnImageSourceChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
             if (d is CameraViewerControl control && control.MenuDetectCircles.IsChecked)
@@ -68,8 +121,12 @@ namespace Fredy.Drilling.Holes.UserControls
         }
 
         private readonly ICamera? _camera;
-        private CancellationTokenSource? _grabCts;
-        private Task? _grabLoopTask;
+        private bool _isContinuousGrabbing;
+        private bool _isSingleGrabInProgress;
+        private bool _isSubscribedToCameraEvents;
+        private Window? _ownerWindow;
+        private long _latestFrameId;
+        private DateTime? _latestFrameTimestamp;
 
         private Point _startDragPos;
         private bool _isDragging = false;
@@ -84,8 +141,14 @@ namespace Fredy.Drilling.Holes.UserControls
             {
                 _camera = App.ServiceProvider.GetRequiredService<ICamera>();
             }
+            else
+            {
+                RefreshCameraStatus();
+            }
 
+            Loaded += CameraViewerControl_Loaded;
             Unloaded += CameraViewerControl_Unloaded;
+            IsVisibleChanged += CameraViewerControl_IsVisibleChanged;
         }
 
         private void OnMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -171,6 +234,8 @@ namespace Fredy.Drilling.Holes.UserControls
         {
             try
             {
+                _isSingleGrabInProgress = true;
+                RefreshCaptureActionStates();
                 await EnsureCameraOpenAsync();
                 if (_camera is null)
                 {
@@ -179,16 +244,23 @@ namespace Fredy.Drilling.Holes.UserControls
 
                 var frame = await _camera.GrabAsync();
                 UpdateImage(frame);
+                RefreshCameraStatus();
             }
             catch (Exception ex)
             {
                 MessageBox.Show($"单张拍照失败：{ex.Message}", "相机", MessageBoxButton.OK, MessageBoxImage.Error);
+                RefreshCameraStatus();
+            }
+            finally
+            {
+                _isSingleGrabInProgress = false;
+                RefreshCaptureActionStates();
             }
         }
 
         private async void StartContinuousGrab_Click(object sender, RoutedEventArgs e)
         {
-            if (_grabCts is not null)
+            if (_isContinuousGrabbing)
             {
                 return;
             }
@@ -197,40 +269,23 @@ namespace Fredy.Drilling.Holes.UserControls
             {
                 await EnsureCameraOpenAsync();
 
-                _grabCts = new CancellationTokenSource();
-                var token = _grabCts.Token;
-
-                _grabLoopTask = Task.Run(async () =>
+                if (_camera is null)
                 {
-                    while (!token.IsCancellationRequested)
-                    {
-                        CameraArgs frame;
-                        try
-                        {
-                            frame = await _camera.GrabAsync();
-                        }
-                        catch (OperationCanceledException)
-                        {
-                            break;
-                        }
+                    return;
+                }
 
-                        await Dispatcher.InvokeAsync(() => UpdateImage(frame));
-
-                        try
-                        {
-                            await Task.Delay(33, token);
-                        }
-                        catch (OperationCanceledException)
-                        {
-                            break;
-                        }
-                    }
-                }, token);
+                _camera.StartContinuousGrab();
+                _isContinuousGrabbing = true;
+                UpdateCameraSubscription();
+                RefreshCameraStatus();
+                RefreshCaptureActionStates();
             }
             catch (Exception ex)
             {
                 await StopContinuousGrabAsync();
                 MessageBox.Show($"启动连续拍照失败：{ex.Message}", "相机", MessageBoxButton.OK, MessageBoxImage.Error);
+                RefreshCameraStatus();
+                RefreshCaptureActionStates();
             }
         }
 
@@ -256,6 +311,8 @@ namespace Fredy.Drilling.Holes.UserControls
             {
                 throw new InvalidOperationException("相机打开失败。");
             }
+
+            RefreshCameraStatus();
         }
 
         private void UpdateImage(CameraArgs frame)
@@ -269,36 +326,175 @@ namespace Fredy.Drilling.Holes.UserControls
             var oldMat = ImageMat;
             ImageMat = mat.Clone();
             oldMat?.Dispose();
+
+            _latestFrameId = frame.FrameId;
+            _latestFrameTimestamp = frame.Timestamp;
         }
 
         private async Task StopContinuousGrabAsync()
         {
-            if (_grabCts is null)
+            if (_camera is null)
             {
                 return;
             }
 
-            _grabCts.Cancel();
-
-            if (_grabLoopTask is not null)
+            if (!_isContinuousGrabbing && !_camera.IsContinuousGrabbing)
             {
-                try
-                {
-                    await _grabLoopTask;
-                }
-                catch (OperationCanceledException)
-                {
-                }
+                UpdateCameraSubscription();
+                return;
             }
 
-            _grabLoopTask = null;
-            _grabCts.Dispose();
-            _grabCts = null;
+            try
+            {
+                if (_camera.IsContinuousGrabbing)
+                {
+                    _camera.StopContinuousGrab();
+                }
+            }
+            finally
+            {
+                _isContinuousGrabbing = false;
+                UpdateCameraSubscription();
+                RefreshCameraStatus();
+                RefreshCaptureActionStates();
+            }
+
+            await Task.CompletedTask;
+        }
+
+        private void CameraViewerControl_Loaded(object sender, RoutedEventArgs e)
+        {
+            HookOwnerWindow();
+            UpdateCameraSubscription();
+            RefreshCameraStatus();
+            RefreshCaptureActionStates();
         }
 
         private async void CameraViewerControl_Unloaded(object sender, RoutedEventArgs e)
         {
+            UnhookOwnerWindow();
+            SetCameraSubscription(false);
             await StopContinuousGrabAsync();
+            RefreshCameraStatus();
+            RefreshCaptureActionStates();
+        }
+
+        private void CameraViewerControl_IsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+        {
+            UpdateCameraSubscription();
+        }
+
+        private void Camera_ImageGrabbed(object? sender, CameraArgs e)
+        {
+            if (Dispatcher.CheckAccess())
+            {
+                UpdateImage(e);
+                RefreshCameraStatus();
+                return;
+            }
+
+            _ = Dispatcher.InvokeAsync(() =>
+            {
+                UpdateImage(e);
+                RefreshCameraStatus();
+            });
+        }
+
+        private void HookOwnerWindow()
+        {
+            var window = Window.GetWindow(this);
+            if (ReferenceEquals(_ownerWindow, window))
+            {
+                return;
+            }
+
+            UnhookOwnerWindow();
+            _ownerWindow = window;
+            if (_ownerWindow is not null)
+            {
+                _ownerWindow.Activated += OwnerWindow_Activated;
+                _ownerWindow.Deactivated += OwnerWindow_Deactivated;
+            }
+        }
+
+        private void UnhookOwnerWindow()
+        {
+            if (_ownerWindow is null)
+            {
+                return;
+            }
+
+            _ownerWindow.Activated -= OwnerWindow_Activated;
+            _ownerWindow.Deactivated -= OwnerWindow_Deactivated;
+            _ownerWindow = null;
+        }
+
+        private void OwnerWindow_Activated(object? sender, EventArgs e)
+        {
+            UpdateCameraSubscription();
+        }
+
+        private void OwnerWindow_Deactivated(object? sender, EventArgs e)
+        {
+            UpdateCameraSubscription();
+        }
+
+        private void UpdateCameraSubscription()
+        {
+            var shouldSubscribe = _camera is not null
+                && IsLoaded
+                && IsVisible
+                && (_ownerWindow?.IsActive ?? true);
+
+            SetCameraSubscription(shouldSubscribe);
+        }
+
+        private void SetCameraSubscription(bool subscribe)
+        {
+            if (_camera is null || _isSubscribedToCameraEvents == subscribe)
+            {
+                return;
+            }
+
+            if (subscribe)
+            {
+                _camera.ImageGrabbed += Camera_ImageGrabbed;
+            }
+            else
+            {
+                _camera.ImageGrabbed -= Camera_ImageGrabbed;
+            }
+
+            _isSubscribedToCameraEvents = subscribe;
+        }
+
+        private void RefreshCameraStatus()
+        {
+            if (_camera is null)
+            {
+                CameraConnectionStatusText = "相机状态：未连接";
+                CameraGrabModeStatusText = "采集模式：单张/空闲";
+                CameraLatestFrameStatusText = "最新帧：-";
+                RefreshCaptureActionStates();
+                return;
+            }
+
+            CameraConnectionStatusText = _camera.IsConnected ? "相机状态：已连接" : "相机状态：未连接";
+            CameraGrabModeStatusText = _camera.IsContinuousGrabbing ? "采集模式：连续采集" : "采集模式：单张/空闲";
+            CameraLatestFrameStatusText = _latestFrameTimestamp.HasValue
+                ? $"最新帧：{_latestFrameId} / {_latestFrameTimestamp:HH:mm:ss.fff}"
+                : "最新帧：-";
+            RefreshCaptureActionStates();
+        }
+
+        private void RefreshCaptureActionStates()
+        {
+            var isContinuousMode = _isContinuousGrabbing || (_camera?.IsContinuousGrabbing ?? false);
+            var canOperate = !_isSingleGrabInProgress;
+
+            CanGrabSingle = canOperate && !isContinuousMode;
+            CanStartContinuousGrab = canOperate && !isContinuousMode;
+            CanStopContinuousGrab = canOperate && isContinuousMode;
         }
 
         private void StartDrawROI_Click(object sender, RoutedEventArgs e)

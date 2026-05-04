@@ -1,5 +1,6 @@
 using BLL;
 using CommunityToolkit.Mvvm.ComponentModel;
+using Serilog;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -82,8 +83,19 @@ namespace Fredy.Drilling.Holes.ViewModels
         private double _linkX2;
         private double _linkY2;
         private Visibility _linkVisibility = Visibility.Collapsed;
+        private readonly ILogger _logger;
 
         private readonly Dictionary<int, PunchHeatmapPointViewModel> _heatmapPointsByHoleIndex = new();
+
+        public PunchProcessAuditViewModel()
+            : this(Log.Logger)
+        {
+        }
+
+        public PunchProcessAuditViewModel(ILogger logger)
+        {
+            _logger = (logger ?? Log.Logger).ForContext<PunchProcessAuditViewModel>();
+        }
 
         public string Title { get => _title; set => SetProperty(ref _title, value); }
         public string ProcessMode { get => _processMode; set => SetProperty(ref _processMode, value); }
@@ -140,6 +152,7 @@ namespace Fredy.Drilling.Holes.ViewModels
             RefreshHeatmapStyles();
             UpdateProgress();
             AddTimeline($"流程初始化，孔位总数: {TotalHoles}");
+            _logger.Information("冲孔流程审计已初始化，孔位总数={TotalHoles}, 模式={ProcessMode}", TotalHoles, ProcessMode);
         }
 
         public void OnStateChanged(StateChangedEventArgs args)
@@ -220,6 +233,7 @@ namespace Fredy.Drilling.Holes.ViewModels
             };
 
             AddTimeline($"流程结束: {CompletionStatus}");
+            _logger.Information("冲孔流程审计结束，状态={CompletionStatus}", CompletionStatus);
         }
 
         private void UpdateProgress()

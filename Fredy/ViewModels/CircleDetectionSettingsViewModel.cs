@@ -3,12 +3,14 @@ using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Fredy.Drilling.Holes.Services;
+using Serilog;
 
 namespace Fredy.Drilling.Holes.ViewModels
 {
     public partial class CircleDetectionSettingsViewModel : ObservableObject
     {
         private readonly ConfigService _configService;
+        private readonly ILogger _logger;
         
         [ObservableProperty]
         private double _minRadius;
@@ -27,9 +29,10 @@ namespace Fredy.Drilling.Holes.ViewModels
         
         public event Action OnSettingsChanged;
 
-        public CircleDetectionSettingsViewModel(ConfigService configService)
+        public CircleDetectionSettingsViewModel(ConfigService configService, ILogger logger)
         {
             _configService = configService;
+            _logger = (logger ?? Log.Logger).ForContext<CircleDetectionSettingsViewModel>();
             var config = _configService.CurrentConfig;
             
             MinRadius = config.CircleMinRadius;
@@ -37,6 +40,7 @@ namespace Fredy.Drilling.Holes.ViewModels
             Param1 = config.CircleParam1;
             Param2 = config.CircleParam2;
             IsDarkHoleTarget = config.CircleIsDarkTarget;
+            _logger.Information("圆检测参数视图模型已初始化");
         }
         
         protected override void OnPropertyChanged(System.ComponentModel.PropertyChangedEventArgs e)
@@ -64,6 +68,7 @@ namespace Fredy.Drilling.Holes.ViewModels
             config.CircleIsDarkTarget = IsDarkHoleTarget;
             
             _configService.SaveWithArchive(config);
+            _logger.Information("圆检测参数已保存");
         }
     }
 }

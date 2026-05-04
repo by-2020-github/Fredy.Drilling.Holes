@@ -1,3 +1,4 @@
+using Serilog;
 using System;
 
 namespace BLL
@@ -8,13 +9,25 @@ namespace BLL
         private bool _contactSignal;
         private double _surfaceZ;
 
+        private readonly ILogger _logger;
+
+        public MockHardwareController()
+            : this(Log.Logger)
+        {
+        }
+
+        public MockHardwareController(ILogger logger)
+        {
+            _logger = (logger ?? Log.Logger).ForContext<MockHardwareController>();
+        }
+
         public bool Initialize() => true;
 
         public void MoveXY(double targetX, double targetY)
-            => Console.WriteLine($"Mock: 模拟XY走位 X={targetX:F4}, Y={targetY:F4}");
+            => _logger.Information("Mock: 模拟XY走位 X={TargetX:F4}, Y={TargetY:F4}", targetX, targetY);
 
         public void MoveXYToOffset(double offsetX, double offsetY)
-            => Console.WriteLine($"Mock: 模拟XY偏移走位 offsetX={offsetX}, offsetY={offsetY}");
+            => _logger.Information("Mock: 模拟XY偏移走位 offsetX={OffsetX}, offsetY={OffsetY}", offsetX, offsetY);
 
         public void FastMoveZ(double distance = 0.0)
         {
@@ -32,12 +45,14 @@ namespace BLL
         public void LiftZ()
         {
             _contactSignal = false;
+            _logger.Debug("Mock: Z轴抬起到安全位置");
         }
 
         public void PunchDown(double compensation = 0.0)
         {
             // 模拟冲孔后记录该点表面值（带补偿）
             _surfaceZ += compensation * 0.1;
+            _logger.Information("Mock: 执行冲孔动作，补偿={Compensation}", compensation);
         }
 
         public void StopZ() { }
@@ -48,6 +63,7 @@ namespace BLL
 
         public void Close()
         {
+            _logger.Information("Mock: 硬件控制器已关闭");
         }
     }
 }

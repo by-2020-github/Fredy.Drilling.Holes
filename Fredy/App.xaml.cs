@@ -168,14 +168,17 @@ namespace Fredy.Drilling.Holes
             var config = configService.CurrentConfig;
 
             // 注册硬件 - 相机
+            ICamera baseCamera;
             if (config.Camera.CameraType == "模拟相机" || hardwareInitializationResult.UseSimulatedCamera)
             {
-                services.AddSingleton<ICamera, CameraSimulator>();
+                baseCamera = new CameraSimulator();
             }
             else
             {
-                services.AddSingleton<ICamera, HkCamera>();
+                baseCamera = new HkCamera();
             }
+
+            services.AddSingleton<ICamera>(baseCamera);
 
             // 注册硬件 - 运动控制与 IO
             if (config.MotionController.ControllerType == "ADT8940" && !hardwareInitializationResult.UseSimulatedMotion)
@@ -202,6 +205,7 @@ namespace Fredy.Drilling.Holes
             services.AddSingleton(logStore);
             services.AddSingleton<IAppLogStore>(logStore);
             services.AddSingleton<IAppLogExportService, AppLogExportService>();
+            services.AddSingleton<Serilog.ILogger>(_ => Log.Logger);
             services.AddLogging(builder =>
             {
                 builder.ClearProviders();

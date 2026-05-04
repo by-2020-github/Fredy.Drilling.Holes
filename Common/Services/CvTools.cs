@@ -37,7 +37,7 @@ public class CircleDetector
         using var gray = new Mat();
         result.BinaryImage = new Mat();
 
-        Cv2.CvtColor(src, gray, ColorConversionCodes.BGR2GRAY);
+        ConvertToGray(src, gray);
         Cv2.Threshold(gray, result.BinaryImage, threshold, 255, ThresholdTypes.Binary);
 
         result.Circles = ProcessContours(result.BinaryImage, result, minArea, maxArea, circularity, Scalar.Lime);
@@ -51,7 +51,7 @@ public class CircleDetector
         result.Config = $"MetalHoles - Target:{(isDarkHole?"Dark":"Light")}, Radius:[{minRadius}-{maxRadius}], P1:{param1}, P2:{param2}";
 
         using var gray = new Mat();
-        Cv2.CvtColor(src, gray, ColorConversionCodes.BGR2GRAY);
+        ConvertToGray(src, gray);
 
         using var blurred = new Mat();
         Cv2.MedianBlur(gray, blurred, 5);
@@ -97,7 +97,7 @@ public class CircleDetector
         using var gray = new Mat();
         using var preprocessed = new Mat();
         
-        Cv2.CvtColor(src, gray, ColorConversionCodes.BGR2GRAY);
+        ConvertToGray(src, gray);
         using var element = Cv2.GetStructuringElement(MorphShapes.Ellipse, new Size(morphologySize, morphologySize));
         Cv2.MorphologyEx(gray, preprocessed, MorphTypes.BlackHat, element);
         
@@ -136,6 +136,24 @@ public class CircleDetector
     {
         using var src = new Mat(path, ImreadModes.Color);
         return ProcessBrightField(src, minArea, maxArea, threshold, circularity, morphologySize);
+    }
+
+    private static void ConvertToGray(Mat src, Mat gray)
+    {
+        switch (src.Channels())
+        {
+            case 1:
+                src.CopyTo(gray);
+                break;
+            case 3:
+                Cv2.CvtColor(src, gray, ColorConversionCodes.BGR2GRAY);
+                break;
+            case 4:
+                Cv2.CvtColor(src, gray, ColorConversionCodes.BGRA2GRAY);
+                break;
+            default:
+                throw new OpenCvSharpException($"Unsupported channel count: {src.Channels()}");
+        }
     }
 
     public DetectionResult ProcessBrightFieldDebug(string path, int minArea = 1, int maxArea = 100, int threshold = 30, double circularity = 0.2)

@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.Input;
 using HAL;
 using Microsoft.Win32;
 using OpenCvSharp;
+using Serilog;
 using System;
 using System.Collections.ObjectModel;
 using System.Linq;
@@ -35,6 +36,7 @@ namespace Fredy.Drilling.Holes.ViewModels
     {
         private readonly IMotionService? _motionService;
         private readonly ICamera? _camera;
+        private readonly ILogger _logger;
         private readonly Random _random = new();
         private CancellationTokenSource? _cts;
 
@@ -62,14 +64,22 @@ namespace Fredy.Drilling.Holes.ViewModels
         public NinePointCalibrationResult? CalibrationResult { get; private set; }
 
         public NinePointCalibrationViewModel(IMotionService? motionService, ICamera? camera)
+            : this(motionService, camera, Log.Logger)
+        {
+        }
+
+        public NinePointCalibrationViewModel(IMotionService? motionService, ICamera? camera, ILogger logger)
         {
             _motionService = motionService;
             _camera = camera;
+            _logger = (logger ?? Log.Logger).ForContext<NinePointCalibrationViewModel>();
 
             if (_motionService is not null)
             {
                 RefreshAxisPositions();
             }
+
+            _logger.Information("九点标定视图模型已初始化");
         }
 
         [RelayCommand]
@@ -102,6 +112,7 @@ namespace Fredy.Drilling.Holes.ViewModels
                 PixelSizeYUm = ManualPixelSizeY
             };
 
+            _logger.Information("已应用手动标定值: X={PixelSizeXUm}, Y={PixelSizeYUm}", ManualPixelSizeX, ManualPixelSizeY);
             RequestClose?.Invoke(true);
         }
 
@@ -165,6 +176,7 @@ namespace Fredy.Drilling.Holes.ViewModels
             catch (Exception ex)
             {
                 StatusMessage = $"相对移动失败: {ex.Message}";
+                _logger.Error(ex, "相对移动失败: {Axis}", axis);
             }
         }
 
@@ -207,6 +219,7 @@ namespace Fredy.Drilling.Holes.ViewModels
             catch (Exception ex)
             {
                 StatusMessage = $"绝对移动失败: {ex.Message}";
+                _logger.Error(ex, "绝对移动失败: {Axis}", axis);
             }
         }
 
@@ -298,6 +311,7 @@ namespace Fredy.Drilling.Holes.ViewModels
                 ManualPixelSizeY = pixelSizeY;
                 CalibrationResult = new NinePointCalibrationResult { PixelSizeXUm = pixelSizeX, PixelSizeYUm = pixelSizeY };
                 StatusMessage = $"虚拟演示完成 X={pixelSizeX:F4}μm, Y={pixelSizeY:F4}μm";
+                _logger.Information("虚拟九点标定完成: X={PixelSizeXUm}, Y={PixelSizeYUm}", pixelSizeX, pixelSizeY);
             }
             catch (OperationCanceledException)
             {
@@ -306,6 +320,7 @@ namespace Fredy.Drilling.Holes.ViewModels
             catch (Exception ex)
             {
                 StatusMessage = $"虚拟演示异常: {ex.Message}";
+                _logger.Error(ex, "虚拟九点标定异常");
             }
             finally
             {
@@ -434,6 +449,7 @@ namespace Fredy.Drilling.Holes.ViewModels
                 ManualPixelSizeY = pixelSizeY;
                 CalibrationResult = new NinePointCalibrationResult { PixelSizeXUm = pixelSizeX, PixelSizeYUm = pixelSizeY };
                 StatusMessage = $"标定完成 X={pixelSizeX:F4}μm, Y={pixelSizeY:F4}μm";
+                _logger.Information("现场九点标定完成: X={PixelSizeXUm}, Y={PixelSizeYUm}", pixelSizeX, pixelSizeY);
             }
             catch (OperationCanceledException)
             {
@@ -442,6 +458,7 @@ namespace Fredy.Drilling.Holes.ViewModels
             catch (Exception ex)
             {
                 StatusMessage = $"标定异常: {ex.Message}";
+                _logger.Error(ex, "现场九点标定异常");
             }
             finally
             {

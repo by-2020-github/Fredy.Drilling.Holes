@@ -1,11 +1,14 @@
 using Fredy.Drilling.Holes.Models;
 using Fredy.Drilling.Holes.ViewModels;
+using HAL;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Win32;
 using MvCamCtrl.NET;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -33,27 +36,24 @@ public partial class HkCameraControl : UserControl
     private readonly object _frameLock = new();
     private MyCamera.MV_CC_DEVICE_INFO_LIST _deviceList = new() { pDeviceInfo = new IntPtr[MyCamera.MV_MAX_DEVICE_NUM] };
 
-    private MyCamera? _camera;
+    private readonly HkCamera? _camera;
+    private CameraArgs? _lastFrame;
+    private string? _currentConnectionString;
     private bool _sdkInitialized;
     private bool _isGrabbing;
-    private CancellationTokenSource? _grabCts;
-    private Task? _grabTask;
     private readonly SemaphoreSlim _releaseLock = new(1, 1);
     private Window? _ownerWindow;
 
-    private IntPtr _grabBuffer = IntPtr.Zero;
-    private uint _grabBufferSize;
-
-    private IntPtr _convertBuffer = IntPtr.Zero;
-    private uint _convertBufferSize;
-
-    private IntPtr _lastFrameBuffer = IntPtr.Zero;
-    private uint _lastFrameBufferSize;
-    private MyCamera.MV_FRAME_OUT_INFO_EX _lastFrameInfo;
+    private bool _sdkAcquired;
 
     public HkCameraControl()
     {
         InitializeComponent();
+
+        if (!DesignerProperties.GetIsInDesignMode(this))
+        {
+            _camera = App.ServiceProvider.GetService<ICamera>() as HkCamera;
+        }
 
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
@@ -88,6 +88,7 @@ public partial class HkCameraControl : UserControl
     {
         HookOwnerWindow();
         EnsureSdkInitialized();
+        _ = TryAttachConfiguredCameraAsync();
     }
 
     private static void PrepareNativeLibrarySearchPath()
@@ -184,30 +185,8 @@ public partial class HkCameraControl : UserControl
 
         try
         {
-            //PrepareNativeLibrarySearchPath();
-
-            //var diagnoseMessage = DiagnoseHikvisionDlls();
-            //if (!string.IsNullOrWhiteSpace(diagnoseMessage))
-            //{
-            //    ShowError(diagnoseMessage, MyCamera.MV_E_LOAD_LIBRARY);
-            //    return;
-            //}
-
-            var ret = MyCamera.MV_CC_Initialize_NET();
-            if (ret != MyCamera.MV_OK)
-            {
-                if (ret == MyCamera.MV_E_LOAD_LIBRARY)
-                {
-                    ShowError($"初始化SDK失败: 0x{ret:X8}\n请确认 `MvCameraControl.dll` 及其依赖已放在程序根目录或 `DllImport` 目录。\n当前程序目录: {AppContext.BaseDirectory}", ret);
-                }
-                else
-                {
-                    ShowError("初始化SDK失败", ret);
-                }
-
-                return;
-            }
-
+            HkSdkManager.Acquire();
+            _sdkAcquired = true;
             _sdkInitialized = true;
             LoadSaveDirectoryFromConfig();
             DeviceListAcq();
@@ -233,25 +212,19 @@ public partial class HkCameraControl : UserControl
         {
             await StopGrabbingAsync();
 
-            if (_camera is not null)
-            {
-                _camera.MV_CC_CloseDevice_NET();
-                _camera.MV_CC_DestroyDevice_NET();
-                _camera = null;
-            }
+            _currentConnectionString = null;
 
-            ReleaseBuffers();
-
-            if (_sdkInitialized)
+            if (_sdkAcquired)
             {
                 try
                 {
-                    MyCamera.MV_CC_Finalize_NET();
+                    HkSdkManager.Release();
                 }
                 catch
                 {
                 }
 
+                _sdkAcquired = false;
                 _sdkInitialized = false;
             }
 
@@ -334,7 +307,7 @@ public partial class HkCameraControl : UserControl
         PersistSaveDirectoryToConfig();
     }
 
-    private void BnOpen_Click(object? sender, RoutedEventArgs e)
+    private async void BnOpen_Click(object? sender, RoutedEventArgs e)
     {
         if (_deviceList.nDeviceNum == 0 || cbDeviceList.SelectedIndex < 0)
         {
@@ -342,41 +315,19 @@ public partial class HkCameraControl : UserControl
             return;
         }
 
-        CloseCurrentCamera();
-
         var index = cbDeviceList.SelectedIndex;
         var device = Marshal.PtrToStructure<MyCamera.MV_CC_DEVICE_INFO>(_deviceList.pDeviceInfo[index]);
+        var connectionString = GetCameraConnectionString(device);
 
-        _camera = new MyCamera();
+        await CloseCurrentCameraAsync();
 
-        var nRet = _camera.MV_CC_CreateDevice_NET(ref device);
-        if (nRet != MyCamera.MV_OK)
+        if (_camera is null || !_camera.Open(connectionString))
         {
-            ShowError("创建设备失败", nRet);
-            _camera = null;
+            ShowError("打开设备失败", 0);
             return;
         }
 
-        nRet = _camera.MV_CC_OpenDevice_NET();
-        if (nRet != MyCamera.MV_OK)
-        {
-            _camera.MV_CC_DestroyDevice_NET();
-            _camera = null;
-            ShowError("打开设备失败", nRet);
-            return;
-        }
-
-        if (device.nTLayerType == MyCamera.MV_GIGE_DEVICE)
-        {
-            var packetSize = _camera.MV_CC_GetOptimalPacketSize_NET();
-            if (packetSize > 0)
-            {
-                _camera.MV_CC_SetIntValueEx_NET("GevSCPSPacketSize", packetSize);
-            }
-        }
-
-        _camera.MV_CC_SetEnumValue_NET("AcquisitionMode", (uint)MyCamera.MV_CAM_ACQUISITION_MODE.MV_ACQ_MODE_CONTINUOUS);
-        _camera.MV_CC_SetEnumValue_NET("TriggerMode", (uint)MyCamera.MV_CAM_TRIGGER_MODE.MV_TRIGGER_MODE_OFF);
+        _currentConnectionString = connectionString;
 
         bnContinuesMode.IsChecked = true;
         SetCtrlWhenOpen();
@@ -385,9 +336,9 @@ public partial class HkCameraControl : UserControl
         SyncOpenedCameraToConfig(device);
     }
 
-    private void BnClose_Click(object? sender, RoutedEventArgs e)
+    private async void BnClose_Click(object? sender, RoutedEventArgs e)
     {
-        CloseCurrentCamera();
+        await CloseCurrentCameraAsync();
     }
 
     private void BnStartGrab_Click(object? sender, RoutedEventArgs e)
@@ -403,26 +354,31 @@ public partial class HkCameraControl : UserControl
             return;
         }
 
-        var payload = new MyCamera.MVCC_INTVALUE_EX();
-        var nRet = _camera.MV_CC_GetIntValueEx_NET("PayloadSize", ref payload);
-        if (nRet != MyCamera.MV_OK || payload.nCurValue <= 0)
+        var previewCamera = EnsurePreviewCamera();
+        if (previewCamera is null)
         {
-            ShowError("获取PayloadSize失败", nRet);
+            ShowError("开始采集失败", 0);
             return;
         }
 
-        EnsureGrabBuffer((uint)payload.nCurValue);
-
-        nRet = _camera.MV_CC_StartGrabbing_NET();
-        if (nRet != MyCamera.MV_OK)
+        try
         {
-            ShowError("开始采集失败", nRet);
+            previewCamera.ImageGrabbed -= PreviewCamera_ImageGrabbed;
+            previewCamera.ImageGrabbed += PreviewCamera_ImageGrabbed;
+
+            if (!previewCamera.IsContinuousGrabbing)
+            {
+                previewCamera.StartContinuousGrab();
+            }
+
+            _isGrabbing = true;
+        }
+        catch (Exception ex)
+        {
+            previewCamera.ImageGrabbed -= PreviewCamera_ImageGrabbed;
+            ShowError($"开始采集失败: {ex.Message}", 0);
             return;
         }
-
-        _isGrabbing = true;
-        _grabCts = new CancellationTokenSource();
-        _grabTask = Task.Run(() => GrabLoop(_grabCts.Token));
 
         SetCtrlWhenStartGrab();
     }
@@ -435,69 +391,59 @@ public partial class HkCameraControl : UserControl
 
     private void BnContinuesMode_Checked(object? sender, RoutedEventArgs e)
     {
-        if (_camera is null || bnContinuesMode.IsChecked != true)
+        if (_camera is null || !_camera.IsConnected || bnContinuesMode.IsChecked != true)
         {
             return;
         }
 
-        _camera.MV_CC_SetEnumValue_NET("TriggerMode", (uint)MyCamera.MV_CAM_TRIGGER_MODE.MV_TRIGGER_MODE_OFF);
         cbSoftTrigger.IsEnabled = false;
         bnTriggerExec.IsEnabled = false;
     }
 
     private void BnTriggerMode_Checked(object? sender, RoutedEventArgs e)
     {
-        if (_camera is null || bnTriggerMode.IsChecked != true)
+        if (_camera is null || !_camera.IsConnected || bnTriggerMode.IsChecked != true)
         {
             return;
         }
 
-        _camera.MV_CC_SetEnumValue_NET("TriggerMode", (uint)MyCamera.MV_CAM_TRIGGER_MODE.MV_TRIGGER_MODE_ON);
         cbSoftTrigger.IsEnabled = true;
 
         if (cbSoftTrigger.IsChecked == true)
         {
-            _camera.MV_CC_SetEnumValue_NET("TriggerSource", (uint)MyCamera.MV_CAM_TRIGGER_SOURCE.MV_TRIGGER_SOURCE_SOFTWARE);
             bnTriggerExec.IsEnabled = _isGrabbing;
         }
         else
         {
-            _camera.MV_CC_SetEnumValue_NET("TriggerSource", (uint)MyCamera.MV_CAM_TRIGGER_SOURCE.MV_TRIGGER_SOURCE_LINE0);
             bnTriggerExec.IsEnabled = false;
         }
     }
 
     private void CbSoftTrigger_CheckedChanged(object? sender, RoutedEventArgs e)
     {
-        if (_camera is null || bnTriggerMode.IsChecked != true)
+        if (_camera is null || !_camera.IsConnected || bnTriggerMode.IsChecked != true)
         {
             return;
         }
 
         if (cbSoftTrigger.IsChecked == true)
         {
-            _camera.MV_CC_SetEnumValue_NET("TriggerSource", (uint)MyCamera.MV_CAM_TRIGGER_SOURCE.MV_TRIGGER_SOURCE_SOFTWARE);
             bnTriggerExec.IsEnabled = _isGrabbing;
         }
         else
         {
-            _camera.MV_CC_SetEnumValue_NET("TriggerSource", (uint)MyCamera.MV_CAM_TRIGGER_SOURCE.MV_TRIGGER_SOURCE_LINE0);
             bnTriggerExec.IsEnabled = false;
         }
     }
 
     private void BnTriggerExec_Click(object? sender, RoutedEventArgs e)
     {
-        if (_camera is null)
+        if (_camera is null || !_camera.IsConnected)
         {
             return;
         }
 
-        var nRet = _camera.MV_CC_SetCommandValue_NET("TriggerSoftware");
-        if (nRet != MyCamera.MV_OK)
-        {
-            ShowError("软触发失败", nRet);
-        }
+        _ = TriggerPreviewFrameAsync();
     }
 
     private void BnGetParam_Click(object? sender, RoutedEventArgs e)
@@ -507,7 +453,7 @@ public partial class HkCameraControl : UserControl
 
     private void BnSetParam_Click(object? sender, RoutedEventArgs e)
     {
-        if (_camera is null)
+        if (_camera is null || !_camera.IsConnected)
         {
             return;
         }
@@ -522,23 +468,21 @@ public partial class HkCameraControl : UserControl
             return;
         }
 
-        _camera.MV_CC_SetEnumValue_NET("ExposureAuto", 0);
-        var nRet = _camera.MV_CC_SetFloatValue_NET("ExposureTime", exposure);
+        var nRet = _camera.TrySetExposureTime(exposure);
         if (nRet != MyCamera.MV_OK)
         {
             ShowError("设置曝光失败", nRet);
             return;
         }
 
-        _camera.MV_CC_SetEnumValue_NET("GainAuto", 0);
-        nRet = _camera.MV_CC_SetFloatValue_NET("Gain", gain);
+        nRet = _camera.TrySetGain(gain);
         if (nRet != MyCamera.MV_OK)
         {
             ShowError("设置增益失败", nRet);
             return;
         }
 
-        nRet = _camera.MV_CC_SetFloatValue_NET("AcquisitionFrameRate", frameRate);
+        nRet = _camera.TrySetFrameRate(frameRate);
         if (nRet != MyCamera.MV_OK)
         {
             ShowError("设置帧率失败", nRet);
@@ -554,179 +498,65 @@ public partial class HkCameraControl : UserControl
 
         _isGrabbing = false;
 
-        if (_grabCts is not null)
-        {
-            _grabCts.Cancel();
-        }
-
-        if (_grabTask is not null)
+        if (_camera is not null)
         {
             try
             {
-                await _grabTask;
-            }
-            catch (OperationCanceledException)
-            {
+                if (_camera.IsContinuousGrabbing)
+                {
+                    _camera.StopContinuousGrab();
+                }
             }
             catch
             {
             }
-
-            _grabTask = null;
+            finally
+            {
+                _camera.ImageGrabbed -= PreviewCamera_ImageGrabbed;
+            }
         }
 
-        _grabCts?.Dispose();
-        _grabCts = null;
-
-        if (_camera is not null)
-        {
-            _camera.MV_CC_StopGrabbing_NET();
-        }
+        await Task.CompletedTask;
     }
 
-    private async void CloseCurrentCamera()
+    private async Task CloseCurrentCameraAsync()
     {
         await StopGrabbingAsync();
 
-        if (_camera is not null)
-        {
-            _camera.MV_CC_CloseDevice_NET();
-            _camera.MV_CC_DestroyDevice_NET();
-            _camera = null;
-        }
+        _camera?.Close();
+
+        _currentConnectionString = null;
 
         ClearCurrentDeviceInfo();
         SetCtrlWhenClose();
     }
 
-    private void GrabLoop(CancellationToken token)
-    {
-        while (!token.IsCancellationRequested)
-        {
-            if (_camera is null)
-            {
-                return;
-            }
-
-            var frameInfo = new MyCamera.MV_FRAME_OUT_INFO_EX();
-            var nRet = _camera.MV_CC_GetOneFrameTimeout_NET(_grabBuffer, _grabBufferSize, ref frameInfo, 500);
-            if (nRet == MyCamera.MV_E_NODATA)
-            {
-                continue;
-            }
-
-            if (nRet != MyCamera.MV_OK)
-            {
-                continue;
-            }
-
-            lock (_frameLock)
-            {
-                if (_lastFrameBuffer == IntPtr.Zero || frameInfo.nFrameLen > _lastFrameBufferSize)
-                {
-                    if (_lastFrameBuffer != IntPtr.Zero)
-                    {
-                        Marshal.FreeHGlobal(_lastFrameBuffer);
-                    }
-
-                    _lastFrameBuffer = Marshal.AllocHGlobal((int)frameInfo.nFrameLen);
-                    _lastFrameBufferSize = frameInfo.nFrameLen;
-                }
-
-                _lastFrameInfo = frameInfo;
-                CopyMemory(_lastFrameBuffer, _grabBuffer, frameInfo.nFrameLen);
-            }
-
-            var bitmap = ConvertToBitmapSource(frameInfo);
-            if (bitmap is null)
-            {
-                continue;
-            }
-
-            Dispatcher.Invoke(() => displayArea.ImageSource = bitmap);
-        }
-    }
-
-    private BitmapSource? ConvertToBitmapSource(MyCamera.MV_FRAME_OUT_INFO_EX frameInfo)
-    {
-        if (frameInfo.nWidth <= 0 || frameInfo.nHeight <= 0 || frameInfo.nFrameLen <= 0)
-        {
-            return null;
-        }
-
-        if (IsMonoPixel(frameInfo.enPixelType))
-        {
-            var size = frameInfo.nWidth * frameInfo.nHeight;
-            var data = new byte[size];
-            Marshal.Copy(_grabBuffer, data, 0, data.Length);
-            var image = BitmapSource.Create(frameInfo.nWidth, frameInfo.nHeight, 96, 96, PixelFormats.Gray8, null, data, frameInfo.nWidth);
-            image.Freeze();
-            return image;
-        }
-
-        var dstSize = (uint)(frameInfo.nWidth * frameInfo.nHeight * 3);
-        EnsureConvertBuffer(dstSize);
-
-        if (_camera is null)
-        {
-            return null;
-        }
-
-        var convert = new MyCamera.MV_PIXEL_CONVERT_PARAM
-        {
-            nWidth = frameInfo.nWidth,
-            nHeight = frameInfo.nHeight,
-            enSrcPixelType = frameInfo.enPixelType,
-            pSrcData = _grabBuffer,
-            nSrcDataLen = frameInfo.nFrameLen,
-            enDstPixelType = MyCamera.MvGvspPixelType.PixelType_Gvsp_BGR8_Packed,
-            pDstBuffer = _convertBuffer,
-            nDstBufferSize = dstSize,
-            nDstLen = 0,
-            nRes = new uint[4]
-        };
-
-        var nRet = _camera.MV_CC_ConvertPixelType_NET(ref convert);
-        if (nRet != MyCamera.MV_OK || convert.nDstLen <= 0)
-        {
-            return null;
-        }
-
-        var buffer = new byte[convert.nDstLen];
-        Marshal.Copy(_convertBuffer, buffer, 0, buffer.Length);
-        var bitmap = BitmapSource.Create(frameInfo.nWidth, frameInfo.nHeight, 96, 96, PixelFormats.Bgr24, null, buffer, frameInfo.nWidth * 3);
-        bitmap.Freeze();
-        return bitmap;
-    }
-
     private void ReadParam()
     {
-        if (_camera is null)
+        if (_camera is null || !_camera.IsConnected)
         {
             return;
         }
 
-        var param = new MyCamera.MVCC_FLOATVALUE();
-
-        if (_camera.MV_CC_GetFloatValue_NET("ExposureTime", ref param) == MyCamera.MV_OK)
+        if (_camera.TryGetExposureTime(out var exposure))
         {
-            tbExposure.Value = Convert.ToDouble(param.fCurValue);
+            tbExposure.Value = exposure;
         }
 
-        if (_camera.MV_CC_GetFloatValue_NET("Gain", ref param) == MyCamera.MV_OK)
+        if (_camera.TryGetGain(out var gain))
         {
-            tbGain.Value = Convert.ToDouble(param.fCurValue);
+            tbGain.Value = gain;
         }
 
-        if (_camera.MV_CC_GetFloatValue_NET("ResultingFrameRate", ref param) == MyCamera.MV_OK)
+        if (_camera.TryGetResultingFrameRate(out var frameRate))
         {
-            tbFrameRate.Value = Convert.ToDouble(param.fCurValue);
+            tbFrameRate.Value = frameRate;
         }
     }
 
     private void SaveImage(MyCamera.MV_SAVE_IAMGE_TYPE imageType, string extension)
     {
-        if (_camera is null || !_isGrabbing)
+        if (_camera is null || !_camera.IsConnected || !_isGrabbing)
         {
             ShowError("请先开始采集", 0);
             return;
@@ -748,34 +578,33 @@ public partial class HkCameraControl : UserControl
             return;
         }
 
+        CameraArgs? frame;
         lock (_frameLock)
         {
-            if (_lastFrameInfo.nFrameLen == 0 || _lastFrameBuffer == IntPtr.Zero)
+            frame = _lastFrame;
+        }
+
+        if (frame?.Data is null || frame.Width <= 0 || frame.Height <= 0)
+        {
+            ShowError("没有可保存的图像", 0);
+            return;
+        }
+
+        try
+        {
+            using var mat = Tools.VisionUIHelper.CameraArgsToMat(frame);
+            if (mat.Empty())
             {
                 ShowError("没有可保存的图像", 0);
                 return;
             }
 
-            var saveParam = new MyCamera.MV_SAVE_IMG_TO_FILE_PARAM
-            {
-                enImageType = imageType,
-                enPixelType = _lastFrameInfo.enPixelType,
-                pData = _lastFrameBuffer,
-                nDataLen = _lastFrameInfo.nFrameLen,
-                nWidth = _lastFrameInfo.nWidth,
-                nHeight = _lastFrameInfo.nHeight,
-                nQuality = imageType == MyCamera.MV_SAVE_IAMGE_TYPE.MV_Image_Jpeg ? 80u : 0u,
-                iMethodValue = 2,
-                nRes = new uint[8],
-                pImagePath = savePath
-            };
-
-            var nRet = _camera.MV_CC_SaveImageToFile_NET(ref saveParam);
-            if (nRet != MyCamera.MV_OK)
-            {
-                ShowError("保存图像失败", nRet);
-                return;
-            }
+            mat.SaveImage(savePath);
+        }
+        catch (Exception ex)
+        {
+            ShowError($"保存图像失败: {ex.Message}", 0);
+            return;
         }
 
         ShowError($"保存成功\n{savePath}", 0);
@@ -880,15 +709,7 @@ public partial class HkCameraControl : UserControl
 
     private int GetCameraIntValue(string key, int fallback)
     {
-        if (_camera is null)
-        {
-            return fallback;
-        }
-
-        var value = new MyCamera.MVCC_INTVALUE_EX();
-        return _camera.MV_CC_GetIntValueEx_NET(key, ref value) == MyCamera.MV_OK && value.nCurValue > 0
-            ? (int)value.nCurValue
-            : fallback;
+        return fallback;
     }
 
     private static string GetCameraType(MyCamera.MV_CC_DEVICE_INFO device)
@@ -988,63 +809,6 @@ public partial class HkCameraControl : UserControl
         return "-";
     }
 
-    private void EnsureGrabBuffer(uint required)
-    {
-        if (_grabBuffer != IntPtr.Zero && _grabBufferSize >= required)
-        {
-            return;
-        }
-
-        if (_grabBuffer != IntPtr.Zero)
-        {
-            Marshal.FreeHGlobal(_grabBuffer);
-        }
-
-        _grabBuffer = Marshal.AllocHGlobal((int)required);
-        _grabBufferSize = required;
-    }
-
-    private void EnsureConvertBuffer(uint required)
-    {
-        if (_convertBuffer != IntPtr.Zero && _convertBufferSize >= required)
-        {
-            return;
-        }
-
-        if (_convertBuffer != IntPtr.Zero)
-        {
-            Marshal.FreeHGlobal(_convertBuffer);
-        }
-
-        _convertBuffer = Marshal.AllocHGlobal((int)required);
-        _convertBufferSize = required;
-    }
-
-    private void ReleaseBuffers()
-    {
-        if (_grabBuffer != IntPtr.Zero)
-        {
-            Marshal.FreeHGlobal(_grabBuffer);
-            _grabBuffer = IntPtr.Zero;
-            _grabBufferSize = 0;
-        }
-
-        if (_convertBuffer != IntPtr.Zero)
-        {
-            Marshal.FreeHGlobal(_convertBuffer);
-            _convertBuffer = IntPtr.Zero;
-            _convertBufferSize = 0;
-        }
-
-        if (_lastFrameBuffer != IntPtr.Zero)
-        {
-            Marshal.FreeHGlobal(_lastFrameBuffer);
-            _lastFrameBuffer = IntPtr.Zero;
-            _lastFrameBufferSize = 0;
-            _lastFrameInfo = default;
-        }
-    }
-
     private static bool IsMonoPixel(MyCamera.MvGvspPixelType pixelType)
     {
         return pixelType is MyCamera.MvGvspPixelType.PixelType_Gvsp_Mono8
@@ -1103,6 +867,129 @@ public partial class HkCameraControl : UserControl
         }
 
         return text.Trim();
+    }
+
+    private async Task TryAttachConfiguredCameraAsync()
+    {
+        if (_camera is null)
+        {
+            return;
+        }
+
+        var configConnectionString = _camera.ConnectionString
+            ?? (DataContext as ConfigViewModel)?.Camera.ConnectionString;
+
+        if (string.IsNullOrWhiteSpace(configConnectionString))
+        {
+            return;
+        }
+
+        var targetIndex = FindDeviceIndexByConnectionString(configConnectionString);
+        if (targetIndex < 0)
+        {
+            return;
+        }
+
+        cbDeviceList.SelectedIndex = targetIndex;
+        await OpenConfiguredCameraAsync(targetIndex, configConnectionString);
+    }
+
+    private async Task OpenConfiguredCameraAsync(int index, string connectionString)
+    {
+        await CloseCurrentCameraAsync();
+
+        var device = Marshal.PtrToStructure<MyCamera.MV_CC_DEVICE_INFO>(_deviceList.pDeviceInfo[index]);
+
+        if (_camera is null || !_camera.Open(connectionString))
+        {
+            return;
+        }
+
+        _currentConnectionString = connectionString;
+
+        SetCtrlWhenOpen();
+        ReadParam();
+        UpdateCurrentDeviceInfo(device);
+    }
+
+    private int FindDeviceIndexByConnectionString(string connectionString)
+    {
+        for (int i = 0; i < _deviceList.nDeviceNum; i++)
+        {
+            var device = Marshal.PtrToStructure<MyCamera.MV_CC_DEVICE_INFO>(_deviceList.pDeviceInfo[i]);
+            if (string.Equals(GetCameraConnectionString(device), connectionString, StringComparison.OrdinalIgnoreCase))
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    private HkCamera? EnsurePreviewCamera()
+    {
+        if (_camera is null)
+        {
+            return null;
+        }
+
+        if (_camera.IsConnected)
+        {
+            return _camera;
+        }
+
+        if (string.IsNullOrWhiteSpace(_currentConnectionString) || !_camera.Open(_currentConnectionString))
+        {
+            return null;
+        }
+
+        return _camera;
+    }
+
+    private async Task TriggerPreviewFrameAsync()
+    {
+        if (_camera is null || !_camera.IsConnected)
+        {
+            return;
+        }
+
+        try
+        {
+            var frame = await _camera.GrabAsync();
+            PreviewCamera_ImageGrabbed(_camera, frame);
+        }
+        catch (Exception ex)
+        {
+            Dispatcher.Invoke(() => ShowError($"软触发失败: {ex.Message}", 0));
+        }
+    }
+
+    private void PreviewCamera_ImageGrabbed(object? sender, CameraArgs e)
+    {
+        lock (_frameLock)
+        {
+            _lastFrame = new CameraArgs
+            {
+                Data = e.Data is null ? null : (byte[])e.Data.Clone(),
+                Width = e.Width,
+                Height = e.Height,
+                Stride = e.Stride,
+                Format = e.Format,
+                FrameId = e.FrameId,
+                Timestamp = e.Timestamp
+            };
+        }
+
+        Dispatcher.Invoke(() =>
+        {
+            using var mat = Tools.VisionUIHelper.CameraArgsToMat(e);
+            if (mat.Empty())
+            {
+                return;
+            }
+
+            displayArea.ImageSource = Tools.VisionUIHelper.MatToBitmapSource(mat);
+        });
     }
 
     private void SetCtrlWhenOpen()
