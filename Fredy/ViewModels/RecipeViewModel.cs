@@ -105,6 +105,39 @@ namespace Fredy.Drilling.Holes.ViewModels
         }
     }
 
+    public partial class RecipeDepthItemViewModel : ObservableObject
+    {
+        private string _label;
+        private int _value;
+
+        public RecipeDepthItemViewModel(RecipeDepthItem model)
+        {
+            _label = model.Label;
+            _value = Math.Max(0, model.Value);
+        }
+
+        public string Label
+        {
+            get => _label;
+            set => SetProperty(ref _label, value);
+        }
+
+        public int Value
+        {
+            get => _value;
+            set => SetProperty(ref _value, Math.Max(0, value));
+        }
+
+        public RecipeDepthItem ToModel()
+        {
+            return new RecipeDepthItem
+            {
+                Label = Label,
+                Value = Value
+            };
+        }
+    }
+
     public partial class RecipeViewModel : ObservableObject
     {
         private readonly Recipe _recipe;
@@ -119,6 +152,9 @@ namespace Fredy.Drilling.Holes.ViewModels
         private int _secondPassOffsetThreshold;
         private bool _isFirstPass = true;
         private IReadOnlyDictionary<int, (double X, double Y)>? _matchedPoints;
+        private RecipeDepthItemViewModel? _selectedPunchDepthItem;
+        private int _addPunchDepthCount = 1;
+        private int _newPunchDepthValue;
 
         public RecipeViewModel(Recipe recipe)
             : this(recipe, Log.Logger)
@@ -144,23 +180,35 @@ namespace Fredy.Drilling.Holes.ViewModels
 
             DetectionItems = new ObservableCollection<RecipeDetectionItemViewModel>();
             SecondPassDetectionItems = new ObservableCollection<RecipeDetectionItemViewModel>();
+            PunchDepthItems = new ObservableCollection<RecipeDepthItemViewModel>((ProcessParameters.PunchDepths ?? new List<RecipeDepthItem>())
+                .Select(x => new RecipeDepthItemViewModel(x)));
 
             PunchPoints.CollectionChanged += PunchPoints_CollectionChanged;
             DetectionItems.CollectionChanged += DetectionItems_CollectionChanged;
             SecondPassDetectionItems.CollectionChanged += SecondPassDetectionItems_CollectionChanged;
+            PunchDepthItems.CollectionChanged += PunchDepthItems_CollectionChanged;
 
             AddPunchPointCommand = new RelayCommand(AddPunchPoint);
             RemoveSelectedPunchPointCommand = new RelayCommand(RemoveSelectedPunchPoint, CanRemoveSelectedPunchPoint);
             SortPunchPointsCommand = new RelayCommand(SortPunchPoints);
             ResetDetectionCommand = new RelayCommand(ResetDetection);
             ResetSecondPassDetectionCommand = new RelayCommand(ResetSecondPassDetection);
+            AddPunchDepthItemCommand = new RelayCommand(AddPunchDepthItem);
+            RemoveSelectedPunchDepthItemCommand = new RelayCommand(RemoveSelectedPunchDepthItem, CanRemoveSelectedPunchDepthItem);
+            ClearPunchDepthItemsCommand = new RelayCommand(ClearPunchDepthItems, CanClearPunchDepthItems);
 
             foreach (var punchPoint in PunchPoints)
             {
                 SubscribePunchPoint(punchPoint);
             }
 
+            foreach (var punchDepthItem in PunchDepthItems)
+            {
+                SubscribePunchDepthItem(punchDepthItem);
+            }
+
             InitializeDetectionParameters(ResolveDefaultConfig());
+            SyncPunchDepthsToRecipe();
             _logger.Information("配方视图模型已初始化: {RecipeName}", _recipeName);
         }
 
@@ -174,6 +222,18 @@ namespace Fredy.Drilling.Holes.ViewModels
                     _recipe.RecipeName = value;
                 }
             }
+        }
+
+        public int AddPunchDepthCount
+        {
+            get => _addPunchDepthCount;
+            set => SetProperty(ref _addPunchDepthCount, Math.Max(1, value));
+        }
+
+        public int NewPunchDepthValue
+        {
+            get => _newPunchDepthValue;
+            set => SetProperty(ref _newPunchDepthValue, Math.Max(0, value));
         }
 
         public string TypeName
@@ -260,6 +320,18 @@ namespace Fredy.Drilling.Holes.ViewModels
             set => SetProperty(ref _matchedPoints, value);
         }
 
+        public RecipeDepthItemViewModel? SelectedPunchDepthItem
+        {
+            get => _selectedPunchDepthItem;
+            set
+            {
+                if (SetProperty(ref _selectedPunchDepthItem, value))
+                {
+                    RemoveSelectedPunchDepthItemCommand.NotifyCanExecuteChanged();
+                }
+            }
+        }
+
         public RecipeProcessParameters ProcessParameters { get; }
 
         public RecipePunchParameters PunchParameters => _punchParameters;
@@ -272,6 +344,8 @@ namespace Fredy.Drilling.Holes.ViewModels
 
         public ObservableCollection<RecipeDetectionItemViewModel> SecondPassDetectionItems { get; }
 
+        public ObservableCollection<RecipeDepthItemViewModel> PunchDepthItems { get; }
+
         public IRelayCommand AddPunchPointCommand { get; }
 
         public IRelayCommand RemoveSelectedPunchPointCommand { get; }
@@ -282,11 +356,19 @@ namespace Fredy.Drilling.Holes.ViewModels
 
         public IRelayCommand ResetSecondPassDetectionCommand { get; }
 
+        public IRelayCommand AddPunchDepthItemCommand { get; }
+
+        public IRelayCommand RemoveSelectedPunchDepthItemCommand { get; }
+
+        public IRelayCommand ClearPunchDepthItemsCommand { get; }
+
         public int TotalCount => PunchPoints.Count;
 
         public int CompletedCount => PunchPoints.Count(x => x.Complete);
 
         public int RemainingCount => Math.Max(0, TotalCount - CompletedCount);
+
+        public int FirstPunchTotalDepth => PunchDepthItems.Sum(x => x.Value);
 
         public void UpdateCompletedCount(int completedCount)
         {
@@ -299,6 +381,32 @@ namespace Fredy.Drilling.Holes.ViewModels
 
             OnPropertyChanged(nameof(CompletedCount));
             OnPropertyChanged(nameof(RemainingCount));
+        }
+
+        private void PunchDepthItems_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+        {
+            if (e.OldItems is not null)
+            {
+                foreach (var item in e.OldItems.OfType<RecipeDepthItemViewModel>())
+                {
+                    UnsubscribePunchDepthItem(item);
+                }
+            }
+
+            if (e.NewItems is not null)
+            {
+                foreach (var item in e.NewItems.OfType<RecipeDepthItemViewModel>())
+                {
+                    SubscribePunchDepthItem(item);
+                }
+            }
+
+            RenumberPunchDepthLabels();
+            SyncPunchDepthsToRecipe();
+            OnPropertyChanged(nameof(PunchDepthItems));
+            OnPropertyChanged(nameof(FirstPunchTotalDepth));
+            RemoveSelectedPunchDepthItemCommand.NotifyCanExecuteChanged();
+            ClearPunchDepthItemsCommand.NotifyCanExecuteChanged();
         }
 
         public void ReplacePunchPoints(IEnumerable<PunchPointViewModel> points)
@@ -558,6 +666,17 @@ namespace Fredy.Drilling.Holes.ViewModels
             OnPropertyChanged(nameof(RemainingCount));
         }
 
+        private void PunchDepthItem_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName is not nameof(RecipeDepthItemViewModel.Value) and not nameof(RecipeDepthItemViewModel.Label))
+            {
+                return;
+            }
+
+            SyncPunchDepthsToRecipe();
+            OnPropertyChanged(nameof(FirstPunchTotalDepth));
+        }
+
         private void PunchPoint_PropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
             SyncRecipePunchPoints();
@@ -577,9 +696,19 @@ namespace Fredy.Drilling.Holes.ViewModels
             punchPoint.PropertyChanged += PunchPoint_PropertyChanged;
         }
 
+        private void SubscribePunchDepthItem(RecipeDepthItemViewModel punchDepthItem)
+        {
+            punchDepthItem.PropertyChanged += PunchDepthItem_PropertyChanged;
+        }
+
         private void UnsubscribePunchPoint(PunchPointViewModel punchPoint)
         {
             punchPoint.PropertyChanged -= PunchPoint_PropertyChanged;
+        }
+
+        private void UnsubscribePunchDepthItem(RecipeDepthItemViewModel punchDepthItem)
+        {
+            punchDepthItem.PropertyChanged -= PunchDepthItem_PropertyChanged;
         }
 
         private void ApplyOrderedPunchPoints(IReadOnlyList<PunchPointViewModel> orderedPoints)
@@ -610,6 +739,73 @@ namespace Fredy.Drilling.Holes.ViewModels
         private void SyncRecipePunchPoints()
         {
             _punchParameters.PunchPoints = PunchPoints.Select(x => x.ToModel()).ToList();
+        }
+
+        private void AddPunchDepthItem()
+        {
+            RecipeDepthItemViewModel? lastItem = null;
+
+            for (int i = 0; i < AddPunchDepthCount; i++)
+            {
+                lastItem = new RecipeDepthItemViewModel(new RecipeDepthItem
+                {
+                    Label = $"No.{PunchDepthItems.Count + 1}",
+                    Value = NewPunchDepthValue
+                });
+
+                PunchDepthItems.Add(lastItem);
+            }
+
+            SelectedPunchDepthItem = lastItem;
+            _logger.Information("已新增冲孔深度项 {Count} 条, 默认深度 {Depth}", AddPunchDepthCount, NewPunchDepthValue);
+        }
+
+        private void RemoveSelectedPunchDepthItem()
+        {
+            if (SelectedPunchDepthItem is null)
+            {
+                return;
+            }
+
+            var removedItem = SelectedPunchDepthItem;
+            PunchDepthItems.Remove(removedItem);
+            SelectedPunchDepthItem = PunchDepthItems.LastOrDefault();
+            _logger.Information("已删除冲孔深度项: {Label}", removedItem.Label);
+        }
+
+        private bool CanRemoveSelectedPunchDepthItem()
+        {
+            return SelectedPunchDepthItem is not null;
+        }
+
+        private void ClearPunchDepthItems()
+        {
+            PunchDepthItems.Clear();
+            SelectedPunchDepthItem = null;
+            _logger.Information("已清空全部冲孔深度项");
+        }
+
+        private bool CanClearPunchDepthItems()
+        {
+            return PunchDepthItems.Count > 0;
+        }
+
+        private void RenumberPunchDepthLabels()
+        {
+            for (int i = 0; i < PunchDepthItems.Count; i++)
+            {
+                var expectedLabel = $"No.{i + 1}";
+                if (PunchDepthItems[i].Label != expectedLabel)
+                {
+                    PunchDepthItems[i].Label = expectedLabel;
+                }
+            }
+        }
+
+        private void SyncPunchDepthsToRecipe()
+        {
+            ProcessParameters.PunchDepths = PunchDepthItems.Select(x => x.ToModel()).ToList();
+            ProcessParameters.FirstPunchDepth = FirstPunchTotalDepth;
         }
     }
 }

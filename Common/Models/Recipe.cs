@@ -43,15 +43,11 @@ namespace Common.Models
     {
         public string WorkpieceType { get; set; } = "PS60-6X500-0.05X0.075X10";
 
-        public int FirstPunchDepth { get; set; } = 186;
+        public int FirstPunchDepth { get; set; } = 1400;
 
         public int FirstAlarmDepth { get; set; } = 50;
 
         public int FirstLiftHeight { get; set; } = 260;
-
-        public int FirstPeckDepth { get; set; } = 400;
-
-        public int FirstPeckSingleDepth { get; set; } = 200;
 
         public int SecondPunchDepth { get; set; } = 200;
 
@@ -75,10 +71,13 @@ namespace Common.Models
 
         public static RecipeProcessParameters CreateDefault(string? workpieceType = null)
         {
-            return new RecipeProcessParameters
+            var parameters = new RecipeProcessParameters
             {
                 WorkpieceType = string.IsNullOrWhiteSpace(workpieceType) ? "PS60-6X500-0.05X0.075X10" : workpieceType
             };
+
+            parameters.FirstPunchDepth = parameters.PunchDepths.Sum(x => x.Value);
+            return parameters;
         }
 
         private static List<RecipeDepthItem> CreateDefaultPunchDepths()
