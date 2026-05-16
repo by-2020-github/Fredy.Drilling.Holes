@@ -10,6 +10,7 @@ using System.Windows.Shapes;
 using HAL;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Win32;
+using MvCamCtrl.NET;
 using Mat = OpenCvSharp.Mat;
 
 namespace Fredy.Drilling.Holes.UserControls
@@ -92,6 +93,15 @@ namespace Fredy.Drilling.Holes.UserControls
             set => SetValue(CameraLatestFrameStatusTextProperty, value);
         }
 
+        public static readonly DependencyProperty CameraOperationLogTextProperty = DependencyProperty.Register(
+            nameof(CameraOperationLogText), typeof(string), typeof(CameraViewerControl), new PropertyMetadata("操作日志：就绪"));
+
+        public string CameraOperationLogText
+        {
+            get => (string)GetValue(CameraOperationLogTextProperty);
+            set => SetValue(CameraOperationLogTextProperty, value);
+        }
+
         public static readonly DependencyProperty CanGrabSingleProperty = DependencyProperty.Register(
             nameof(CanGrabSingle), typeof(bool), typeof(CameraViewerControl), new PropertyMetadata(true));
 
@@ -140,6 +150,7 @@ namespace Fredy.Drilling.Holes.UserControls
         private System.Windows.Window? _ownerWindow;
         private long _latestFrameId;
         private DateTime? _latestFrameTimestamp;
+        private int _continuousGrabFrameRate = 20;
 
         private System.Windows.Point _startDragPos;
         private bool _isDragging = false;
@@ -163,6 +174,7 @@ namespace Fredy.Drilling.Holes.UserControls
             Loaded += CameraViewerControl_Loaded;
             Unloaded += CameraViewerControl_Unloaded;
             IsVisibleChanged += CameraViewerControl_IsVisibleChanged;
+            UpdateContinuousGrabFrameRateMenuChecks();
         }
 
         private void OnMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -244,6 +256,36 @@ namespace Fredy.Drilling.Holes.UserControls
             CenterCross.Visibility = MenuShowCross.IsChecked ? Visibility.Visible : Visibility.Collapsed;
         }
 
+        private void SetContinuousGrabFrameRate_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not MenuItem menuItem || menuItem.Tag is not string valueText || !int.TryParse(valueText, out var frameRate))
+            {
+                SetOperationLog("连续模式帧率设置失败：无效的帧率参数。");
+                UpdateContinuousGrabFrameRateMenuChecks();
+                return;
+            }
+
+            _continuousGrabFrameRate = frameRate;
+            UpdateContinuousGrabFrameRateMenuChecks();
+
+            if (_camera is HkCamera hkCamera && hkCamera.IsConnected && hkCamera.IsContinuousGrabbing)
+            {
+                var ret = hkCamera.TrySetFrameRate(frameRate);
+                if (ret == MyCamera.MV_OK)
+                {
+                    SetOperationLog($"连续模式帧率已更新为 {frameRate} FPS。", true);
+                }
+                else
+                {
+                    SetOperationLog($"连续模式帧率设置失败，错误码: 0x{ret:X8}");
+                }
+
+                return;
+            }
+
+            SetOperationLog($"连续模式帧率目标值已设置为 {frameRate} FPS，启动连续采集时生效。", true);
+        }
+
         private async void GrabSingle_Click(object sender, RoutedEventArgs e)
         {
             try
@@ -286,6 +328,21 @@ namespace Fredy.Drilling.Holes.UserControls
                 if (_camera is null)
                 {
                     return;
+                }
+
+                if (_camera is HkCamera hkCamera)
+                {
+                    var frameRateRet = hkCamera.TrySetFrameRate(_continuousGrabFrameRate);
+                    if (frameRateRet != MyCamera.MV_OK)
+                    {
+                        throw new InvalidOperationException($"设置连续采集帧率失败，错误码: 0x{frameRateRet:X8}");
+                    }
+
+                    SetOperationLog($"连续模式帧率已设置为 {_continuousGrabFrameRate} FPS。");
+                }
+                else
+                {
+                    SetOperationLog($"当前相机不支持设置连续模式帧率，保留目标值 {_continuousGrabFrameRate} FPS。");
                 }
 
                 await Task.Run(() => _camera.StartContinuousGrab());
@@ -510,6 +567,26 @@ namespace Fredy.Drilling.Holes.UserControls
             CanGrabSingle = canOperate && !isContinuousMode;
             CanStartContinuousGrab = canOperate && !isContinuousMode;
             CanStopContinuousGrab = canOperate && isContinuousMode;
+        }
+
+        private void UpdateContinuousGrabFrameRateMenuChecks()
+        {
+            if (ContinuousGrabFrameRate5MenuItem is null)
+            {
+                return;
+            }
+
+            ContinuousGrabFrameRate5MenuItem.IsChecked = _continuousGrabFrameRate == 5;
+            ContinuousGrabFrameRate10MenuItem.IsChecked = _continuousGrabFrameRate == 10;
+            ContinuousGrabFrameRate20MenuItem.IsChecked = _continuousGrabFrameRate == 20;
+            ContinuousGrabFrameRate30MenuItem.IsChecked = _continuousGrabFrameRate == 30;
+        }
+
+        private void SetOperationLog(string message, bool includeTimestamp = false)
+        {
+            CameraOperationLogText = includeTimestamp
+                ? $"操作日志：[{DateTime.Now:HH:mm:ss}] {message}"
+                : $"操作日志：{message}";
         }
 
         private void StartDrawROI_Click(object sender, RoutedEventArgs e)

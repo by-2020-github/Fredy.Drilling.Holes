@@ -1,6 +1,10 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Fredy.Drilling.Holes.Models;
+using Fredy.Drilling.Holes.Services;
 using HAL;
+using Microsoft.Extensions.DependencyInjection;
+using Serilog;
 using System;
 using System.Collections.ObjectModel;
 using System.Threading;
@@ -13,6 +17,7 @@ namespace Fredy.Drilling.Holes.UserControls
     {
         private const string MotionSimulatorType = nameof(MotionSimulator);
         private const string MotionAdt8940Type = nameof(MotionAdt8940);
+        private const int MaxLogCount = 1000;
         private static readonly TimeSpan PositionRefreshInterval = TimeSpan.FromMilliseconds(250);
 
         private CancellationTokenSource? _refreshCancellationTokenSource;
@@ -21,9 +26,11 @@ namespace Fredy.Drilling.Holes.UserControls
         private bool _disposed;
         private bool _refreshFailureReported;
         private long _lastNativeCallSequence;
+        private readonly ConfigService? _configService;
 
         public MotionDebugViewModel()
         {
+            _configService = App.ServiceProvider?.GetService<ConfigService>();
             MotionTypes = [MotionSimulatorType, MotionAdt8940Type];
             StartRefreshLoop();
             AddLog("调试面板已就绪，请先初始化控制器。");
@@ -241,7 +248,7 @@ namespace Fredy.Drilling.Holes.UserControls
         {
             return ExecuteMotionAsync(
                 motion => motion.MoveAbsoluteAsync(AxisNo, AbsolutePosition, WaitForCompletion, DriveSpeed),
-                $"轴 {AxisNo} 绝对移动到 {AbsolutePosition:F3}。",
+                $"轴 {AxisNo} 绝对移动到 {AbsolutePosition:F3} mm。",
                 $"轴 {AxisNo} 绝对移动",
                 refreshPositionAfterExecute: WaitForCompletion);
         }
@@ -251,7 +258,7 @@ namespace Fredy.Drilling.Holes.UserControls
         {
             return ExecuteMotionAsync(
                 motion => motion.MoveRelativeAsync(AxisNo, RelativeDistance, WaitForCompletion, DriveSpeed),
-                $"轴 {AxisNo} 相对移动 {RelativeDistance:F3}。",
+                $"轴 {AxisNo} 相对移动 {RelativeDistance:F3} mm。",
                 $"轴 {AxisNo} 相对移动",
                 refreshPositionAfterExecute: WaitForCompletion);
         }
@@ -301,9 +308,67 @@ namespace Fredy.Drilling.Holes.UserControls
 
         private IMoton CreateMotion()
         {
-            return IsMotionAdt8940Selected
-                ? new MotionAdt8940(CardNo, StartSpeed, DriveSpeed, Acceleration, HomeSearchSpeed, HomeApproachSpeed)
-                : new MotionSimulator();
+            if (!IsMotionAdt8940Selected)
+            {
+                return new MotionSimulator();
+            }
+
+            var motion = new MotionAdt8940(Log.Logger, CardNo, StartSpeed, DriveSpeed, Acceleration, HomeSearchSpeed, HomeApproachSpeed);
+            var config = _configService?.CurrentConfig;
+            if (config is not null)
+            {
+                motion.ConfigureAxes(
+                    BuildAxisParam(config.XAxis),
+                    BuildAxisParam(config.YAxis),
+                    BuildAxisParam(config.ZAxis));
+                motion.ConfigureHoming(BuildAdtHomingOptions(config));
+            }
+
+            return motion;
+        }
+
+        private static AxisParam BuildAxisParam(AxisParamConfig axisConfig)
+        {
+            return new AxisParam(
+                axisConfig.AxisNo,
+                axisConfig.Velocity,
+                axisConfig.Acceleration,
+                axisConfig.Deceleration,
+                axisConfig.LeftLimit,
+                axisConfig.RightLimit,
+                axisConfig.PulsesPerMillimeter > 0 ? axisConfig.PulsesPerMillimeter : 1d,
+                axisConfig.UseActualPositionFeedback,
+                axisConfig.InPositionTolerance);
+        }
+
+        private static MotionAdt8940.HomingOptions BuildAdtHomingOptions(AppConfig config)
+        {
+            var homing = config.AdtHoming ?? new AdtHomingConfig();
+            return new MotionAdt8940.HomingOptions(
+                config.HomeSearchSpeed,
+                config.IsIoHome,
+                config.IsLatch,
+                config.IsGratingHome,
+                BuildHomingPort(config.XLimitPort),
+                BuildHomingPort(config.YLimitPort),
+                BuildHomingPort(homing.ZLimitPort),
+                BuildHomingPort(homing.XGratingPort),
+                BuildHomingPort(homing.YGratingPort),
+                homing.HomeTimeoutMs,
+                homing.HomeBackoffPulse,
+                homing.ZHomeLiftPulse,
+                homing.ZHomeTowardPositiveDirection,
+                homing.SlowHomeStartSpeed,
+                homing.SlowHomeSpeed,
+                homing.SlowHomeAcceleration,
+                homing.GratingHomeStartSpeed,
+                homing.GratingHomeSpeed,
+                homing.GratingHomeAcceleration);
+        }
+
+        private static MotionAdt8940.HomingPort BuildHomingPort(PortItem port)
+        {
+            return new MotionAdt8940.HomingPort(port.PortIndex, port.IsLowLevelActive);
         }
 
         private async Task ExecuteMotionAsync(Func<IMoton, Task> action, string successMessage, string actionName, bool refreshPositionAfterExecute = true)
@@ -374,12 +439,7 @@ namespace Fredy.Drilling.Holes.UserControls
                 }
 
                 _lastNativeCallSequence = record.SequenceId;
-                Logs.Add($"[{record.Timestamp:HH:mm:ss.fff}] [ADT8940] {(record.IsSuccess ? "OK" : "FAIL")} | {record.Operation} | Code={record.ResultCode?.ToString() ?? "N/A"} | {record.Message}");
-            }
-
-            while (Logs.Count > 200)
-            {
-                Logs.RemoveAt(0);
+                AddLogEntry($"[{record.Timestamp:HH:mm:ss.fff}] [ADT8940] {(record.IsSuccess ? "OK" : "FAIL")} | {record.Operation} | Code={record.ResultCode?.ToString() ?? "N/A"} | {record.Message}");
             }
         }
 
@@ -460,8 +520,13 @@ namespace Fredy.Drilling.Holes.UserControls
 
         private void AddLog(string message)
         {
-            Logs.Add($"[{DateTime.Now:HH:mm:ss}] {message}");
-            while (Logs.Count > 200)
+            AddLogEntry($"[{DateTime.Now:HH:mm:ss}] {message}");
+        }
+
+        private void AddLogEntry(string entry)
+        {
+            Logs.Add(entry);
+            while (Logs.Count > MaxLogCount)
             {
                 Logs.RemoveAt(0);
             }

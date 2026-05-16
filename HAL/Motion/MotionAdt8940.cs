@@ -1,4 +1,5 @@
 ﻿using Demo;
+using Serilog;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -10,6 +11,8 @@ namespace HAL
 {
     public class MotionAdt8940 : IMoton, IIOCard
     {
+        private readonly ILogger _logger;
+
         public readonly record struct HomingPort(
             int PortIndex,
             bool IsLowLevelActive);
@@ -82,6 +85,7 @@ namespace HAL
         }
 
         public MotionAdt8940(
+            ILogger logger,
             int cardNo = 0,
             int startSpeed = 100,
             int driveSpeed = 9000,
@@ -89,6 +93,7 @@ namespace HAL
             int homeSearchSpeed = 3000,
             int homeApproachSpeed = 700)
         {
+            _logger = (logger ?? Log.Logger).ForContext<MotionAdt8940>();
             ArgumentOutOfRangeException.ThrowIfNegative(cardNo);
             ArgumentOutOfRangeException.ThrowIfLessThan(startSpeed, 1);
             ArgumentOutOfRangeException.ThrowIfLessThan(driveSpeed, 1);
@@ -225,15 +230,20 @@ namespace HAL
 
         private async Task HomeCoreAsync(int axisNo, CancellationToken cancellationToken)
         {
+            LogHomeDebug("HomeCoreAsync started for axis {AxisNo}. IsZAxis={IsZAxis}", axisNo, axisNo == 3);
             RecordNativeCall($"Home axis {axisNo}", null, "开始执行旧 ProcessManager 风格回零流程。", true);
 
             if (axisNo == 3)
             {
+                LogHomeDebug("Axis {AxisNo} entering Z-axis homing flow.", axisNo);
                 await HomeZAxisAsync(axisNo, cancellationToken).ConfigureAwait(false);
+                LogHomeDebug("Axis {AxisNo} finished Z-axis homing flow.", axisNo);
                 return;
             }
 
+            LogHomeDebug("Axis {AxisNo} entering XY-axis homing flow.", axisNo);
             await HomeXYAxisAsync(axisNo, cancellationToken).ConfigureAwait(false);
+            LogHomeDebug("Axis {AxisNo} finished XY-axis homing flow.", axisNo);
         }
 
         private async Task HomeXYAxisAsync(int axisNo, CancellationToken cancellationToken)
@@ -244,38 +254,50 @@ namespace HAL
             {
                 try
                 {
+                    LogHomeDebug("Axis {AxisNo} home attempt {Attempt}/3 started.", axisNo, retry + 1);
                     cancellationToken.ThrowIfCancellationRequested();
                     await HomeXYMechanicalAsync(axisNo, cancellationToken).ConfigureAwait(false);
+                    LogHomeDebug("Axis {AxisNo} mechanical homing completed on attempt {Attempt}/3.", axisNo, retry + 1);
 
                     if (_homingOptions.IsGratingHome)
                     {
+                        LogHomeDebug("Axis {AxisNo} grating homing enabled. IsLatch={IsLatch}, IsIoHome={IsIoHome}", axisNo, _homingOptions.IsLatch, _homingOptions.IsIoHome);
                         if (_homingOptions.IsLatch)
                         {
+                            LogHomeDebug("Axis {AxisNo} entering latch homing step.", axisNo);
                             await HomeXYByLatchAsync(axisNo, cancellationToken).ConfigureAwait(false);
+                            LogHomeDebug("Axis {AxisNo} latch homing step completed.", axisNo);
                         }
                         else if (_homingOptions.IsIoHome)
                         {
+                            LogHomeDebug("Axis {AxisNo} entering grating IO homing step.", axisNo);
                             await HomeXYByGratingIoAsync(axisNo, cancellationToken).ConfigureAwait(false);
+                            LogHomeDebug("Axis {AxisNo} grating IO homing step completed.", axisNo);
                         }
                     }
 
+                    LogHomeDebug("Axis {AxisNo} resetting position after homing.", axisNo);
                     ResetPosition(axisNo);
                     RecordNativeCall($"Home axis {axisNo}", null, $"轴 {axisNo} 回零完成。", true);
+                    LogHomeDebug("Axis {AxisNo} home attempt {Attempt}/3 succeeded.", axisNo, retry + 1);
                     return;
                 }
                 catch (OperationCanceledException)
                 {
+                    LogHomeDebug("Axis {AxisNo} homing canceled on attempt {Attempt}/3. Triggering emergency stop.", axisNo, retry + 1);
                     await EmergencyStopAsync(axisNo).ConfigureAwait(false);
                     throw;
                 }
                 catch (Exception ex)
                 {
                     lastException = ex;
+                    LogHomeDebug(ex, "Axis {AxisNo} home attempt {Attempt}/3 failed.", axisNo, retry + 1);
                     RecordNativeCall($"Home axis {axisNo}", null, $"轴 {axisNo} 回零失败，准备重试：{ex.Message}", false);
                     await StopAsync(axisNo).ConfigureAwait(false);
                 }
             }
 
+            LogHomeDebug(lastException, "Axis {AxisNo} homing failed after maximum retries.", axisNo);
             throw new InvalidOperationException($"Home axis {axisNo} failed after maximum retries.", lastException);
         }
 
@@ -286,8 +308,11 @@ namespace HAL
             var inactiveLevel = GetInactiveLevel(port);
             var currentLevel = await ReadInputLevelAsync(port.PortIndex, cancellationToken).ConfigureAwait(false);
 
+            LogHomeDebug("Axis {AxisNo} Z homing start. Port={PortIndex}, ActiveLevel={ActiveLevel}, InactiveLevel={InactiveLevel}, CurrentLevel={CurrentLevel}", axisNo, port.PortIndex, activeLevel, inactiveLevel, currentLevel);
+
             if (currentLevel == activeLevel)
             {
+                LogHomeDebug("Axis {AxisNo} Z homing detected active level initially. Moving away from sensor first.", axisNo);
                 await MoveContinuousUntilInputLevelAsync(
                     axisNo,
                     _homingOptions.ZHomeTowardPositiveDirection ? 0 : 1,
@@ -300,6 +325,7 @@ namespace HAL
                     cancellationToken).ConfigureAwait(false);
             }
 
+            LogHomeDebug("Axis {AxisNo} Z homing moving toward home sensor. TowardPositive={TowardPositive}", axisNo, _homingOptions.ZHomeTowardPositiveDirection);
             await MoveContinuousUntilInputLevelAsync(
                 axisNo,
                 _homingOptions.ZHomeTowardPositiveDirection ? 1 : 0,
@@ -311,14 +337,17 @@ namespace HAL
                 _homingOptions.HomeTimeoutMs,
                 cancellationToken).ConfigureAwait(false);
 
+            LogHomeDebug("Axis {AxisNo} Z homing reached sensor. Resetting position.", axisNo);
             ResetPosition(axisNo);
 
             if (_homingOptions.ZHomeLiftPulse > 0)
             {
+                LogHomeDebug("Axis {AxisNo} Z homing lift enabled. LiftPulse={LiftPulse}", axisNo, _homingOptions.ZHomeLiftPulse);
                 await MoveRelativePulseAsync(axisNo, _homingOptions.ZHomeLiftPulse, cancellationToken).ConfigureAwait(false);
             }
 
             RecordNativeCall($"Home axis {axisNo}", null, $"轴 {axisNo} Z 回零流程完成。", true);
+            LogHomeDebug("Axis {AxisNo} Z homing completed.", axisNo);
         }
 
         private async Task HomeXYMechanicalAsync(int axisNo, CancellationToken cancellationToken)
@@ -328,8 +357,11 @@ namespace HAL
             var inactiveLevel = GetInactiveLevel(port);
             var currentLevel = await ReadInputLevelAsync(port.PortIndex, cancellationToken).ConfigureAwait(false);
 
+            LogHomeDebug("Axis {AxisNo} mechanical homing start. Port={PortIndex}, ActiveLevel={ActiveLevel}, InactiveLevel={InactiveLevel}, CurrentLevel={CurrentLevel}", axisNo, port.PortIndex, activeLevel, inactiveLevel, currentLevel);
+
             if (currentLevel == activeLevel)
             {
+                LogHomeDebug("Axis {AxisNo} mechanical home input already active. Moving away first.", axisNo);
                 await MoveContinuousUntilInputLevelAsync(
                     axisNo,
                     1,
@@ -343,11 +375,13 @@ namespace HAL
 
                 if (_homingOptions.HomeBackoffPulse > 0)
                 {
+                    LogHomeDebug("Axis {AxisNo} performing home backoff. Pulse={Pulse}", axisNo, _homingOptions.HomeBackoffPulse);
                     await MoveRelativePulseAsync(axisNo, _homingOptions.HomeBackoffPulse, cancellationToken).ConfigureAwait(false);
                 }
             }
             else
             {
+                LogHomeDebug("Axis {AxisNo} mechanical home input inactive. Approaching inactive edge first.", axisNo);
                 await MoveContinuousUntilInputLevelAsync(
                     axisNo,
                     0,
@@ -360,6 +394,7 @@ namespace HAL
                     cancellationToken).ConfigureAwait(false);
             }
 
+            LogHomeDebug("Axis {AxisNo} starting slow approach to active home level.", axisNo);
             await MoveContinuousUntilInputLevelAsync(
                 axisNo,
                 1,
@@ -370,12 +405,15 @@ namespace HAL
                 _homingOptions.SlowHomeAcceleration,
                 _homingOptions.HomeTimeoutMs,
                 cancellationToken).ConfigureAwait(false);
+            LogHomeDebug("Axis {AxisNo} mechanical homing completed.", axisNo);
         }
 
         private async Task HomeXYByGratingIoAsync(int axisNo, CancellationToken cancellationToken)
         {
             var port = GetGratingPort(axisNo);
             ValidatePort(port, $"Axis {axisNo} grating");
+
+            LogHomeDebug("Axis {AxisNo} grating IO homing start. Port={PortIndex}, ActiveLevel={ActiveLevel}", axisNo, port.PortIndex, GetActiveLevel(port));
 
             await MoveContinuousUntilInputLevelAsync(
                 axisNo,
@@ -387,24 +425,29 @@ namespace HAL
                 _homingOptions.GratingHomeAcceleration,
                 _homingOptions.HomeTimeoutMs,
                 cancellationToken).ConfigureAwait(false);
+            LogHomeDebug("Axis {AxisNo} grating IO homing completed.", axisNo);
         }
 
         private async Task HomeXYByLatchAsync(int axisNo, CancellationToken cancellationToken)
         {
+            LogHomeDebug("Axis {AxisNo} latch homing start.", axisNo);
             await ClearLockStatusAsync(axisNo, cancellationToken).ConfigureAwait(false);
             await SetLockPositionModeAsync(axisNo, 1, 0, 1, cancellationToken).ConfigureAwait(false);
 
             try
             {
+                LogHomeDebug("Axis {AxisNo} latch mode configured. Starting continuous move.", axisNo);
                 ConfigureMotion(axisNo, _homingOptions.GratingHomeStartSpeed, _homingOptions.GratingHomeSpeed, _homingOptions.GratingHomeAcceleration);
                 ExecuteNative(() => adt8940a1.adt8940a1_continue_move(_cardNo, axisNo, 0), $"Start latch home move for axis {axisNo}");
 
                 await WaitForLockStatusAsync(axisNo, cancellationToken).ConfigureAwait(false);
+                LogHomeDebug("Axis {AxisNo} latch signal detected. Stopping axis.", axisNo);
                 await StopAsync(axisNo).ConfigureAwait(false);
 
                 var lockPosition = GetLockPositionPulse(axisNo);
                 var currentPosition = GetCommandPosition(axisNo);
                 var moveDistance = lockPosition - currentPosition;
+                LogHomeDebug("Axis {AxisNo} latch position acquired. LockPosition={LockPosition}, CurrentPosition={CurrentPosition}, MoveDistance={MoveDistance}", axisNo, lockPosition, currentPosition, moveDistance);
                 if (moveDistance != 0)
                 {
                     await MoveRelativePulseAsync(axisNo, moveDistance, cancellationToken).ConfigureAwait(false);
@@ -412,8 +455,10 @@ namespace HAL
             }
             finally
             {
+                LogHomeDebug("Axis {AxisNo} latch homing cleanup start.", axisNo);
                 await SetLockPositionModeAsync(axisNo, 0, 0, 0, cancellationToken).ConfigureAwait(false);
                 await ClearLockStatusAsync(axisNo, cancellationToken).ConfigureAwait(false);
+                LogHomeDebug("Axis {AxisNo} latch homing cleanup completed.", axisNo);
             }
         }
 
@@ -429,6 +474,7 @@ namespace HAL
             CancellationToken cancellationToken)
         {
             ValidatePort(port, $"Axis {axisNo} home");
+            LogHomeDebug("Axis {AxisNo} continuous move wait start. Dir={Dir}, Port={PortIndex}, TargetLevel={TargetLevel}, StartSpeed={StartSpeed}, DriveSpeed={DriveSpeed}, Acceleration={Acceleration}, TimeoutMs={TimeoutMs}", axisNo, dir, port.PortIndex, targetLevel, startSpeed, driveSpeed, acceleration, timeoutMs);
             ConfigureMotion(axisNo, startSpeed, driveSpeed, acceleration);
             ExecuteNative(() => adt8940a1.adt8940a1_continue_move(_cardNo, axisNo, dir), $"Continuous move axis {axisNo} dir {dir}");
 
@@ -442,11 +488,13 @@ namespace HAL
                     var level = await ReadInputLevelAsync(port.PortIndex, cancellationToken).ConfigureAwait(false);
                     if (level == targetLevel)
                     {
+                        LogHomeDebug("Axis {AxisNo} continuous move reached target level. Port={PortIndex}, Level={Level}", axisNo, port.PortIndex, level);
                         return;
                     }
 
                     if (Environment.TickCount64 - startedAt >= timeoutMs)
                     {
+                        LogHomeDebug("Axis {AxisNo} continuous move wait timed out. Port={PortIndex}, LastLevel={Level}, TimeoutMs={TimeoutMs}", axisNo, port.PortIndex, level, timeoutMs);
                         throw new TimeoutException($"Axis {axisNo} home input wait timed out on port {port.PortIndex}.");
                     }
 
@@ -455,6 +503,7 @@ namespace HAL
             }
             finally
             {
+                LogHomeDebug("Axis {AxisNo} continuous move wait exit. Issuing stop.", axisNo);
                 await StopAsync(axisNo).ConfigureAwait(false);
             }
         }
@@ -491,6 +540,7 @@ namespace HAL
 
         private async Task WaitForLockStatusAsync(int axisNo, CancellationToken cancellationToken)
         {
+            LogHomeDebug("Axis {AxisNo} waiting for latch signal. TimeoutMs={TimeoutMs}", axisNo, _homingOptions.HomeTimeoutMs);
             var startedAt = Environment.TickCount64;
             while (true)
             {
@@ -498,11 +548,13 @@ namespace HAL
 
                 if (await GetLockStatusAsync(axisNo, cancellationToken).ConfigureAwait(false))
                 {
+                    LogHomeDebug("Axis {AxisNo} latch signal detected.", axisNo);
                     return;
                 }
 
                 if (Environment.TickCount64 - startedAt >= _homingOptions.HomeTimeoutMs)
                 {
+                    LogHomeDebug("Axis {AxisNo} latch wait timed out.", axisNo);
                     throw new TimeoutException($"Axis {axisNo} latch home timed out.");
                 }
 
@@ -1073,6 +1125,22 @@ namespace HAL
         private void RecordNativeCallException(string operation, Exception exception)
         {
             RecordNativeCall(operation, null, exception.Message, false);
+        }
+
+        private void LogHomeDebug(string messageTemplate, params object?[] propertyValues)
+        {
+            _logger.Debug(messageTemplate, propertyValues);
+        }
+
+        private void LogHomeDebug(Exception? exception, string messageTemplate, params object?[] propertyValues)
+        {
+            if (exception is null)
+            {
+                _logger.Debug(messageTemplate, propertyValues);
+                return;
+            }
+
+            _logger.Debug(exception, messageTemplate, propertyValues);
         }
     }
 }

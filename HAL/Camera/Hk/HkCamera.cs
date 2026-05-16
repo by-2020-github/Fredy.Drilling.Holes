@@ -10,8 +10,7 @@ namespace HAL
 {
     public sealed class HkCamera : ICamera
     {
-        private const int ContinuousGrabMaxFps = 20;
-        private static readonly TimeSpan ContinuousGrabInterval = TimeSpan.FromMilliseconds(1000.0 / ContinuousGrabMaxFps);
+        private const int DefaultContinuousGrabMaxFps = 20;
         private const int SingleGrabTimeoutMilliseconds = 3000;
         private static readonly ILogger Logger = Log.ForContext<HkCamera>();
 
@@ -29,6 +28,7 @@ namespace HAL
         private CancellationTokenSource? _continuousGrabCancellationTokenSource;
         private Task? _continuousGrabTask;
         private int _activeGrabOperations;
+        private TimeSpan _continuousGrabInterval = TimeSpan.FromMilliseconds(1000.0 / DefaultContinuousGrabMaxFps);
 
         public HkCamera()
         {
@@ -341,7 +341,13 @@ namespace HAL
 
         public int TrySetFrameRate(double frameRate)
         {
-            return SetFloatValue("AcquisitionFrameRate", (float)frameRate);
+            var ret = SetFloatValue("AcquisitionFrameRate", (float)frameRate);
+            if (ret == MyCamera.MV_OK)
+            {
+                UpdateContinuousGrabInterval(frameRate);
+            }
+
+            return ret;
         }
 
         public void Dispose()
@@ -573,6 +579,12 @@ namespace HAL
             {
                 while (!cancellationToken.IsCancellationRequested)
                 {
+                    TimeSpan continuousGrabInterval;
+                    lock (_syncRoot)
+                    {
+                        continuousGrabInterval = _continuousGrabInterval;
+                    }
+
                     var stopwatch = Stopwatch.StartNew();
 
                     try
@@ -588,7 +600,7 @@ namespace HAL
                         Logger.Error(ex, "Continuous grab loop failed.");
                     }
 
-                    var remainingDelay = ContinuousGrabInterval - stopwatch.Elapsed;
+                    var remainingDelay = continuousGrabInterval - stopwatch.Elapsed;
                     if (remainingDelay > TimeSpan.Zero)
                     {
                         try
@@ -613,6 +625,19 @@ namespace HAL
 
                     _isContinuousGrabbing = false;
                 }
+            }
+        }
+
+        private void UpdateContinuousGrabInterval(double frameRate)
+        {
+            if (double.IsNaN(frameRate) || double.IsInfinity(frameRate) || frameRate <= 0)
+            {
+                return;
+            }
+
+            lock (_syncRoot)
+            {
+                _continuousGrabInterval = TimeSpan.FromSeconds(1d / frameRate);
             }
         }
 

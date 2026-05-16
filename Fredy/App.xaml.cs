@@ -184,7 +184,7 @@ namespace Fredy.Drilling.Holes
             // 注册硬件 - 运动控制与 IO
             if (config.MotionController.ControllerType == "ADT8940" && !hardwareInitializationResult.UseSimulatedMotion)
             {
-                services.AddSingleton<MotionAdt8940>();
+                services.AddSingleton<MotionAdt8940>(sp => new MotionAdt8940(sp.GetRequiredService<Serilog.ILogger>()));
                 services.AddSingleton<IMoton>(sp => sp.GetRequiredService<MotionAdt8940>());
                 services.AddSingleton<IIOCard>(sp => sp.GetRequiredService<MotionAdt8940>());
                 services.AddSingleton<IHardwareController, Adt8940Controller>();
@@ -262,7 +262,7 @@ namespace Fredy.Drilling.Holes
             {
                 try
                 {
-                    var motion = new MotionAdt8940();
+                    var motion = new MotionAdt8940(Log.Logger);
                     var motionService = new MotionManager(motion);
                     motionService.EnableAll();
                     motionService.DisableAll();

@@ -50,6 +50,13 @@
                     <MenuItem Header="重置视图" Click="ResetView_Click"/>
                     <MenuItem Header="保存图像" Click="SaveImage_Click"/>
                     <Separator/>
+                    <MenuItem Header="连续模式帧率">
+                        <MenuItem x:Name="ContinuousGrabFrameRate5MenuItem" Header="5 FPS" Tag="5" IsCheckable="True" Click="SetContinuousGrabFrameRate_Click"/>
+                        <MenuItem x:Name="ContinuousGrabFrameRate10MenuItem" Header="10 FPS" Tag="10" IsCheckable="True" Click="SetContinuousGrabFrameRate_Click"/>
+                        <MenuItem x:Name="ContinuousGrabFrameRate20MenuItem" Header="20 FPS" Tag="20" IsCheckable="True" Click="SetContinuousGrabFrameRate_Click"/>
+                        <MenuItem x:Name="ContinuousGrabFrameRate30MenuItem" Header="30 FPS" Tag="30" IsCheckable="True" Click="SetContinuousGrabFrameRate_Click"/>
+                    </MenuItem>
+                    <Separator/>
                     <MenuItem x:Name="MenuShowCross" Header="显示中心十字标记" IsCheckable="True" IsChecked="True" Click="ToggleCross_Click"/>
                     <Separator/>
 
@@ -138,28 +145,42 @@
                 Padding="8,6"
                 Background="White">
             <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
 
-                <TextBlock Grid.Column="0"
+                <TextBlock Grid.Row="0"
+                           Grid.Column="0"
                            Foreground="Black"
                            VerticalAlignment="Center"
                            Text="{Binding CameraConnectionStatusText, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
 
-                <TextBlock Grid.Column="1"
+                <TextBlock Grid.Row="0"
+                           Grid.Column="1"
                            Foreground="Black"
                            VerticalAlignment="Center"
                            HorizontalAlignment="Center"
                            Text="{Binding CameraGrabModeStatusText, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
 
-                <TextBlock Grid.Column="2"
+                <TextBlock Grid.Row="0"
+                           Grid.Column="2"
                            Foreground="Black"
                            VerticalAlignment="Center"
                            HorizontalAlignment="Right"
                            Text="{Binding CameraLatestFrameStatusText, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
+
+                <TextBlock Grid.Row="1"
+                           Grid.ColumnSpan="3"
+                           Margin="0,6,0,0"
+                           Foreground="DimGray"
+                           TextWrapping="Wrap"
+                           Text="{Binding CameraOperationLogText, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
             </Grid>
         </Border>
     </Grid>
