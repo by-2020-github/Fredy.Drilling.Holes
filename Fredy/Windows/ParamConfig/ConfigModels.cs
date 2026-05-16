@@ -3,14 +3,13 @@ using System.Collections.Generic;
 
 namespace Fredy.Drilling.Holes.Models
 {
-    // 通用运动参数 (初速度, 驱动速度, 加速度, 延时)
+    // 通用运动参数 (初速度 mm/s, 驱动速度 mm/s, 加速度 mm/s², 延时 ms)
     public partial class MotionParams : ObservableObject
     {
-        [ObservableProperty] private int _startSpeed;
-        [ObservableProperty] private int _driveSpeed;
-        [ObservableProperty] private int _acceleration;
+        [ObservableProperty] private double _startSpeed;
+        [ObservableProperty] private double _driveSpeed;
+        [ObservableProperty] private double _acceleration;
         [ObservableProperty] private int _delay;
-        [ObservableProperty] private int _pulseEquivalent; // 脉冲当量
     }
 
     public partial class AxisParamConfig : ObservableObject
@@ -43,21 +42,21 @@ namespace Fredy.Drilling.Holes.Models
 
         private int _homeTimeoutMs = 10000;
 
-        private int _homeBackoffPulse = 200;
+        private double _homeBackoffMm = 0.2;
 
-        private int _zHomeLiftPulse;
+        private double _zHomeLiftMm = 0.0;
 
-        private int _slowHomeStartSpeed = 100;
+        private double _slowHomeStartSpeed = 0.1;
 
-        private int _slowHomeSpeed = 500;
+        private double _slowHomeSpeed = 0.5;
 
-        private int _slowHomeAcceleration = 1000;
+        private double _slowHomeAcceleration = 1.0;
 
-        private int _gratingHomeStartSpeed = 500;
+        private double _gratingHomeStartSpeed = 0.5;
 
-        private int _gratingHomeSpeed = 2000;
+        private double _gratingHomeSpeed = 2.0;
 
-        private int _gratingHomeAcceleration = 2000;
+        private double _gratingHomeAcceleration = 2.0;
 
         private bool _zHomeTowardPositiveDirection;
 
@@ -67,49 +66,57 @@ namespace Fredy.Drilling.Holes.Models
             set => SetProperty(ref _homeTimeoutMs, value);
         }
 
-        public int HomeBackoffPulse
+        // 脱离距离 (mm)
+        public double HomeBackoffMm
         {
-            get => _homeBackoffPulse;
-            set => SetProperty(ref _homeBackoffPulse, value);
+            get => _homeBackoffMm;
+            set => SetProperty(ref _homeBackoffMm, value);
         }
 
-        public int ZHomeLiftPulse
+        // Z轴回零后抬起距离 (mm)
+        public double ZHomeLiftMm
         {
-            get => _zHomeLiftPulse;
-            set => SetProperty(ref _zHomeLiftPulse, value);
+            get => _zHomeLiftMm;
+            set => SetProperty(ref _zHomeLiftMm, value);
         }
 
-        public int SlowHomeStartSpeed
+        // 慢速回零初速度 (mm/s)
+        public double SlowHomeStartSpeed
         {
             get => _slowHomeStartSpeed;
             set => SetProperty(ref _slowHomeStartSpeed, value);
         }
 
-        public int SlowHomeSpeed
+        // 慢速回零速度 (mm/s)
+        public double SlowHomeSpeed
         {
             get => _slowHomeSpeed;
             set => SetProperty(ref _slowHomeSpeed, value);
         }
 
-        public int SlowHomeAcceleration
+        // 慢速回零加速度 (mm/s²)
+        public double SlowHomeAcceleration
         {
             get => _slowHomeAcceleration;
             set => SetProperty(ref _slowHomeAcceleration, value);
         }
 
-        public int GratingHomeStartSpeed
+        // 光栅回零初速度 (mm/s)
+        public double GratingHomeStartSpeed
         {
             get => _gratingHomeStartSpeed;
             set => SetProperty(ref _gratingHomeStartSpeed, value);
         }
 
-        public int GratingHomeSpeed
+        // 光栅回零速度 (mm/s)
+        public double GratingHomeSpeed
         {
             get => _gratingHomeSpeed;
             set => SetProperty(ref _gratingHomeSpeed, value);
         }
 
-        public int GratingHomeAcceleration
+        // 光栅回零加速度 (mm/s²)
+        public double GratingHomeAcceleration
         {
             get => _gratingHomeAcceleration;
             set => SetProperty(ref _gratingHomeAcceleration, value);
@@ -161,13 +168,16 @@ namespace Fredy.Drilling.Holes.Models
 
         public double FastMovePos { get; set; } = -22.0;
 
-        public int FastMoveSpeed { get; set; } = 9000;
+        // Z轴快速移动速度 (mm/s)
+        public double FastMoveSpeed { get; set; } = 9.0;
 
         public double SlowMoveDist { get; set; } = -12.0;
 
-        public int SlowMoveSpeed { get; set; } = 700;
+        // Z轴慢速移动速度 (mm/s)
+        public double SlowMoveSpeed { get; set; } = 0.7;
 
-        public int HomeSearchSpeed { get; set; } = 3000;
+        // 回零搜索速度 (mm/s)
+        public double HomeSearchSpeed { get; set; } = 3.0;
 
         public bool IsIoHome { get; set; }
 

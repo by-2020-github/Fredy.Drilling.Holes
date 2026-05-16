@@ -81,11 +81,11 @@ namespace Fredy.Drilling.Holes.ViewModels
         [ObservableProperty] private AxisParamConfig _zAxis = new() { AxisNo = 3, PulsesPerMillimeter = 1d, UseActualPositionFeedback = false };
 
         [ObservableProperty] private double _fastMovePos = -22.0;
-        [ObservableProperty] private int _fastMoveSpeed = 9000;
+        [ObservableProperty] private double _fastMoveSpeed = 9.0;
         [ObservableProperty] private double _slowMoveDist = -12.0;
-        [ObservableProperty] private int _slowMoveSpeed = 700;
+        [ObservableProperty] private double _slowMoveSpeed = 0.7;
 
-        [ObservableProperty] private int _homeSearchSpeed = 3000;
+        [ObservableProperty] private double _homeSearchSpeed = 3.0;
         [ObservableProperty] private bool _isIoHome;
         [ObservableProperty] private bool _isLatch;
         [ObservableProperty] private bool _isGratingHome;
@@ -377,8 +377,8 @@ namespace Fredy.Drilling.Holes.ViewModels
                 BuildHomingPort(homing.XGratingPort),
                 BuildHomingPort(homing.YGratingPort),
                 homing.HomeTimeoutMs,
-                homing.HomeBackoffPulse,
-                homing.ZHomeLiftPulse,
+                homing.HomeBackoffMm,
+                homing.ZHomeLiftMm,
                 homing.ZHomeTowardPositiveDirection,
                 homing.SlowHomeStartSpeed,
                 homing.SlowHomeSpeed,
@@ -696,8 +696,8 @@ namespace Fredy.Drilling.Holes.ViewModels
             AddIfChanged(lines, "X光栅零位端口", _originalConfig.AdtHoming.XGratingPort.PortIndex, current.AdtHoming.XGratingPort.PortIndex);
             AddIfChanged(lines, "Y光栅零位端口", _originalConfig.AdtHoming.YGratingPort.PortIndex, current.AdtHoming.YGratingPort.PortIndex);
             AddIfChanged(lines, "回零超时", _originalConfig.AdtHoming.HomeTimeoutMs, current.AdtHoming.HomeTimeoutMs);
-            AddIfChanged(lines, "回零脱离脉冲", _originalConfig.AdtHoming.HomeBackoffPulse, current.AdtHoming.HomeBackoffPulse);
-            AddIfChanged(lines, "Z回零抬起脉冲", _originalConfig.AdtHoming.ZHomeLiftPulse, current.AdtHoming.ZHomeLiftPulse);
+            AddIfChanged(lines, "回零脱离距离 (mm)", _originalConfig.AdtHoming.HomeBackoffMm, current.AdtHoming.HomeBackoffMm);
+            AddIfChanged(lines, "Z回零抬起距离 (mm)", _originalConfig.AdtHoming.ZHomeLiftMm, current.AdtHoming.ZHomeLiftMm);
             AddIfChanged(lines, "Z机械回零朝正方向", _originalConfig.AdtHoming.ZHomeTowardPositiveDirection, current.AdtHoming.ZHomeTowardPositiveDirection);
             AddIfChanged(lines, "慢速回零初速度", _originalConfig.AdtHoming.SlowHomeStartSpeed, current.AdtHoming.SlowHomeStartSpeed);
             AddIfChanged(lines, "慢速回零速度", _originalConfig.AdtHoming.SlowHomeSpeed, current.AdtHoming.SlowHomeSpeed);
@@ -730,7 +730,6 @@ namespace Fredy.Drilling.Holes.ViewModels
             AddIfChanged(lines, $"{prefix}-驱动速度", oldValue.DriveSpeed, currentValue.DriveSpeed);
             AddIfChanged(lines, $"{prefix}-加速度", oldValue.Acceleration, currentValue.Acceleration);
             AddIfChanged(lines, $"{prefix}-延时", oldValue.Delay, currentValue.Delay);
-            AddIfChanged(lines, $"{prefix}-脉冲当量", oldValue.PulseEquivalent, currentValue.PulseEquivalent);
         }
 
         private static void AddAxisDiff(List<string> lines, string prefix, AxisParamConfig oldValue, AxisParamConfig currentValue)
@@ -830,7 +829,6 @@ namespace Fredy.Drilling.Holes.ViewModels
                 DriveSpeed = source.DriveSpeed,
                 Acceleration = source.Acceleration,
                 Delay = source.Delay,
-                PulseEquivalent = source.PulseEquivalent
             };
         }
 
@@ -868,8 +866,8 @@ namespace Fredy.Drilling.Holes.ViewModels
                 XGratingPort = ClonePort(source.XGratingPort),
                 YGratingPort = ClonePort(source.YGratingPort),
                 HomeTimeoutMs = source.HomeTimeoutMs,
-                HomeBackoffPulse = source.HomeBackoffPulse,
-                ZHomeLiftPulse = source.ZHomeLiftPulse,
+                HomeBackoffMm = source.HomeBackoffMm,
+                ZHomeLiftMm = source.ZHomeLiftMm,
                 ZHomeTowardPositiveDirection = source.ZHomeTowardPositiveDirection,
                 SlowHomeStartSpeed = source.SlowHomeStartSpeed,
                 SlowHomeSpeed = source.SlowHomeSpeed,

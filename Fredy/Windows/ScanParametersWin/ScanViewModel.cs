@@ -860,7 +860,7 @@ namespace Fredy.Drilling.Holes.ViewModels
              }
              Params.WorkpieceDiameter = diameter;
 
-             Params.SettleTime = Math.Max(1, config.HomeSearchSpeed / 10);
+             Params.SettleTime = Math.Max(1, (int)(config.HomeSearchSpeed / 10));
             Params.DetectMinRadius = config.CircleMinRadius;
             Params.DetectMaxRadius = config.CircleMaxRadius;
             Params.DetectParam1 = config.CircleParam1;

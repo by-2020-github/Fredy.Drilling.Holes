@@ -77,38 +77,38 @@
                                             </Grid.ColumnDefinitions>
                                             <GroupBox Header="头道参数"  Grid.Column="0" Margin="2">
                                                 <StackPanel Margin="5">
-                                                    <TextBlock Text="初速度"/>
-                                                    <hc:NumericUpDown Value="{Binding FirstPass.StartSpeed}" Style="{StaticResource NumericIntUpDownStyle}" Margin="0,2,0,5"/>
-                                                    <TextBlock Text="驱动速度"/>
-                                                    <hc:NumericUpDown Value="{Binding FirstPass.DriveSpeed}" Style="{StaticResource NumericIntUpDownStyle}" Margin="0,2,0,5"/>
-                                                    <TextBlock Text="加速度"/>
-                                                    <hc:NumericUpDown Value="{Binding FirstPass.Acceleration}" Style="{StaticResource NumericIntUpDownStyle}" Margin="0,2,0,5"/>
-                                                    <TextBlock Text="延时"/>
+                                                    <TextBlock Text="初速度 (mm/s)"/>
+                                                    <hc:NumericUpDown Value="{Binding FirstPass.StartSpeed}" Style="{StaticResource NumericDoubleUpDownStyle}" Margin="0,2,0,5"/>
+                                                    <TextBlock Text="驱动速度 (mm/s)"/>
+                                                    <hc:NumericUpDown Value="{Binding FirstPass.DriveSpeed}" Style="{StaticResource NumericDoubleUpDownStyle}" Margin="0,2,0,5"/>
+                                                    <TextBlock Text="加速度 (mm/s²)"/>
+                                                    <hc:NumericUpDown Value="{Binding FirstPass.Acceleration}" Style="{StaticResource NumericDoubleUpDownStyle}" Margin="0,2,0,5"/>
+                                                    <TextBlock Text="延时 (ms)"/>
                                                     <hc:NumericUpDown Value="{Binding FirstPass.Delay}" Style="{StaticResource NumericIntUpDownStyle}" Margin="0,2,0,5"/>
                                                 </StackPanel>
                                             </GroupBox>
                                             <GroupBox Header="二道参数"  Grid.Column="1" Margin="2">
                                                 <StackPanel Margin="5">
-                                                    <TextBlock Text="初速度"/>
-                                                    <hc:NumericUpDown Value="{Binding SecondPass.StartSpeed}" Style="{StaticResource NumericIntUpDownStyle}" Margin="0,2,0,5"/>
-                                                    <TextBlock Text="驱动速度"/>
-                                                    <hc:NumericUpDown Value="{Binding SecondPass.DriveSpeed}" Style="{StaticResource NumericIntUpDownStyle}" Margin="0,2,0,5"/>
-                                                    <TextBlock Text="加速度"/>
-                                                    <hc:NumericUpDown Value="{Binding SecondPass.Acceleration}" Style="{StaticResource NumericIntUpDownStyle}" Margin="0,2,0,5"/>
-                                                    <TextBlock Text="延时"/>
+                                                    <TextBlock Text="初速度 (mm/s)"/>
+                                                    <hc:NumericUpDown Value="{Binding SecondPass.StartSpeed}" Style="{StaticResource NumericDoubleUpDownStyle}" Margin="0,2,0,5"/>
+                                                    <TextBlock Text="驱动速度 (mm/s)"/>
+                                                    <hc:NumericUpDown Value="{Binding SecondPass.DriveSpeed}" Style="{StaticResource NumericDoubleUpDownStyle}" Margin="0,2,0,5"/>
+                                                    <TextBlock Text="加速度 (mm/s²)"/>
+                                                    <hc:NumericUpDown Value="{Binding SecondPass.Acceleration}" Style="{StaticResource NumericDoubleUpDownStyle}" Margin="0,2,0,5"/>
+                                                    <TextBlock Text="延时 (ms)"/>
                                                     <hc:NumericUpDown Value="{Binding SecondPass.Delay}" Style="{StaticResource NumericIntUpDownStyle}" Margin="0,2,0,5"/>
                                                 </StackPanel>
                                             </GroupBox>
                                             <GroupBox Header="探测参数"  Grid.Column="2" Margin="2">
                                                 <StackPanel Margin="5">
-                                                    <TextBlock Text="快速移动位置"/>
+                                                    <TextBlock Text="快速移动位置 (mm)"/>
                                                     <hc:NumericUpDown Value="{Binding FastMovePos}" Style="{StaticResource NumericDoubleUpDownStyle}" Margin="0,2,0,5"/>
-                                                    <TextBlock Text="快速速度"/>
-                                                    <hc:NumericUpDown Value="{Binding FastMoveSpeed}" Style="{StaticResource NumericIntUpDownStyle}" Margin="0,2,0,5"/>
-                                                    <TextBlock Text="慢速移动距离"/>
+                                                    <TextBlock Text="快速速度 (mm/s)"/>
+                                                    <hc:NumericUpDown Value="{Binding FastMoveSpeed}" Style="{StaticResource NumericDoubleUpDownStyle}" Margin="0,2,0,5"/>
+                                                    <TextBlock Text="慢速移动距离 (mm)"/>
                                                     <hc:NumericUpDown Value="{Binding SlowMoveDist}" Style="{StaticResource NumericDoubleUpDownStyle}" Margin="0,2,0,5"/>
-                                                    <TextBlock Text="慢速速度"/>
-                                                    <hc:NumericUpDown Value="{Binding SlowMoveSpeed}" Style="{StaticResource NumericIntUpDownStyle}" Margin="0,2,0,5"/>
+                                                    <TextBlock Text="慢速速度 (mm/s)"/>
+                                                    <hc:NumericUpDown Value="{Binding SlowMoveSpeed}" Style="{StaticResource NumericDoubleUpDownStyle}" Margin="0,2,0,5"/>
                                                 </StackPanel>
                                             </GroupBox>
                                         </Grid>
@@ -133,37 +133,37 @@
 
                                                 <GroupBox Header="机械回零" Margin="0,0,5,0">
                                                     <UniformGrid Columns="2" Margin="8">
-                                                        <TextBlock Text="搜索速度" VerticalAlignment="Center" Margin="0,0,6,6"/>
-                                                        <hc:NumericUpDown Value="{Binding HomeSearchSpeed}" Style="{StaticResource NumericIntUpDownStyle}" Margin="0,0,0,6"/>
+                                                        <TextBlock Text="搜索速度 (mm/s)" VerticalAlignment="Center" Margin="0,0,6,6"/>
+                                                        <hc:NumericUpDown Value="{Binding HomeSearchSpeed}" Style="{StaticResource NumericDoubleUpDownStyle}" Margin="0,0,0,6"/>
                                                         <TextBlock Text="回零超时(ms)" VerticalAlignment="Center" Margin="0,0,6,6"/>
                                                         <hc:NumericUpDown Value="{Binding AdtHoming.HomeTimeoutMs}" Style="{StaticResource NumericIntUpDownStyle}" Margin="0,0,0,6"/>
-                                                        <TextBlock Text="脱离脉冲" VerticalAlignment="Center" Margin="0,0,6,6"/>
-                                                        <hc:NumericUpDown Value="{Binding AdtHoming.HomeBackoffPulse}" Style="{StaticResource NumericIntUpDownStyle}" Margin="0,0,0,6"/>
-                                                        <TextBlock Text="初速度" VerticalAlignment="Center" Margin="0,0,6,6"/>
-                                                        <hc:NumericUpDown Value="{Binding AdtHoming.SlowHomeStartSpeed}" Style="{StaticResource NumericIntUpDownStyle}" Margin="0,0,0,6"/>
-                                                        <TextBlock Text="速度" VerticalAlignment="Center" Margin="0,0,6,6"/>
-                                                        <hc:NumericUpDown Value="{Binding AdtHoming.SlowHomeSpeed}" Style="{StaticResource NumericIntUpDownStyle}" Margin="0,0,0,6"/>
-                                                        <TextBlock Text="加速度" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                                        <hc:NumericUpDown Value="{Binding AdtHoming.SlowHomeAcceleration}" Style="{StaticResource NumericIntUpDownStyle}" Margin="0"/>
+                                                        <TextBlock Text="脱离距离 (mm)" VerticalAlignment="Center" Margin="0,0,6,6"/>
+                                                        <hc:NumericUpDown Value="{Binding AdtHoming.HomeBackoffMm}" Style="{StaticResource NumericDoubleUpDownStyle}" Margin="0,0,0,6"/>
+                                                        <TextBlock Text="初速度 (mm/s)" VerticalAlignment="Center" Margin="0,0,6,6"/>
+                                                        <hc:NumericUpDown Value="{Binding AdtHoming.SlowHomeStartSpeed}" Style="{StaticResource NumericDoubleUpDownStyle}" Margin="0,0,0,6"/>
+                                                        <TextBlock Text="速度 (mm/s)" VerticalAlignment="Center" Margin="0,0,6,6"/>
+                                                        <hc:NumericUpDown Value="{Binding AdtHoming.SlowHomeSpeed}" Style="{StaticResource NumericDoubleUpDownStyle}" Margin="0,0,0,6"/>
+                                                        <TextBlock Text="加速度 (mm/s²)" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                                        <hc:NumericUpDown Value="{Binding AdtHoming.SlowHomeAcceleration}" Style="{StaticResource NumericDoubleUpDownStyle}" Margin="0"/>
                                                     </UniformGrid>
                                                 </GroupBox>
 
                                                 <GroupBox Grid.Column="1" Header="光栅/锁存回零" Margin="5,0,5,0">
                                                     <UniformGrid Columns="2" Margin="8">
-                                                        <TextBlock Text="初速度" VerticalAlignment="Center" Margin="0,0,6,6"/>
-                                                        <hc:NumericUpDown Value="{Binding AdtHoming.GratingHomeStartSpeed}" Style="{StaticResource NumericIntUpDownStyle}" Margin="0,0,0,6"/>
-                                                        <TextBlock Text="速度" VerticalAlignment="Center" Margin="0,0,6,6"/>
-                                                        <hc:NumericUpDown Value="{Binding AdtHoming.GratingHomeSpeed}" Style="{StaticResource NumericIntUpDownStyle}" Margin="0,0,0,6"/>
-                                                        <TextBlock Text="加速度" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                                        <hc:NumericUpDown Value="{Binding AdtHoming.GratingHomeAcceleration}" Style="{StaticResource NumericIntUpDownStyle}" Margin="0"/>
+                                                        <TextBlock Text="初速度 (mm/s)" VerticalAlignment="Center" Margin="0,0,6,6"/>
+                                                        <hc:NumericUpDown Value="{Binding AdtHoming.GratingHomeStartSpeed}" Style="{StaticResource NumericDoubleUpDownStyle}" Margin="0,0,0,6"/>
+                                                        <TextBlock Text="速度 (mm/s)" VerticalAlignment="Center" Margin="0,0,6,6"/>
+                                                        <hc:NumericUpDown Value="{Binding AdtHoming.GratingHomeSpeed}" Style="{StaticResource NumericDoubleUpDownStyle}" Margin="0,0,0,6"/>
+                                                        <TextBlock Text="加速度 (mm/s²)" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                                        <hc:NumericUpDown Value="{Binding AdtHoming.GratingHomeAcceleration}" Style="{StaticResource NumericDoubleUpDownStyle}" Margin="0"/>
                                                     </UniformGrid>
                                                 </GroupBox>
 
                                                 <GroupBox Grid.Column="2" Header="Z轴专项" Margin="5,0,0,0">
                                                     <StackPanel Margin="8">
                                                         <UniformGrid Columns="2">
-                                                            <TextBlock Text="抬起脉冲" VerticalAlignment="Center" Margin="0,0,6,6"/>
-                                                            <hc:NumericUpDown Value="{Binding AdtHoming.ZHomeLiftPulse}" Style="{StaticResource NumericIntUpDownStyle}" Margin="0,0,0,6"/>
+                                                            <TextBlock Text="抬起距离 (mm)" VerticalAlignment="Center" Margin="0,0,6,6"/>
+                                                            <hc:NumericUpDown Value="{Binding AdtHoming.ZHomeLiftMm}" Style="{StaticResource NumericDoubleUpDownStyle}" Margin="0,0,0,6"/>
                                                         </UniformGrid>
                                                         <CheckBox Content="Z机械回零朝正方向搜索"
                                                                   IsChecked="{Binding AdtHoming.ZHomeTowardPositiveDirection}"

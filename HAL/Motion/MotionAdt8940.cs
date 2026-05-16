@@ -18,7 +18,7 @@ namespace HAL
             bool IsLowLevelActive);
 
         public readonly record struct HomingOptions(
-            int HomeSearchSpeed,
+            double HomeSearchSpeed,
             bool IsIoHome,
             bool IsLatch,
             bool IsGratingHome,
@@ -28,15 +28,15 @@ namespace HAL
             HomingPort XGratingPort,
             HomingPort YGratingPort,
             int HomeTimeoutMs = 10000,
-            int HomeBackoffPulse = 200,
-            int ZHomeLiftPulse = 0,
+            double HomeBackoffMm = 0.2,
+            double ZHomeLiftMm = 0.0,
             bool ZHomeTowardPositiveDirection = false,
-            int SlowHomeStartSpeed = 100,
-            int SlowHomeSpeed = 500,
-            int SlowHomeAcceleration = 1000,
-            int GratingHomeStartSpeed = 500,
-            int GratingHomeSpeed = 2000,
-            int GratingHomeAcceleration = 2000);
+            double SlowHomeStartSpeed = 0.1,
+            double SlowHomeSpeed = 0.5,
+            double SlowHomeAcceleration = 1.0,
+            double GratingHomeStartSpeed = 0.5,
+            double GratingHomeSpeed = 2.0,
+            double GratingHomeAcceleration = 2.0);
 
         public readonly record struct NativeCallRecord(
             long SequenceId,
@@ -56,11 +56,11 @@ namespace HAL
         private readonly ConcurrentQueue<NativeCallRecord> _nativeCallRecords = new();
         private readonly object _syncRoot = new();
         private readonly int _cardNo;
-        private readonly int _startSpeed;
-        private readonly int _driveSpeed;
-        private readonly int _acceleration;
-        private int _homeSearchSpeed;
-        private int _homeApproachSpeed;
+        private readonly double _startSpeed;
+        private readonly double _driveSpeed;
+        private readonly double _acceleration;
+        private double _homeSearchSpeed;
+        private double _homeApproachSpeed;
         private bool _initialized;
         private int _nativeCallRecordCount;
         private long _nativeCallSequence;
@@ -87,19 +87,19 @@ namespace HAL
         public MotionAdt8940(
             ILogger logger,
             int cardNo = 0,
-            int startSpeed = 100,
-            int driveSpeed = 9000,
-            int acceleration = 1250,
-            int homeSearchSpeed = 3000,
-            int homeApproachSpeed = 700)
+            double startSpeed = 0.1,
+            double driveSpeed = 9.0,
+            double acceleration = 1.25,
+            double homeSearchSpeed = 3.0,
+            double homeApproachSpeed = 0.7)
         {
             _logger = (logger ?? Log.Logger).ForContext<MotionAdt8940>();
             ArgumentOutOfRangeException.ThrowIfNegative(cardNo);
-            ArgumentOutOfRangeException.ThrowIfLessThan(startSpeed, 1);
-            ArgumentOutOfRangeException.ThrowIfLessThan(driveSpeed, 1);
-            ArgumentOutOfRangeException.ThrowIfLessThan(acceleration, 1);
-            ArgumentOutOfRangeException.ThrowIfLessThan(homeSearchSpeed, 1);
-            ArgumentOutOfRangeException.ThrowIfLessThan(homeApproachSpeed, 1);
+            ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(startSpeed, 0d);
+            ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(driveSpeed, 0d);
+            ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(acceleration, 0d);
+            ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(homeSearchSpeed, 0d);
+            ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(homeApproachSpeed, 0d);
 
             _cardNo = cardNo;
             _startSpeed = startSpeed;
@@ -123,15 +123,16 @@ namespace HAL
         {
             _homingOptions = options with
             {
-                HomeSearchSpeed = Math.Max(1, options.HomeSearchSpeed),
+                HomeSearchSpeed = Math.Max(0.001, options.HomeSearchSpeed),
                 HomeTimeoutMs = Math.Max(100, options.HomeTimeoutMs),
-                HomeBackoffPulse = Math.Max(0, options.HomeBackoffPulse),
-                SlowHomeStartSpeed = Math.Max(1, options.SlowHomeStartSpeed),
-                SlowHomeSpeed = Math.Max(1, options.SlowHomeSpeed),
-                SlowHomeAcceleration = Math.Max(1, options.SlowHomeAcceleration),
-                GratingHomeStartSpeed = Math.Max(1, options.GratingHomeStartSpeed),
-                GratingHomeSpeed = Math.Max(1, options.GratingHomeSpeed),
-                GratingHomeAcceleration = Math.Max(1, options.GratingHomeAcceleration)
+                HomeBackoffMm = Math.Max(0d, options.HomeBackoffMm),
+                ZHomeLiftMm = Math.Max(0d, options.ZHomeLiftMm),
+                SlowHomeStartSpeed = Math.Max(0.001, options.SlowHomeStartSpeed),
+                SlowHomeSpeed = Math.Max(0.001, options.SlowHomeSpeed),
+                SlowHomeAcceleration = Math.Max(0.001, options.SlowHomeAcceleration),
+                GratingHomeStartSpeed = Math.Max(0.001, options.GratingHomeStartSpeed),
+                GratingHomeSpeed = Math.Max(0.001, options.GratingHomeSpeed),
+                GratingHomeAcceleration = Math.Max(0.001, options.GratingHomeAcceleration)
             };
 
             _homeSearchSpeed = _homingOptions.HomeSearchSpeed;
@@ -310,6 +311,10 @@ namespace HAL
             var activeLevel = GetActiveLevel(port);
             var inactiveLevel = GetInactiveLevel(port);
             var currentLevel = await ReadInputLevelAsync(port.PortIndex, cancellationToken).ConfigureAwait(false);
+            var axis = GetAxisParam(axisNo);
+            var startSpeedPulse = ToSpeedPulse(_startSpeed, axis);
+            var searchSpeedPulse = ToSpeedPulse(_homingOptions.HomeSearchSpeed, axis);
+            var accelPulse = ToAccelerationPulse(_acceleration, axis);
 
             LogHomeDebug("Axis {AxisNo} Z homing start. Port={PortIndex}, ActiveLevel={ActiveLevel}, InactiveLevel={InactiveLevel}, CurrentLevel={CurrentLevel}", axisNo, port.PortIndex, activeLevel, inactiveLevel, currentLevel);
 
@@ -321,9 +326,9 @@ namespace HAL
                     _homingOptions.ZHomeTowardPositiveDirection ? 0 : 1,
                     port,
                     inactiveLevel,
-                    _startSpeed,
-                    _homingOptions.HomeSearchSpeed,
-                    _acceleration,
+                    startSpeedPulse,
+                    searchSpeedPulse,
+                    accelPulse,
                     _homingOptions.HomeTimeoutMs,
                     cancellationToken).ConfigureAwait(false);
             }
@@ -334,19 +339,20 @@ namespace HAL
                 _homingOptions.ZHomeTowardPositiveDirection ? 1 : 0,
                 port,
                 activeLevel,
-                _startSpeed,
-                _homingOptions.HomeSearchSpeed,
-                _acceleration,
+                startSpeedPulse,
+                searchSpeedPulse,
+                accelPulse,
                 _homingOptions.HomeTimeoutMs,
                 cancellationToken).ConfigureAwait(false);
 
             LogHomeDebug("Axis {AxisNo} Z homing reached sensor. Resetting position.", axisNo);
             ResetPosition(axisNo);
 
-            if (_homingOptions.ZHomeLiftPulse > 0)
+            if (_homingOptions.ZHomeLiftMm > 0)
             {
-                LogHomeDebug("Axis {AxisNo} Z homing lift enabled. LiftPulse={LiftPulse}", axisNo, _homingOptions.ZHomeLiftPulse);
-                await MoveRelativePulseAsync(axisNo, _homingOptions.ZHomeLiftPulse, cancellationToken).ConfigureAwait(false);
+                var liftPulse = ToPulse(_homingOptions.ZHomeLiftMm, axis);
+                LogHomeDebug("Axis {AxisNo} Z homing lift enabled. LiftMm={LiftMm}, LiftPulse={LiftPulse}", axisNo, _homingOptions.ZHomeLiftMm, liftPulse);
+                await MoveRelativePulseAsync(axisNo, liftPulse, cancellationToken).ConfigureAwait(false);
             }
 
             RecordNativeCall($"Home axis {axisNo}", null, $"轴 {axisNo} Z 回零流程完成。", true);
@@ -359,6 +365,13 @@ namespace HAL
             var activeLevel = GetActiveLevel(port);
             var inactiveLevel = GetInactiveLevel(port);
             var currentLevel = await ReadInputLevelAsync(port.PortIndex, cancellationToken).ConfigureAwait(false);
+            var axis = GetAxisParam(axisNo);
+            var startSpeedPulse = ToSpeedPulse(_startSpeed, axis);
+            var searchSpeedPulse = ToSpeedPulse(_homingOptions.HomeSearchSpeed, axis);
+            var accelPulse = ToAccelerationPulse(_acceleration, axis);
+            var slowStartPulse = ToSpeedPulse(_homingOptions.SlowHomeStartSpeed, axis);
+            var slowSpeedPulse = ToSpeedPulse(_homingOptions.SlowHomeSpeed, axis);
+            var slowAccelPulse = ToAccelerationPulse(_homingOptions.SlowHomeAcceleration, axis);
 
             LogHomeDebug("Axis {AxisNo} mechanical homing start. Port={PortIndex}, ActiveLevel={ActiveLevel}, InactiveLevel={InactiveLevel}, CurrentLevel={CurrentLevel}", axisNo, port.PortIndex, activeLevel, inactiveLevel, currentLevel);
 
@@ -371,17 +384,18 @@ namespace HAL
                     1,
                     port,
                     inactiveLevel,
-                    _startSpeed,
-                    _homingOptions.HomeSearchSpeed,
-                    _acceleration,
+                    startSpeedPulse,
+                    searchSpeedPulse,
+                    accelPulse,
                     _homingOptions.HomeTimeoutMs,
                     cancellationToken).ConfigureAwait(false);
 
-                // 流程图 LEFT_BRANCH：停止后向正方向移动退让脉冲
-                if (_homingOptions.HomeBackoffPulse > 0)
+                // 流程图 LEFT_BRANCH：停止后向正方向移动退让距离
+                if (_homingOptions.HomeBackoffMm > 0)
                 {
-                    LogHomeDebug("Axis {AxisNo} LEFT_BRANCH backoff. Pulse={Pulse}", axisNo, _homingOptions.HomeBackoffPulse);
-                    await MoveRelativePulseAsync(axisNo, _homingOptions.HomeBackoffPulse, cancellationToken).ConfigureAwait(false);
+                    var backoffPulse = ToPulse(_homingOptions.HomeBackoffMm, axis);
+                    LogHomeDebug("Axis {AxisNo} LEFT_BRANCH backoff. Mm={Mm}, Pulse={Pulse}", axisNo, _homingOptions.HomeBackoffMm, backoffPulse);
+                    await MoveRelativePulseAsync(axisNo, backoffPulse, cancellationToken).ConfigureAwait(false);
                 }
             }
             else
@@ -393,17 +407,18 @@ namespace HAL
                     0,
                     port,
                     inactiveLevel,
-                    _startSpeed,
-                    _homingOptions.HomeSearchSpeed,
-                    _acceleration,
+                    startSpeedPulse,
+                    searchSpeedPulse,
+                    accelPulse,
                     _homingOptions.HomeTimeoutMs,
                     cancellationToken).ConfigureAwait(false);
 
-                // 流程图 RIGHT_BRANCH：停止后向正方向移动退让脉冲（与 LEFT_BRANCH 一致）
-                if (_homingOptions.HomeBackoffPulse > 0)
+                // 流程图 RIGHT_BRANCH：停止后向正方向移动退让距离（与 LEFT_BRANCH 一致）
+                if (_homingOptions.HomeBackoffMm > 0)
                 {
-                    LogHomeDebug("Axis {AxisNo} RIGHT_BRANCH backoff. Pulse={Pulse}", axisNo, _homingOptions.HomeBackoffPulse);
-                    await MoveRelativePulseAsync(axisNo, _homingOptions.HomeBackoffPulse, cancellationToken).ConfigureAwait(false);
+                    var backoffPulse = ToPulse(_homingOptions.HomeBackoffMm, axis);
+                    LogHomeDebug("Axis {AxisNo} RIGHT_BRANCH backoff. Mm={Mm}, Pulse={Pulse}", axisNo, _homingOptions.HomeBackoffMm, backoffPulse);
+                    await MoveRelativePulseAsync(axisNo, backoffPulse, cancellationToken).ConfigureAwait(false);
                 }
             }
 
@@ -414,9 +429,9 @@ namespace HAL
                 0,
                 port,
                 activeLevel,
-                _homingOptions.SlowHomeStartSpeed,
-                _homingOptions.SlowHomeSpeed,
-                _homingOptions.SlowHomeAcceleration,
+                slowStartPulse,
+                slowSpeedPulse,
+                slowAccelPulse,
                 _homingOptions.HomeTimeoutMs,
                 cancellationToken).ConfigureAwait(false);
             LogHomeDebug("Axis {AxisNo} mechanical homing completed.", axisNo);
@@ -426,6 +441,7 @@ namespace HAL
         {
             var port = GetGratingPort(axisNo);
             ValidatePort(port, $"Axis {axisNo} grating");
+            var axis = GetAxisParam(axisNo);
 
             LogHomeDebug("Axis {AxisNo} grating IO homing start. Port={PortIndex}, ActiveLevel={ActiveLevel}", axisNo, port.PortIndex, GetActiveLevel(port));
 
@@ -434,9 +450,9 @@ namespace HAL
                 0,
                 port,
                 GetActiveLevel(port),
-                _homingOptions.GratingHomeStartSpeed,
-                _homingOptions.GratingHomeSpeed,
-                _homingOptions.GratingHomeAcceleration,
+                ToSpeedPulse(_homingOptions.GratingHomeStartSpeed, axis),
+                ToSpeedPulse(_homingOptions.GratingHomeSpeed, axis),
+                ToAccelerationPulse(_homingOptions.GratingHomeAcceleration, axis),
                 _homingOptions.HomeTimeoutMs,
                 cancellationToken).ConfigureAwait(false);
             LogHomeDebug("Axis {AxisNo} grating IO homing completed.", axisNo);
@@ -885,38 +901,51 @@ namespace HAL
 
         private void ConfigureHome(int axisNo)
         {
+            var axis = GetAxisParam(axisNo);
+            var startSpeedPulse = ToSpeedPulse(_startSpeed, axis);
+            var searchSpeedPulse = ToSpeedPulse(_homeSearchSpeed, axis);
+            var approachSpeedPulse = ToSpeedPulse(_homeApproachSpeed, axis);
+            var accelCard = ToCardAcceleration(ToAccelerationPulse(_acceleration, axis));
+
             ExecuteNative(
                 () => adt8940a1.adt8940a1_SetHomeMode_Ex(_cardNo, axisNo, 0, 0, 0, -1, 100, 10, 0),
                 $"Configure home mode for axis {axisNo}");
 
             ExecuteNative(
-                () => adt8940a1.adt8940a1_SetHomeSpeed_Ex(_cardNo, axisNo, _startSpeed, _homeSearchSpeed, _homeApproachSpeed, ToCardAcceleration(_acceleration), _homeApproachSpeed),
+                () => adt8940a1.adt8940a1_SetHomeSpeed_Ex(_cardNo, axisNo, startSpeedPulse, searchSpeedPulse, approachSpeedPulse, accelCard, approachSpeedPulse),
                 $"Configure home speed for axis {axisNo}");
         }
 
         private void ConfigureMotion(int axisNo)
         {
-            ExecuteNative(() => adt8940a1.adt8940a1_set_startv(_cardNo, axisNo, _startSpeed), $"Set start speed for axis {axisNo}");
-            ExecuteNative(() => adt8940a1.adt8940a1_set_speed(_cardNo, axisNo, _driveSpeed), $"Set drive speed for axis {axisNo}");
-            ExecuteNative(() => adt8940a1.adt8940a1_set_acc(_cardNo, axisNo, ToCardAcceleration(_acceleration)), $"Set acceleration for axis {axisNo}");
+            var axis = GetAxisParam(axisNo);
+            var startSpeedPulse = ToSpeedPulse(_startSpeed, axis);
+            var driveSpeedPulse = ToSpeedPulse(_driveSpeed, axis);
+            ExecuteNative(() => adt8940a1.adt8940a1_set_startv(_cardNo, axisNo, startSpeedPulse), $"Set start speed for axis {axisNo}");
+            ExecuteNative(() => adt8940a1.adt8940a1_set_speed(_cardNo, axisNo, driveSpeedPulse), $"Set drive speed for axis {axisNo}");
+            ExecuteNative(() => adt8940a1.adt8940a1_set_acc(_cardNo, axisNo, ToCardAcceleration(ToAccelerationPulse(_acceleration, axis))), $"Set acceleration for axis {axisNo}");
         }
 
         private void ConfigureMotion(int axisNo, double? velocity, AxisParam axis)
         {
-            var driveSpeed = ResolveDriveSpeed(axis, velocity);
-            var acceleration = ResolveAcceleration(axis);
-            var startSpeed = Math.Min(Math.Max(1, _startSpeed), driveSpeed);
+            var driveSpeedPulse = ResolveDriveSpeed(axis, velocity);
+            var accelerationPulse = ResolveAcceleration(axis);
+            var startSpeedPulse = Math.Min(Math.Max(1, ToSpeedPulse(_startSpeed, axis)), driveSpeedPulse);
 
-            ExecuteNative(() => adt8940a1.adt8940a1_set_startv(_cardNo, axisNo, startSpeed), $"Set start speed for axis {axisNo}");
-            ExecuteNative(() => adt8940a1.adt8940a1_set_speed(_cardNo, axisNo, driveSpeed), $"Set drive speed for axis {axisNo}");
-            ExecuteNative(() => adt8940a1.adt8940a1_set_acc(_cardNo, axisNo, ToCardAcceleration(acceleration)), $"Set acceleration for axis {axisNo}");
+            ExecuteNative(() => adt8940a1.adt8940a1_set_startv(_cardNo, axisNo, startSpeedPulse), $"Set start speed for axis {axisNo}");
+            ExecuteNative(() => adt8940a1.adt8940a1_set_speed(_cardNo, axisNo, driveSpeedPulse), $"Set drive speed for axis {axisNo}");
+            ExecuteNative(() => adt8940a1.adt8940a1_set_acc(_cardNo, axisNo, ToCardAcceleration(accelerationPulse)), $"Set acceleration for axis {axisNo}");
         }
 
-        private void ConfigureMotion(int axisNo, int startSpeed, int driveSpeed, int acceleration)
+        private void ConfigureMotion(int axisNo, double startSpeedMmPerSec, double driveSpeedMmPerSec, double accelerationMmPerSec2)
         {
-            ExecuteNative(() => adt8940a1.adt8940a1_set_startv(_cardNo, axisNo, Math.Max(1, startSpeed)), $"Set start speed for axis {axisNo}");
-            ExecuteNative(() => adt8940a1.adt8940a1_set_speed(_cardNo, axisNo, Math.Max(1, driveSpeed)), $"Set drive speed for axis {axisNo}");
-            ExecuteNative(() => adt8940a1.adt8940a1_set_acc(_cardNo, axisNo, ToCardAcceleration(Math.Max(1, acceleration))), $"Set acceleration for axis {axisNo}");
+            var axis = GetAxisParam(axisNo);
+            var startSpeedPulse = Math.Max(1, ToSpeedPulse(startSpeedMmPerSec, axis));
+            var driveSpeedPulse = Math.Max(1, ToSpeedPulse(driveSpeedMmPerSec, axis));
+            var accelerationPulse = Math.Max(1, ToAccelerationPulse(accelerationMmPerSec2, axis));
+            ExecuteNative(() => adt8940a1.adt8940a1_set_startv(_cardNo, axisNo, startSpeedPulse), $"Set start speed for axis {axisNo}");
+            ExecuteNative(() => adt8940a1.adt8940a1_set_speed(_cardNo, axisNo, driveSpeedPulse), $"Set drive speed for axis {axisNo}");
+            ExecuteNative(() => adt8940a1.adt8940a1_set_acc(_cardNo, axisNo, ToCardAcceleration(accelerationPulse)), $"Set acceleration for axis {axisNo}");
         }
 
         private void EnsureAxisEnabled(int axisNo)
@@ -1064,29 +1093,41 @@ namespace HAL
             return Math.Clamp((int)Math.Ceiling(acceleration / 125d), 1, 64000);
         }
 
+        // mm/s 转 pulse/s（依据轴的 PulsesPerMillimeter）
+        private static int ToSpeedPulse(double speedMmPerSec, AxisParam axis)
+        {
+            return Math.Max(1, (int)Math.Ceiling(speedMmPerSec * NormalizePulseEquivalent(axis.PulsesPerMillimeter)));
+        }
+
+        // mm/s² 转 pulse/s²（依据轴的 PulsesPerMillimeter）
+        private static int ToAccelerationPulse(double accelMmPerSec2, AxisParam axis)
+        {
+            return Math.Max(1, (int)Math.Ceiling(accelMmPerSec2 * NormalizePulseEquivalent(axis.PulsesPerMillimeter)));
+        }
+
         private int ResolveDriveSpeed(AxisParam axis, double? velocity)
         {
+            double mmPerSec;
             if (velocity.HasValue && velocity.Value > 0)
             {
-                return Math.Max(1, (int)Math.Ceiling(velocity.Value));
+                mmPerSec = velocity.Value;
             }
-
-            if (axis.Velocity > 0)
+            else if (axis.Velocity > 0)
             {
-                return Math.Max(1, (int)Math.Ceiling(axis.Velocity));
+                mmPerSec = axis.Velocity;
+            }
+            else
+            {
+                mmPerSec = _driveSpeed;
             }
 
-            return _driveSpeed;
+            return ToSpeedPulse(mmPerSec, axis);
         }
 
         private int ResolveAcceleration(AxisParam axis)
         {
-            if (axis.Acceleration > 0)
-            {
-                return Math.Max(1, (int)Math.Ceiling(axis.Acceleration));
-            }
-
-            return _acceleration;
+            double mmPerSec2 = axis.Acceleration > 0 ? axis.Acceleration : _acceleration;
+            return ToAccelerationPulse(mmPerSec2, axis);
         }
 
         private static void ValidateAxisNo(int axisNo)

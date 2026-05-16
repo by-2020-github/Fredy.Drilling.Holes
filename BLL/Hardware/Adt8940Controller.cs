@@ -61,7 +61,7 @@ namespace BLL
 
             // 慢速发冲 (可以设置很低的慢速速度)
             double currentZ = _motionManager.GetZPosition();
-            _motionManager.MoveZAsync(currentZ + distance, 500, true).Wait(); // 假设慢速是500，依实际修正
+            _motionManager.MoveZAsync(currentZ + distance, 0.5, true).Wait(); // 慢速 0.5 mm/s
         }
 
         public void LiftZ()
