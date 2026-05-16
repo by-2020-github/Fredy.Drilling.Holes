@@ -191,7 +191,7 @@ namespace Fredy.Drilling.Holes
             }
             else
             {
-                services.AddSingleton<IMoton, MotionSimulator>();
+                services.AddSingleton<IMoton>(sp => new MotionSimulator(sp.GetRequiredService<Serilog.ILogger>()));
                 services.AddSingleton<IIOCard, IOCardSimulator>();
                 services.AddSingleton<IHardwareController, MockHardwareController>();
             }

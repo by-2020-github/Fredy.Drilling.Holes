@@ -8,6 +8,19 @@
         MaxHeight="1024" MaxWidth="1280"
         Title="冲孔软件" Height="1024" Width="1280">
     <Grid>
-        <views:MainView></views:MainView>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <Menu Grid.Row="0">
+                <MenuItem Header="复位 (X/Y)" Command="{Binding ResetCommand}"/>
+                <MenuItem Header="取消复位" Command="{Binding CancelResetCommand}"/>
+                <Separator/>
+                <MenuItem Header="急停" Command="{Binding EmergencyStopCommand}"
+                          Foreground="Red" FontWeight="Bold"/>
+        </Menu>
+
+        <views:MainView Grid.Row="1"/>
     </Grid>
 </Window>

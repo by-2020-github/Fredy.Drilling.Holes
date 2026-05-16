@@ -174,7 +174,12 @@
                 <TextBlock Text="/" VerticalAlignment="Center"/>
                 <TextBlock Text="{Binding LogCapacity}" VerticalAlignment="Center" FontWeight="Bold" Foreground="{StaticResource Brush.Status.Blue}"/>
                 <TextBlock Text="条" VerticalAlignment="Center"/>
-                <CheckBox Content="仅看 Error/Warning" Margin="12,0,0,0" IsChecked="{Binding OnlyShowWarningsAndErrors}" VerticalAlignment="Center"/>
+                <CheckBox Content="Verbose" Margin="12,0,4,0" IsChecked="{Binding ShowVerbose}" VerticalAlignment="Center" Foreground="DimGray"/>
+                <CheckBox Content="Debug"   Margin="0,0,4,0" IsChecked="{Binding ShowDebug}"   VerticalAlignment="Center" Foreground="SlateGray"/>
+                <CheckBox Content="Info"    Margin="0,0,4,0" IsChecked="{Binding ShowInformation}" VerticalAlignment="Center"/>
+                <CheckBox Content="Warning" Margin="0,0,4,0" IsChecked="{Binding ShowWarning}" VerticalAlignment="Center" Foreground="DarkOrange"/>
+                <CheckBox Content="Error"   Margin="0,0,4,0" IsChecked="{Binding ShowError}"   VerticalAlignment="Center" Foreground="Crimson"/>
+                <CheckBox Content="Fatal"   Margin="0,0,4,0" IsChecked="{Binding ShowFatal}"   VerticalAlignment="Center" Foreground="Crimson"/>
                 <Button Content="导出日志" Margin="10,0" Command="{Binding ExportLogsCommand}" Padding="5,2"/>
                 <Button Content="清空日志" Margin="10,0" Command="{Binding ClearLogsCommand}" Padding="5,2"/>
             </StackPanel>

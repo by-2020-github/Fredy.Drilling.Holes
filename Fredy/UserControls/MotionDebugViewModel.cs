@@ -310,7 +310,7 @@ namespace Fredy.Drilling.Holes.UserControls
         {
             if (!IsMotionAdt8940Selected)
             {
-                return new MotionSimulator();
+                return new MotionSimulator(Log.Logger);
             }
 
             var motion = new MotionAdt8940(Log.Logger, CardNo, StartSpeed, DriveSpeed, Acceleration, HomeSearchSpeed, HomeApproachSpeed);

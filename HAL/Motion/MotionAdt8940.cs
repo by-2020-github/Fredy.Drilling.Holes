@@ -284,8 +284,9 @@ namespace HAL
                 }
                 catch (OperationCanceledException)
                 {
-                    LogHomeDebug("Axis {AxisNo} homing canceled on attempt {Attempt}/3. Triggering emergency stop.", axisNo, retry + 1);
-                    await EmergencyStopAsync(axisNo).ConfigureAwait(false);
+                    LogHomeDebug("Axis {AxisNo} homing canceled on attempt {Attempt}/3. Triggering emergency stop on all axes.", axisNo, retry + 1);
+                    // 流程图：紧急停止统一处理 - 立即停止所有轴运动
+                    await EmergencyStopAllEnabledAxesAsync().ConfigureAwait(false);
                     throw;
                 }
                 catch (Exception ex)
@@ -298,6 +299,8 @@ namespace HAL
             }
 
             LogHomeDebug(lastException, "Axis {AxisNo} homing failed after maximum retries.", axisNo);
+            // 流程图：错误处理 - 达到最大重试次数后安全停止所有轴
+            await SafeStopAllAxesAsync().ConfigureAwait(false);
             throw new InvalidOperationException($"Home axis {axisNo} failed after maximum retries.", lastException);
         }
 
@@ -361,7 +364,8 @@ namespace HAL
 
             if (currentLevel == activeLevel)
             {
-                LogHomeDebug("Axis {AxisNo} mechanical home input already active. Moving away first.", axisNo);
+                // 流程图 LEFT_BRANCH：开关电平=设定值，先向正方向离开传感器
+                LogHomeDebug("Axis {AxisNo} mechanical home input already active (LEFT_BRANCH). Moving away in positive direction first.", axisNo);
                 await MoveContinuousUntilInputLevelAsync(
                     axisNo,
                     1,
@@ -373,15 +377,17 @@ namespace HAL
                     _homingOptions.HomeTimeoutMs,
                     cancellationToken).ConfigureAwait(false);
 
+                // 流程图 LEFT_BRANCH：停止后向正方向移动退让脉冲
                 if (_homingOptions.HomeBackoffPulse > 0)
                 {
-                    LogHomeDebug("Axis {AxisNo} performing home backoff. Pulse={Pulse}", axisNo, _homingOptions.HomeBackoffPulse);
+                    LogHomeDebug("Axis {AxisNo} LEFT_BRANCH backoff. Pulse={Pulse}", axisNo, _homingOptions.HomeBackoffPulse);
                     await MoveRelativePulseAsync(axisNo, _homingOptions.HomeBackoffPulse, cancellationToken).ConfigureAwait(false);
                 }
             }
             else
             {
-                LogHomeDebug("Axis {AxisNo} mechanical home input inactive. Approaching inactive edge first.", axisNo);
+                // 流程图 RIGHT_BRANCH：开关电平≠设定值，先向负方向运动找到非激活沿
+                LogHomeDebug("Axis {AxisNo} mechanical home input inactive (RIGHT_BRANCH). Moving in negative direction to find inactive edge.", axisNo);
                 await MoveContinuousUntilInputLevelAsync(
                     axisNo,
                     0,
@@ -392,12 +398,20 @@ namespace HAL
                     _acceleration,
                     _homingOptions.HomeTimeoutMs,
                     cancellationToken).ConfigureAwait(false);
+
+                // 流程图 RIGHT_BRANCH：停止后向正方向移动退让脉冲（与 LEFT_BRANCH 一致）
+                if (_homingOptions.HomeBackoffPulse > 0)
+                {
+                    LogHomeDebug("Axis {AxisNo} RIGHT_BRANCH backoff. Pulse={Pulse}", axisNo, _homingOptions.HomeBackoffPulse);
+                    await MoveRelativePulseAsync(axisNo, _homingOptions.HomeBackoffPulse, cancellationToken).ConfigureAwait(false);
+                }
             }
 
-            LogHomeDebug("Axis {AxisNo} starting slow approach to active home level.", axisNo);
+            // 流程图：慢速向负方向运动精确找到激活沿（dir=0 为负方向）
+            LogHomeDebug("Axis {AxisNo} starting slow approach in negative direction to find active home level.", axisNo);
             await MoveContinuousUntilInputLevelAsync(
                 axisNo,
-                1,
+                0,
                 port,
                 activeLevel,
                 _homingOptions.SlowHomeStartSpeed,
@@ -591,6 +605,57 @@ namespace HAL
             EnsureAxisReady(axisNo);
             ExecuteNative(() => adt8940a1.adt8940a1_dec_stop(_cardNo, axisNo), $"Stop axis {axisNo}");
             return Task.CompletedTask;
+        }
+
+        /// <summary>
+        /// 流程图：紧急停止统一处理 - 立即停止所有已启用轴，记录当前位置日志。
+        /// </summary>
+        private async Task EmergencyStopAllEnabledAxesAsync()
+        {
+            var axisNos = new[] { 1, 2, 3 };
+            foreach (var axisNo in axisNos)
+            {
+                try
+                {
+                    _axisEnabled.TryAdd(axisNo, false);
+                    _axisEnabled[axisNo] = false;
+                    ExecuteNative(() => adt8940a1.adt8940a1_sudden_stop(_cardNo, axisNo), $"Emergency stop axis {axisNo}");
+
+                    // 流程图：SAVE_POSITION - 记录当前位置
+                    ExecuteNative(
+                        (out int pos) => adt8940a1.adt8940a1_get_command_pos(_cardNo, axisNo, out pos),
+                        $"Save position for axis {axisNo} on emergency stop",
+                        out var savedPos);
+                    _logger.Warning("紧急停止：轴 {AxisNo} 当前位置 = {Position} 脉冲", axisNo, savedPos);
+                }
+                catch (Exception ex)
+                {
+                    _logger.Warning(ex, "紧急停止轴 {AxisNo} 时发生错误，已忽略。", axisNo);
+                }
+            }
+            RecordNativeCall("EmergencyStopAllAxes", null, "紧急停止：所有轴已立即停止并记录位置。", true);
+            await Task.CompletedTask.ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// 流程图：错误处理 - 达到最大重试次数后安全停止所有轴。
+        /// </summary>
+        private async Task SafeStopAllAxesAsync()
+        {
+            var axisNos = new[] { 1, 2, 3 };
+            foreach (var axisNo in axisNos)
+            {
+                try
+                {
+                    ExecuteNative(() => adt8940a1.adt8940a1_dec_stop(_cardNo, axisNo), $"Safe stop axis {axisNo}");
+                }
+                catch (Exception ex)
+                {
+                    _logger.Warning(ex, "安全停止轴 {AxisNo} 时发生错误，已忽略。", axisNo);
+                }
+            }
+            RecordNativeCall("SafeStopAllAxes", null, "回零失败：已安全停止所有轴。", true);
+            await Task.CompletedTask.ConfigureAwait(false);
         }
 
         public int InputCount => 40;

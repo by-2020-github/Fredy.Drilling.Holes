@@ -2,6 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Threading;
 using System.Threading.Tasks;
+using Serilog;
 
 namespace HAL
 {
@@ -10,13 +11,21 @@ namespace HAL
         private const double DefaultSimulatedSpeed = 100d;
         private const double PositionTolerance = 0.001d;
         private static readonly TimeSpan UpdateInterval = TimeSpan.FromMilliseconds(20);
+        private static readonly Random _random = new();
 
+        private readonly ILogger _logger;
         private readonly ConcurrentDictionary<int, AxisState> _axes = new();
         private readonly ConcurrentDictionary<int, AxisParam> _axisParams = new();
+
+        public MotionSimulator(ILogger logger)
+        {
+            _logger = logger.ForContext<MotionSimulator>();
+        }
 
         public void ConfigureAxis(AxisParam axis)
         {
             _axisParams[axis.AxisNo] = axis;
+            _logger.Debug("[MotionSimulator] ConfigureAxis: AxisNo={AxisNo}, Velocity={Velocity}", axis.AxisNo, axis.Velocity);
         }
 
         public void ConfigureAxes(params AxisParam[] axes)
@@ -46,6 +55,7 @@ namespace HAL
                 axisState.MotionCts = null;
             }
 
+            _logger.Debug("[MotionSimulator] DisableAsync: AxisNo={AxisNo}", axisNo);
             CancelMotion(motionCts);
             return Task.CompletedTask;
         }
@@ -67,6 +77,7 @@ namespace HAL
                 axisState.MotionCts = null;
             }
 
+            _logger.Debug("[MotionSimulator] EmergencyStopAsync: AxisNo={AxisNo}", axisNo);
             CancelMotion(motionCts);
             return Task.CompletedTask;
         }
@@ -84,6 +95,7 @@ namespace HAL
                 axisState.Enabled = true;
             }
 
+            _logger.Debug("[MotionSimulator] EnableAsync: AxisNo={AxisNo}", axisNo);
             return Task.CompletedTask;
         }
 
@@ -92,19 +104,28 @@ namespace HAL
             cancellationToken.ThrowIfCancellationRequested();
 
             var axisState = GetAxisState(axisNo);
+            double position;
             lock (axisState.SyncRoot)
             {
-                return Task.FromResult(axisState.Position);
+                position = axisState.Position;
             }
+
+            _logger.Verbose("[MotionSimulator] GetPositionAsync: AxisNo={AxisNo}, Position={Position}", axisNo, position);
+            return Task.FromResult(position);
         }
 
-        public Task HomeAsync(int axisNo, bool wait, CancellationToken cancellationToken = default)
+        public async Task HomeAsync(int axisNo, bool wait, CancellationToken cancellationToken = default)
         {
-            return MoveCoreAsync(axisNo, 0d, wait, velocity: null, cancellationToken: cancellationToken);
+            var delayMs = _random.Next(1000, 3001);
+            _logger.Debug("[MotionSimulator] HomeAsync: AxisNo={AxisNo}, Wait={Wait}, SimulatedDelay={DelayMs}ms", axisNo, wait, delayMs);
+            await Task.Delay(delayMs, cancellationToken).ConfigureAwait(false);
+            await MoveCoreAsync(axisNo, 0d, wait, velocity: null, cancellationToken: cancellationToken).ConfigureAwait(false);
+            _logger.Debug("[MotionSimulator] HomeAsync completed: AxisNo={AxisNo}", axisNo);
         }
 
         public Task MoveAbsoluteAsync(int axisNo, double position, bool wait, double? velocity = null, CancellationToken cancellationToken = default)
         {
+            _logger.Debug("[MotionSimulator] MoveAbsoluteAsync: AxisNo={AxisNo}, Target={Position}, Wait={Wait}, Velocity={Velocity}", axisNo, position, wait, velocity);
             return MoveCoreAsync(axisNo, position, wait, velocity: velocity, cancellationToken: cancellationToken);
         }
 
@@ -118,6 +139,7 @@ namespace HAL
                 target = axisState.Position + distance;
             }
 
+            _logger.Debug("[MotionSimulator] MoveRelativeAsync: AxisNo={AxisNo}, Distance={Distance}, Target={Target}, Wait={Wait}, Velocity={Velocity}", axisNo, distance, target, wait, velocity);
             return MoveCoreAsync(axisNo, target, wait, velocity: velocity, cancellationToken: cancellationToken);
         }
 
@@ -137,6 +159,7 @@ namespace HAL
                 axisState.MotionCts = null;
             }
 
+            _logger.Debug("[MotionSimulator] StopAsync: AxisNo={AxisNo}", axisNo);
             CancelMotion(motionCts);
             return Task.CompletedTask;
         }
@@ -213,6 +236,7 @@ namespace HAL
         private async Task SimulateMoveAsync(int axisNo, AxisState axisState, CancellationTokenSource motionCts, double targetPosition, double? velocity)
         {
             var simulatedSpeed = GetSimulatedSpeed(axisNo, velocity);
+            _logger.Debug("[MotionSimulator] SimulateMoveAsync start: AxisNo={AxisNo}, Target={Target}, Speed={Speed}", axisNo, targetPosition, simulatedSpeed);
 
             try
             {
@@ -234,6 +258,7 @@ namespace HAL
                             axisState.Position = targetPosition;
                         }
 
+                        _logger.Debug("[MotionSimulator] SimulateMoveAsync done: AxisNo={AxisNo}, Position={Position}", axisNo, targetPosition);
                         return;
                     }
 

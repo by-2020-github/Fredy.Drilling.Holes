@@ -35,11 +35,13 @@ namespace Fredy.Drilling.Holes.ViewModels
         private readonly RecipeService? _recipeService;
         private readonly IHardwareStateService? _hardwareStateService;
         private readonly ISecondPassAlignmentContext? _secondPassAlignmentContext;
+        private readonly IMotionService? _motionService;
         private CancellationTokenSource? _cameraPreviewCancellationTokenSource;
         private Task? _cameraPreviewTask;
         private PunchStateMachine? _punchStateMachine;
         private CancellationTokenSource? _punchingCancellationTokenSource;
         private Task? _punchingTask;
+        private CancellationTokenSource? _resetCancellationTokenSource;
         private bool _disposed;
         private bool _isCameraPreviewSuspended;
         private PunchProcessAuditViewModel? _punchAuditViewModel;
@@ -54,7 +56,13 @@ namespace Fredy.Drilling.Holes.ViewModels
         [ObservableProperty] private MachineStatus _status = new();
         [ObservableProperty] private bool _isSimulate;
         [ObservableProperty] private bool _isFirstPass = true;
-        [ObservableProperty] private bool _onlyShowWarningsAndErrors;
+        [ObservableProperty] private bool _showVerbose = true;
+        [ObservableProperty] private bool _showDebug = true;
+        [ObservableProperty] private bool _showInformation = true;
+        [ObservableProperty] private bool _showWarning = true;
+        [ObservableProperty] private bool _showError = true;
+        [ObservableProperty] private bool _showFatal = true;
+        [ObservableProperty] private bool _isResetting;
 
         private ImageSource? _currentCameraImage;
         private RecipeViewModel? _currentRecipeViewModel;
@@ -111,7 +119,8 @@ namespace Fredy.Drilling.Holes.ViewModels
             ICamera camera,
             IHardwareController hardwareController,
             IHardwareStateService hardwareStateService,
-            ISecondPassAlignmentContext secondPassAlignmentContext)
+            ISecondPassAlignmentContext secondPassAlignmentContext,
+            IMotionService motionService)
         {
             CustomPunchingCommand = new AsyncRelayCommand(CustomPunchingAsync, CanCustomPunching);
             _logStore = logStore;
@@ -123,6 +132,7 @@ namespace Fredy.Drilling.Holes.ViewModels
             _hardwareController = hardwareController;
             _hardwareStateService = hardwareStateService;
             _secondPassAlignmentContext = secondPassAlignmentContext;
+            _motionService = motionService;
             Logs = logStore.Entries;
             FilteredLogs = CollectionViewSource.GetDefaultView(Logs);
             FilteredLogs.Filter = FilterLogEntry;
@@ -137,10 +147,12 @@ namespace Fredy.Drilling.Holes.ViewModels
             _logger.LogInformation("主界面视图模型已初始化");
         }
 
-        partial void OnOnlyShowWarningsAndErrorsChanged(bool value)
-        {
-            FilteredLogs.Refresh();
-        }
+        partial void OnShowVerboseChanged(bool value) => FilteredLogs.Refresh();
+        partial void OnShowDebugChanged(bool value) => FilteredLogs.Refresh();
+        partial void OnShowInformationChanged(bool value) => FilteredLogs.Refresh();
+        partial void OnShowWarningChanged(bool value) => FilteredLogs.Refresh();
+        partial void OnShowErrorChanged(bool value) => FilteredLogs.Refresh();
+        partial void OnShowFatalChanged(bool value) => FilteredLogs.Refresh();
 
         partial void OnIsFirstPassChanged(bool value)
         {
@@ -155,6 +167,69 @@ namespace Fredy.Drilling.Holes.ViewModels
         private async Task StartPunchingAsync()
         {
             await StartPunchingCoreAsync();
+        }
+
+        [RelayCommand(CanExecute = nameof(CanStartReset))]
+        private async Task ResetAsync()
+        {
+            if (_motionService is null) return;
+            _resetCancellationTokenSource = new CancellationTokenSource();
+            IsResetting = true;
+            ResetCommand.NotifyCanExecuteChanged();
+            CancelResetCommand.NotifyCanExecuteChanged();
+            try
+            {
+                var token = _resetCancellationTokenSource.Token;
+                await _motionService.HomeXAsync(true, token);
+                token.ThrowIfCancellationRequested();
+                await _motionService.HomeYAsync(true, token);
+                // Z 轴复位暂时屏蔽
+                _logger?.LogInformation("复位完成");
+            }
+            catch (OperationCanceledException)
+            {
+                _logger?.LogInformation("复位已取消");
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "复位过程中发生错误");
+            }
+            finally
+            {
+                IsResetting = false;
+                _resetCancellationTokenSource?.Dispose();
+                _resetCancellationTokenSource = null;
+                ResetCommand.NotifyCanExecuteChanged();
+                CancelResetCommand.NotifyCanExecuteChanged();
+            }
+        }
+
+        private bool CanStartReset() => !IsResetting;
+
+        [RelayCommand(CanExecute = nameof(CanCancelReset))]
+        private void CancelReset()
+        {
+            if (_motionService is null || _resetCancellationTokenSource is null) return;
+            _motionService.StopAll();
+            _resetCancellationTokenSource.Cancel();
+        }
+
+        private bool CanCancelReset() => IsResetting;
+
+        [RelayCommand]
+        private async Task EmergencyStopAsync()
+        {
+            if (_motionService is null) return;
+            try
+            {
+                _resetCancellationTokenSource?.Cancel();
+                await _motionService.EmergencyStopAllAsync().ConfigureAwait(false);
+                _logger?.LogWarning("急停已触发");
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "急停过程中发生错误");
+            }
         }
 
         private async Task CustomPunchingAsync()
@@ -460,14 +535,16 @@ namespace Fredy.Drilling.Holes.ViewModels
                 return false;
             }
 
-            if (!OnlyShowWarningsAndErrors)
+            return entry.Level switch
             {
-                return true;
-            }
-
-            return entry.Level is Serilog.Events.LogEventLevel.Warning
-                or Serilog.Events.LogEventLevel.Error
-                or Serilog.Events.LogEventLevel.Fatal;
+                Serilog.Events.LogEventLevel.Verbose => ShowVerbose,
+                Serilog.Events.LogEventLevel.Debug => ShowDebug,
+                Serilog.Events.LogEventLevel.Information => ShowInformation,
+                Serilog.Events.LogEventLevel.Warning => ShowWarning,
+                Serilog.Events.LogEventLevel.Error => ShowError,
+                Serilog.Events.LogEventLevel.Fatal => ShowFatal,
+                _ => true
+            };
         }
 
         private void Status_PropertyChanged(object? sender, PropertyChangedEventArgs e)
