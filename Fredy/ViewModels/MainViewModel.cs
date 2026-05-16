@@ -432,14 +432,24 @@ namespace Fredy.Drilling.Holes.ViewModels
 
             SuspendCameraPreview();
 
+            void HandleWindowClosed(object? sender, EventArgs args)
+            {
+                window.Closed -= HandleWindowClosed;
+                ResumeCameraPreview();
+            }
+
+            window.Closed += HandleWindowClosed;
+
             try
             {
                 window.Show();
                 _logger?.LogInformation("弹出窗口: {WinName}", winName);
             }
-            finally
+            catch
             {
+                window.Closed -= HandleWindowClosed;
                 ResumeCameraPreview();
+                throw;
             }
         }
 

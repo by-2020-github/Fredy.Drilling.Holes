@@ -129,6 +129,14 @@ namespace Fredy.Drilling.Holes.UserControls
             set => SetValue(CanStopContinuousGrabProperty, value);
         }
 
+        public bool IsContinuousGrabActive => _isContinuousGrabbing || (_camera?.IsContinuousGrabbing ?? false);
+
+        /// <summary>
+        /// 设为 true 时，Unloaded 不会自动停止相机连续采集。
+        /// 用于主界面在弹出子窗口（内含 CameraViewerControl）期间保护自身的连续采集状态。
+        /// </summary>
+        public bool SuppressAutoStopOnUnload { get; set; }
+
         private static void OnImageSourceChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
             if (d is CameraViewerControl control && control.MenuDetectCircles.IsChecked)
@@ -316,6 +324,11 @@ namespace Fredy.Drilling.Holes.UserControls
 
         private async void StartContinuousGrab_Click(object sender, RoutedEventArgs e)
         {
+            await StartContinuousGrabAsync();
+        }
+
+        private async Task StartContinuousGrabAsync()
+        {
             if (_isContinuousGrabbing)
             {
                 return;
@@ -433,6 +446,16 @@ namespace Fredy.Drilling.Holes.UserControls
             await Task.CompletedTask;
         }
 
+        public Task StopContinuousGrabForNavigationAsync()
+        {
+            return StopContinuousGrabAsync();
+        }
+
+        public Task StartContinuousGrabForNavigationAsync()
+        {
+            return StartContinuousGrabAsync();
+        }
+
         private void CameraViewerControl_Loaded(object sender, RoutedEventArgs e)
         {
             HookOwnerWindow();
@@ -446,7 +469,10 @@ namespace Fredy.Drilling.Holes.UserControls
         {
             UnhookOwnerWindow();
             SetCameraSubscription(false);
-            await StopContinuousGrabAsync();
+            if (!SuppressAutoStopOnUnload)
+            {
+                await StopContinuousGrabAsync();
+            }
             RefreshCameraStatus();
             RefreshCaptureActionStates();
         }

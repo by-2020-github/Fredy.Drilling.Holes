@@ -142,6 +142,7 @@ namespace Fredy.Drilling.Holes
         private static void ConfigureLogging(IAppLogStore logStore)
         {
             var logDirectory = PathManager.LogPath;
+            var logFilePath = Path.Combine(logDirectory, $"fredy-{DateTime.Now:yyyyMMdd-HHmmss}.log");
             Directory.CreateDirectory(logDirectory);
 
             Log.Logger = new LoggerConfiguration()
@@ -149,8 +150,7 @@ namespace Fredy.Drilling.Holes
                 .Enrich.FromLogContext()
                 .WriteTo.Debug(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}", restrictedToMinimumLevel: Serilog.Events.LogEventLevel.Verbose)
                 .WriteTo.File(
-                    Path.Combine(logDirectory, "fredy-.log"),
-                    rollingInterval: RollingInterval.Day,
+                    logFilePath,
                     retainedFileCountLimit: 14,
                     shared: true,
                     restrictedToMinimumLevel: Serilog.Events.LogEventLevel.Debug,

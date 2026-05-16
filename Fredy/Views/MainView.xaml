@@ -27,7 +27,7 @@
 
         <Border Margin="5" BorderBrush="{StaticResource Brush.Border}" BorderThickness="1" Background="{StaticResource Brush.Background.Subtle}" CornerRadius="6">
             <Grid>
-                <uc:CameraViewerControl ImageSource="{Binding CurrentCameraImage}" 
+                <uc:CameraViewerControl x:Name="MainCameraViewer" ImageSource="{Binding CurrentCameraImage}" 
                                         Margin="0,0,0,0"/>
 
              
@@ -94,11 +94,11 @@
             </Border>
 
             <UniformGrid Columns="1" Margin="0,10">
-                <Button Content="校针" Style="{StaticResource NavButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="CameraPunchOffsetCalibration"/>
-                <Button Content="参数配置" Style="{StaticResource NavButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="Config"/>
-                <Button Content="分区扫描" Style="{StaticResource NavButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="PartScan"/>
-                <Button Content="配方编辑" Style="{StaticResource NavButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="RecipeWin"/>
-                <Button Content="位置校准" Style="{StaticResource NavButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="WorkpieceCenterCalibration"/>
+                <Button Content="校针" Style="{StaticResource NavButtonStyle}" Click="NavigationButton_Click" CommandParameter="CameraPunchOffsetCalibration"/>
+                <Button Content="参数配置" Style="{StaticResource NavButtonStyle}" Click="NavigationButton_Click" CommandParameter="Config"/>
+                <Button Content="分区扫描" Style="{StaticResource NavButtonStyle}" Click="NavigationButton_Click" CommandParameter="PartScan"/>
+                <Button Content="配方编辑" Style="{StaticResource NavButtonStyle}" Click="NavigationButton_Click" CommandParameter="RecipeWin"/>
+                <Button Content="位置校准" Style="{StaticResource NavButtonStyle}" Click="NavigationButton_Click" CommandParameter="WorkpieceCenterCalibration"/>
             </UniformGrid>
 
             <StackPanel Margin="0,10">
