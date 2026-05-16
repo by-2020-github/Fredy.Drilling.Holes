@@ -5,7 +5,7 @@
         xmlns:hc="clr-namespace:HandyControl.Controls;assembly=HandyControl"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:Fredy.Drilling.Holes.ViewModels"        xmlns:uc="clr-namespace:Fredy.Drilling.Holes.UserControls"        mc:Ignorable="d"
-        Title="九点标定" Height="760" Width="1100" Background="{StaticResource Brush.Background.Subtle}"
+        Title="九点标定" Height="760" Width="1100" MaxHeight="1024" MaxWidth="1280" Background="{StaticResource Brush.Background.Subtle}"
         d:DataContext="{d:DesignInstance Type=vm:NinePointCalibrationViewModel, IsDesignTimeCreatable=False}">
     <Grid Margin="12">
         <Grid.ColumnDefinitions>

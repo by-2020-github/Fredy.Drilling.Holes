@@ -8,6 +8,7 @@
         Title="冲孔流程可视化审计"
         Height="760"
         Width="1260"
+        MaxHeight="1024" MaxWidth="1280"
         WindowStartupLocation="CenterOwner">
     <uc:PunchProcessAuditControl/>
 </Window>

@@ -5,8 +5,8 @@
         xmlns:hc="clr-namespace:HandyControl.Controls;assembly=HandyControl"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:Fredy.Drilling.Holes.ViewModels"        xmlns:uc="clr-namespace:Fredy.Drilling.Holes.UserControls"        mc:Ignorable="d"
-        MaxHeight="1080" MaxWidth="1800"
-        Title="分区扫描" Height="Auto" Width="1480" Background="{StaticResource Brush.Background.Subtle}"
+        MaxHeight="1024" MaxWidth="1280"
+        Title="分区扫描" Height="1000" Width="1260" Background="{StaticResource Brush.Background.Subtle}"
         d:DataContext="{d:DesignInstance Type=vm:ScanViewModel, IsDesignTimeCreatable=True}">
 
     <Window.Resources>

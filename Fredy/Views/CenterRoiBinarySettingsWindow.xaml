@@ -5,6 +5,7 @@
         Title="中心ROI二值化参数"
         Height="680"
         Width="960"
+        MaxHeight="1024" MaxWidth="1280"
         WindowStartupLocation="CenterOwner"
         Background="{StaticResource Brush.Background.Subtle}">
     <Grid Margin="10">

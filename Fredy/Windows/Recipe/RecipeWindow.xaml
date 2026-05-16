@@ -9,8 +9,8 @@
         mc:Ignorable="d"
          Title="配方管理"
          Height="760"
-         Width="1400"
-MaxHeight="1024" MaxWidth="1280"
+         Width="1260"
+         MaxHeight="1024" MaxWidth="1280"
          Background="{StaticResource Brush.Background.Subtle}">
     <Window.Resources>
         <converters:InverseBoolConverter x:Key="InverseBoolConverter"/>
