@@ -10,6 +10,7 @@ using System.Windows.Shapes;
 using HAL;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Win32;
+using Mat = OpenCvSharp.Mat;
 
 namespace Fredy.Drilling.Holes.UserControls
 {
@@ -36,6 +37,12 @@ namespace Fredy.Drilling.Holes.UserControls
                 {
                     using var result = control.RunCircleDetection();
                 }
+
+                control.RefreshCenterRoiBinaryPreview();
+            }
+            else if (d is CameraViewerControl imageMatClearedControl)
+            {
+                imageMatClearedControl.RefreshCenterRoiBinaryPreview();
             }
         }
 
@@ -118,17 +125,23 @@ namespace Fredy.Drilling.Holes.UserControls
             {
                 using var result = control.RunCircleDetection();
             }
+
+            if (d is CameraViewerControl sourceControl)
+            {
+                sourceControl.RefreshCenterRoiBinaryPreview();
+            }
         }
 
         private readonly ICamera? _camera;
+        private readonly Services.ConfigService? _configService;
         private bool _isContinuousGrabbing;
         private bool _isSingleGrabInProgress;
         private bool _isSubscribedToCameraEvents;
-        private Window? _ownerWindow;
+        private System.Windows.Window? _ownerWindow;
         private long _latestFrameId;
         private DateTime? _latestFrameTimestamp;
 
-        private Point _startDragPos;
+        private System.Windows.Point _startDragPos;
         private bool _isDragging = false;
         private bool _isDrawingROI = false;
         private bool _isDraggingROI = false;
@@ -140,6 +153,7 @@ namespace Fredy.Drilling.Holes.UserControls
             if (!DesignerProperties.GetIsInDesignMode(this))
             {
                 _camera = App.ServiceProvider.GetRequiredService<ICamera>();
+                _configService = App.ServiceProvider.GetRequiredService<Services.ConfigService>();
             }
             else
             {
@@ -188,7 +202,7 @@ namespace Fredy.Drilling.Holes.UserControls
             }
             else if (_isDragging)
             {
-                Point pos = e.GetPosition(this);
+                System.Windows.Point pos = e.GetPosition(this);
                 Translation.X += (pos.X - _startDragPos.X);
                 Translation.Y += (pos.Y - _startDragPos.Y);
                 _startDragPos = pos;
@@ -368,6 +382,7 @@ namespace Fredy.Drilling.Holes.UserControls
             UpdateCameraSubscription();
             RefreshCameraStatus();
             RefreshCaptureActionStates();
+            RefreshCenterRoiBinaryPreview();
         }
 
         private async void CameraViewerControl_Unloaded(object sender, RoutedEventArgs e)
@@ -402,7 +417,7 @@ namespace Fredy.Drilling.Holes.UserControls
 
         private void HookOwnerWindow()
         {
-            var window = Window.GetWindow(this);
+            var window = System.Windows.Window.GetWindow(this);
             if (ReferenceEquals(_ownerWindow, window))
             {
                 return;
@@ -542,6 +557,40 @@ namespace Fredy.Drilling.Holes.UserControls
             }
         }
 
+        private void ToggleCenterRoiBinary_Click(object sender, RoutedEventArgs e)
+        {
+            RefreshCenterRoiBinaryPreview();
+        }
+
+        private void EditCenterRoiBinaryParams_Click(object sender, RoutedEventArgs e)
+        {
+            Mat? snapshotMat = null;
+            ImageSource? snapshotSource = null;
+
+            if (ImageMat != null && !ImageMat.Empty())
+            {
+                snapshotMat = ImageMat.Clone();
+            }
+            else if (ImageSource != null)
+            {
+                snapshotSource = ImageSource.CloneCurrentValue();
+            }
+
+            try
+            {
+                var dialog = new Views.CenterRoiBinarySettingsWindow(snapshotMat, snapshotSource);
+                dialog.Owner = System.Windows.Window.GetWindow(this);
+                if (dialog.ShowDialog() == true && MenuCenterRoiBinaryPreview.IsChecked)
+                {
+                    RefreshCenterRoiBinaryPreview();
+                }
+            }
+            finally
+            {
+                snapshotMat?.Dispose();
+            }
+        }
+
         public void DetectCirclesSingle_Click(object sender, RoutedEventArgs e)
         {
             using var result = RunCircleDetection();
@@ -556,7 +605,7 @@ namespace Fredy.Drilling.Holes.UserControls
             }
 
             var dialog = new Views.CircleDetectionSettingsWindow(ImageSource.Clone());
-            dialog.Owner = Window.GetWindow(this);
+            dialog.Owner = System.Windows.Window.GetWindow(this);
             if (dialog.ShowDialog() == true)
             {
                 // User pressed Apply. Rerender with the updated globals if monitoring is active
@@ -609,7 +658,7 @@ namespace Fredy.Drilling.Holes.UserControls
                 {
                     double left = double.IsNaN(Canvas.GetLeft(ROIRect)) ? 0 : Canvas.GetLeft(ROIRect);
                     double top = double.IsNaN(Canvas.GetTop(ROIRect)) ? 0 : Canvas.GetTop(ROIRect);
-                    Rect roi = new Rect(left, top, ROIRect.Width, ROIRect.Height);
+                    System.Windows.Rect roi = new System.Windows.Rect(left, top, ROIRect.Width, ROIRect.Height);
                     
                     Fredy.Drilling.Holes.Tools.VisionUIHelper.ExportROI(bitmap, DisplayImage.ActualWidth, DisplayImage.ActualHeight, roi, dlg.FileName);
                     MessageBox.Show("ROI模板已成功导出！", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -625,8 +674,125 @@ namespace Fredy.Drilling.Holes.UserControls
         {
             OverlayCanvas.Width = e.NewSize.Width;
             OverlayCanvas.Height = e.NewSize.Height;
+            CenterRoiOverlayCanvas.Width = e.NewSize.Width;
+            CenterRoiOverlayCanvas.Height = e.NewSize.Height;
             ROICanvas.Width = e.NewSize.Width;
             ROICanvas.Height = e.NewSize.Height;
+            RefreshCenterRoiBinaryPreview();
+        }
+
+        private void RefreshCenterRoiBinaryPreview()
+        {
+            if (!IsLoaded || !MenuCenterRoiBinaryPreview.IsChecked)
+            {
+                ClearCenterRoiBinaryPreview();
+                return;
+            }
+
+            var config = _configService?.CurrentConfig;
+            if (config == null || DisplayImage.ActualWidth <= 0 || DisplayImage.ActualHeight <= 0)
+            {
+                ClearCenterRoiBinaryPreview();
+                return;
+            }
+
+            using var preview = BuildCenterRoiBinaryPreview(config);
+            if (preview == null)
+            {
+                ClearCenterRoiBinaryPreview();
+                return;
+            }
+
+            CenterRoiPreviewTitle.Text = $"中心ROI二值化 ({preview.RoiRect.Width}×{preview.RoiRect.Height})";
+            CenterRoiPreviewImage.Source = Tools.VisionUIHelper.MatToBitmapSource(preview.BinaryImage);
+            CenterRoiPreviewPanel.Visibility = Visibility.Visible;
+            DrawCenterRoiOverlay(preview.RoiRect, preview.SourceWidth, preview.SourceHeight, CenterRoiPreviewImage.Source);
+        }
+
+        private Tools.CenterRoiBinaryPreviewResult? BuildCenterRoiBinaryPreview(Models.AppConfig config)
+        {
+            if (ImageMat != null && !ImageMat.Empty())
+            {
+                return Tools.VisionUIHelper.BuildCenterRoiBinaryPreview(
+                    ImageMat,
+                    config.CenterRoiWidth,
+                    config.CenterRoiHeight,
+                    config.CenterRoiThreshold,
+                    config.CenterRoiBinaryInvert);
+            }
+
+            if (ImageSource is BitmapSource bitmap)
+            {
+                return Tools.VisionUIHelper.BuildCenterRoiBinaryPreview(
+                    bitmap,
+                    config.CenterRoiWidth,
+                    config.CenterRoiHeight,
+                    config.CenterRoiThreshold,
+                    config.CenterRoiBinaryInvert);
+            }
+
+            return null;
+        }
+
+        private void DrawCenterRoiOverlay(OpenCvSharp.Rect roiRect, int sourceWidth, int sourceHeight, ImageSource? binarySource)
+        {
+            CenterRoiOverlayCanvas.Children.Clear();
+
+            if (sourceWidth <= 0 || sourceHeight <= 0 || DisplayImage.ActualWidth <= 0 || DisplayImage.ActualHeight <= 0)
+            {
+                return;
+            }
+
+            double uniformScale = Math.Min(DisplayImage.ActualWidth / sourceWidth, DisplayImage.ActualHeight / sourceHeight);
+            double renderedWidth = uniformScale * sourceWidth;
+            double renderedHeight = uniformScale * sourceHeight;
+            double offsetX = (DisplayImage.ActualWidth - renderedWidth) / 2.0;
+            double offsetY = (DisplayImage.ActualHeight - renderedHeight) / 2.0;
+
+            var uiRect = new System.Windows.Rect(
+                offsetX + roiRect.X * uniformScale,
+                offsetY + roiRect.Y * uniformScale,
+                roiRect.Width * uniformScale,
+                roiRect.Height * uniformScale);
+
+            if (binarySource != null)
+            {
+                var overlayImage = new Image
+                {
+                    Width = uiRect.Width,
+                    Height = uiRect.Height,
+                    Source = binarySource,
+                    Stretch = Stretch.Fill,
+                    Opacity = 0.92,
+                    IsHitTestVisible = false
+                };
+
+                Canvas.SetLeft(overlayImage, uiRect.X);
+                Canvas.SetTop(overlayImage, uiRect.Y);
+                CenterRoiOverlayCanvas.Children.Add(overlayImage);
+            }
+
+            var rectangle = new Rectangle
+            {
+                Width = uiRect.Width,
+                Height = uiRect.Height,
+                Stroke = Brushes.Gold,
+                StrokeThickness = 1.5,
+                StrokeDashArray = new DoubleCollection { 4, 4 },
+                Fill = Brushes.Transparent,
+                IsHitTestVisible = false
+            };
+
+            Canvas.SetLeft(rectangle, uiRect.X);
+            Canvas.SetTop(rectangle, uiRect.Y);
+            CenterRoiOverlayCanvas.Children.Add(rectangle);
+        }
+
+        private void ClearCenterRoiBinaryPreview()
+        {
+            CenterRoiOverlayCanvas.Children.Clear();
+            CenterRoiPreviewImage.Source = null;
+            CenterRoiPreviewPanel.Visibility = Visibility.Collapsed;
         }
     }
 }

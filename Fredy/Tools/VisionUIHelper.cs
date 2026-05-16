@@ -8,6 +8,34 @@ using Common.Services;
 
 namespace Fredy.Drilling.Holes.Tools
 {
+    public sealed class CenterRoiBinaryPreviewResult : IDisposable
+    {
+        public CenterRoiBinaryPreviewResult(Mat roiImage, Mat binaryImage, OpenCvSharp.Rect roiRect, int sourceWidth, int sourceHeight)
+        {
+            RoiImage = roiImage;
+            BinaryImage = binaryImage;
+            RoiRect = roiRect;
+            SourceWidth = sourceWidth;
+            SourceHeight = sourceHeight;
+        }
+
+        public Mat RoiImage { get; }
+
+        public Mat BinaryImage { get; }
+
+        public OpenCvSharp.Rect RoiRect { get; }
+
+        public int SourceWidth { get; }
+
+        public int SourceHeight { get; }
+
+        public void Dispose()
+        {
+            RoiImage.Dispose();
+            BinaryImage.Dispose();
+        }
+    }
+
     public static class VisionUIHelper
     {
         /// <summary>
@@ -154,6 +182,49 @@ namespace Fredy.Drilling.Holes.Tools
                 using Mat roiMat = new Mat(mat, new OpenCvSharp.Rect(x, y, w, h));
                 roiMat.SaveImage(savePath);
             }
+        }
+
+        public static CenterRoiBinaryPreviewResult? BuildCenterRoiBinaryPreview(BitmapSource source, int roiWidth, int roiHeight, int threshold, bool invert)
+        {
+            if (source == null) return null;
+
+            using Mat mat = BitmapSourceToMat(source);
+            return BuildCenterRoiBinaryPreview(mat, roiWidth, roiHeight, threshold, invert);
+        }
+
+        public static CenterRoiBinaryPreviewResult? BuildCenterRoiBinaryPreview(Mat source, int roiWidth, int roiHeight, int threshold, bool invert)
+        {
+            if (source == null || source.Empty()) return null;
+
+            int width = Math.Clamp(roiWidth, 1, source.Width);
+            int height = Math.Clamp(roiHeight, 1, source.Height);
+            int x = Math.Max(0, (source.Width - width) / 2);
+            int y = Math.Max(0, (source.Height - height) / 2);
+            var roiRect = new OpenCvSharp.Rect(x, y, width, height);
+
+            using Mat roi = new Mat(source, roiRect);
+            var roiImage = roi.Clone();
+
+            using var gray = new Mat();
+            switch (roiImage.Channels())
+            {
+                case 1:
+                    roiImage.CopyTo(gray);
+                    break;
+                case 3:
+                    Cv2.CvtColor(roiImage, gray, ColorConversionCodes.BGR2GRAY);
+                    break;
+                case 4:
+                    Cv2.CvtColor(roiImage, gray, ColorConversionCodes.BGRA2GRAY);
+                    break;
+                default:
+                    throw new OpenCvSharpException($"Unsupported channel count: {roiImage.Channels()}");
+            }
+
+            var binaryImage = new Mat();
+            Cv2.Threshold(gray, binaryImage, Math.Clamp(threshold, 0, 255), 255, invert ? ThresholdTypes.BinaryInv : ThresholdTypes.Binary);
+
+            return new CenterRoiBinaryPreviewResult(roiImage, binaryImage, roiRect, source.Width, source.Height);
         }
 
         /// <summary>

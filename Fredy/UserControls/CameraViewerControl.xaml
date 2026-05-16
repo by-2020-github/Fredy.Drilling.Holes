@@ -52,12 +52,23 @@
                     <Separator/>
                     <MenuItem x:Name="MenuShowCross" Header="显示中心十字标记" IsCheckable="True" IsChecked="True" Click="ToggleCross_Click"/>
                     <Separator/>
-                    <MenuItem x:Name="MenuDetectCircles" Header="开启圆孔实时识别" IsCheckable="True" IsChecked="False" Click="DetectCircles_Click" />
-                    <MenuItem Header="单次识别所有圆孔" Click="DetectCirclesSingle_Click"/>
-                    <MenuItem Header="绘制ROI" Click="StartDrawROI_Click"/>
-                    <MenuItem Header="导出当前ROI为模板" Click="ExportROI_Click"/>
+
+                    <MenuItem Header="圆孔识别">
+                        <MenuItem x:Name="MenuDetectCircles" Header="开启圆孔实时识别" IsCheckable="True" IsChecked="False" Click="DetectCircles_Click" />
+                        <MenuItem Header="单次识别所有圆孔" Click="DetectCirclesSingle_Click"/>
+                        <MenuItem Header="编辑圆孔识别参数..." Click="EditDetectParams_Click"/>
+                  </MenuItem>
                     <Separator/>
-                    <MenuItem Header="编辑圆孔识别参数..." Click="EditDetectParams_Click"/>
+                    <MenuItem Header="ROI操作">
+                        <MenuItem Header="绘制ROI" Click="StartDrawROI_Click"/>
+                        <MenuItem Header="导出当前ROI为模板" Click="ExportROI_Click"/>
+                    </MenuItem>
+                    <Separator/>
+                    <MenuItem Header="中心ROI二值化">
+                        <MenuItem x:Name="MenuCenterRoiBinaryPreview" Header="启用中心ROI二值化预览" IsCheckable="True" IsChecked="False" Click="ToggleCenterRoiBinary_Click"/>
+                        <MenuItem Header="编辑中心ROI二值化参数..." Click="EditCenterRoiBinaryParams_Click"/>
+                    </MenuItem>
+                    <Separator/>
                 </ContextMenu>
             </Grid.ContextMenu>
 
@@ -78,10 +89,35 @@
 
                 <Canvas x:Name="OverlayCanvas" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
 
+                <Canvas x:Name="CenterRoiOverlayCanvas" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" IsHitTestVisible="False"/>
+
                 <Canvas x:Name="ROICanvas" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Visibility="Collapsed">
                     <Rectangle x:Name="ROIRect" Stroke="Lime" StrokeThickness="2" StrokeDashArray="4,4" Fill="#3300FF00"
                                MouseLeftButtonDown="ROIRect_MouseDown" MouseLeftButtonUp="ROIRect_MouseUp" MouseMove="ROIRect_MouseMove"/>
                 </Canvas>
+
+                <Border x:Name="CenterRoiPreviewPanel"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Top"
+                        Margin="12"
+                        Padding="8"
+                        Background="#DD111111"
+                        BorderBrush="#AAFFFFFF"
+                        BorderThickness="1"
+                        CornerRadius="4"
+                        Visibility="Collapsed"
+                        IsHitTestVisible="False">
+                    <StackPanel>
+                        <TextBlock x:Name="CenterRoiPreviewTitle"
+                                   Text="中心ROI二值化"
+                                   Foreground="White"
+                                   Margin="0,0,0,6"/>
+                        <Image x:Name="CenterRoiPreviewImage"
+                               Width="160"
+                               Height="160"
+                               Stretch="Uniform"/>
+                    </StackPanel>
+                </Border>
             </Grid>
 
             <TextBlock x:Name="NoImageText" Text="暂无相机图像" Foreground="{StaticResource Brush.Foreground.Overlay}" FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center">

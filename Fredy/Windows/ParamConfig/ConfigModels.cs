@@ -217,6 +217,14 @@ namespace Fredy.Drilling.Holes.Models
 
         public bool CircleIsDarkTarget { get; set; } = true;
 
+        public int CenterRoiWidth { get; set; } = 100;
+
+        public int CenterRoiHeight { get; set; } = 100;
+
+        public int CenterRoiThreshold { get; set; } = 128;
+
+        public bool CenterRoiBinaryInvert { get; set; }
+
         private static List<DetectionRingItem> CreateDefaultDetectionRingItems()
         {
             var items = new List<DetectionRingItem>();
