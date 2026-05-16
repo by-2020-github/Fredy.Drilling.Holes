@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Common.Models;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -77,6 +78,7 @@ namespace BLL
         }
 
         public PunchProcessType ProcessType { get; set; }
+        public Recipe? CurrentRecipe { get; private set; }
         public int CurrentHoleIndex { get; private set; } = 1;
         public PunchCompletionStatus CompletionStatus { get; private set; } = PunchCompletionStatus.None;
 
@@ -99,8 +101,9 @@ namespace BLL
         /// <summary>
         /// 启动冲孔流程
         /// </summary>
-        public void StartProcess(PunchProcessType type)
+        public void StartProcess(PunchProcessType type, Recipe recipe)
         {
+            CurrentRecipe = recipe ?? throw new ArgumentNullException(nameof(recipe));
             ProcessType = type;
             CurrentHoleIndex = 1;
             _stateBeforePause = PunchState.Finished;
@@ -114,7 +117,7 @@ namespace BLL
             _currentTargetY = 0.0;
             _rawTargetX = 0.0;
             _rawTargetY = 0.0;
-            Log($"[系统] 开始{(type == PunchProcessType.FirstPass ? "头道" : "二道")}冲孔流程...");
+            Log($"[系统] 配方[{CurrentRecipe.RecipeName}]开始{(type == PunchProcessType.FirstPass ? "头道" : "二道")}冲孔流程...");
             CurrentState = PunchState.ReadCoordinate;
         }
 
@@ -307,57 +310,40 @@ namespace BLL
                     break;
 
                 case PunchState.PunchAction:
-                    CompensationResult compensationResult = ResolvePunchCompensation(_currentTargetX, _currentTargetY);
-                    double compensation = compensationResult.Compensation;
-                    Log($"执行冲孔动作(补偿={compensation:F4})...");
-                    Hardware.PunchDown(compensation);
-                    CompensationSelected?.Invoke(this, new CompensationSelectedEventArgs(
-                        CurrentHoleIndex,
-                        _currentTargetX,
-                        _currentTargetY,
-                        compensationResult.Compensation,
-                        compensationResult.HasNearestSample,
-                        compensationResult.NearestSampleX,
-                        compensationResult.NearestSampleY,
-                        compensationResult.NearestSampleSurfaceZ,
-                        compensationResult.NearestDistance,
-                        compensationResult.SampleCount));
-                    _logger.Information("孔位#{HoleIndex}补偿={Compensation}, 最近邻距离={Distance}, 采样点数量={SampleCount}",
-                        CurrentHoleIndex,
-                        compensationResult.Compensation,
-                        compensationResult.NearestDistance,
-                        compensationResult.SampleCount);
-                    double contactDiff = Hardware.CalculateDifference();
-
-                    if (ProcessType == PunchProcessType.SecondPass)
+                    if (ProcessType == PunchProcessType.FirstPass)
                     {
-                        if (contactDiff < DevThreshold)
+                        List<RecipeDepthItem> punchDepths = GetFirstPassPunchDepths();
+
+                        if (punchDepths.Count == 0)
                         {
-                            ShowAdjustmentDialog("当前孔位置偏差过大，请手动微调。");
-                            // 实际开发中这里应等待UI反馈完成
+                            punchDepths.Add(new RecipeDepthItem
+                            {
+                                Label = "No.1",
+                                Value = 0
+                            });
                         }
-                        else if (contactDiff > BreakPinThreshold)
+
+                        for (int i = 0; i < punchDepths.Count; i++)
                         {
-                            HandleBrokenPin();
+                            RecipeDepthItem punchDepth = punchDepths[i];
+                            if (!ExecutePunchAction(punchDepth.Value, punchDepth.Label, i + 1, punchDepths.Count))
+                            {
+                                break;
+                            }
+                        }
+
+                        if (CompletionStatus is PunchCompletionStatus.AbnormalFinished or PunchCompletionStatus.Cancelled)
+                        {
                             break;
                         }
                     }
                     else
                     {
-                        if (contactDiff > BreakPinThreshold)
+                        if (!ExecutePunchAction())
                         {
-                            HandleBrokenPin();
                             break;
                         }
                     }
-
-                    Log("等待Z轴运动结束...");
-                    Hardware.WaitForZStop();
-
-                    double punchedSurfaceZ = Hardware.ReadRecordedSurfaceZ();
-                    UpdateLatestSurface(punchedSurfaceZ);
-                    AddSurfaceSample(_currentTargetX, _currentTargetY, punchedSurfaceZ);
-                    Log($"读取当前孔表面Z={punchedSurfaceZ:F4}，更新后续补偿参考。");
 
                     CurrentState++;
                     break;
@@ -407,7 +393,120 @@ namespace BLL
 
         private void AddSurfaceSample(double x, double y, double surfaceZ)
         {
+            for (int i = 0; i < _surfaceSamples.Count; i++)
+            {
+                SurfaceSample sample = _surfaceSamples[i];
+                if (AreSameCoordinate(sample.X, x) && AreSameCoordinate(sample.Y, y))
+                {
+                    _surfaceSamples[i] = new SurfaceSample(x, y, surfaceZ);
+                    return;
+                }
+            }
+
             _surfaceSamples.Add(new SurfaceSample(x, y, surfaceZ));
+        }
+
+        private List<RecipeDepthItem> GetFirstPassPunchDepths()
+        {
+            return CurrentRecipe?.ProcessParameters?.PunchDepths?
+                .Where(x => x.Value > 0)
+                .Select(x => new RecipeDepthItem
+                {
+                    Label = x.Label,
+                    Value = x.Value
+                })
+                .ToList()
+                ?? new List<RecipeDepthItem>();
+        }
+
+        private bool ExecutePunchAction(double configuredDepth = 0.0, string? punchLabel = null, int stepIndex = 1, int totalSteps = 1)
+        {
+            CompensationResult compensationResult = ResolvePunchCompensation(_currentTargetX, _currentTargetY);
+            double compensation = compensationResult.Compensation;
+            double commandDepth = compensation + configuredDepth;
+
+            if (ProcessType == PunchProcessType.FirstPass)
+            {
+                Log($"执行头道第 {stepIndex}/{totalSteps} 次冲孔{FormatPunchLabel(punchLabel)}(设定深度={configuredDepth:F4}, 补偿={compensation:F4}, 实际下压={commandDepth:F4})...");
+            }
+            else
+            {
+                Log($"执行冲孔动作(补偿={compensation:F4})...");
+            }
+
+            Hardware.PunchDown(commandDepth);
+            CompensationSelected?.Invoke(this, new CompensationSelectedEventArgs(
+                CurrentHoleIndex,
+                _currentTargetX,
+                _currentTargetY,
+                compensationResult.Compensation,
+                compensationResult.HasNearestSample,
+                compensationResult.NearestSampleX,
+                compensationResult.NearestSampleY,
+                compensationResult.NearestSampleSurfaceZ,
+                compensationResult.NearestDistance,
+                compensationResult.SampleCount));
+
+            if (ProcessType == PunchProcessType.FirstPass)
+            {
+                _logger.Information("孔位#{HoleIndex}第{StepIndex}/{StepCount}次头道冲孔{PunchLabel}: 设定深度={PunchDepth}, 补偿={Compensation}, 实际下压={CommandDepth}, 最近邻距离={Distance}, 采样点数量={SampleCount}",
+                    CurrentHoleIndex,
+                    stepIndex,
+                    totalSteps,
+                    FormatPunchLabel(punchLabel),
+                    configuredDepth,
+                    compensationResult.Compensation,
+                    commandDepth,
+                    compensationResult.NearestDistance,
+                    compensationResult.SampleCount);
+            }
+            else
+            {
+                _logger.Information("孔位#{HoleIndex}补偿={Compensation}, 最近邻距离={Distance}, 采样点数量={SampleCount}",
+                    CurrentHoleIndex,
+                    compensationResult.Compensation,
+                    compensationResult.NearestDistance,
+                    compensationResult.SampleCount);
+            }
+
+            double contactDiff = Hardware.CalculateDifference();
+
+            if (ProcessType == PunchProcessType.SecondPass)
+            {
+                if (contactDiff < DevThreshold)
+                {
+                    ShowAdjustmentDialog("当前孔位置偏差过大，请手动微调。");
+                    // 实际开发中这里应等待UI反馈完成
+                }
+                else if (contactDiff > BreakPinThreshold)
+                {
+                    HandleBrokenPin();
+                    return false;
+                }
+            }
+            else if (contactDiff > BreakPinThreshold)
+            {
+                HandleBrokenPin();
+                return false;
+            }
+
+            Log("等待Z轴运动结束...");
+            Hardware.WaitForZStop();
+
+            double punchedSurfaceZ = Hardware.ReadRecordedSurfaceZ();
+            UpdateLatestSurface(punchedSurfaceZ);
+            AddSurfaceSample(_currentTargetX, _currentTargetY, punchedSurfaceZ);
+
+            if (ProcessType == PunchProcessType.FirstPass)
+            {
+                Log($"头道第 {stepIndex}/{totalSteps} 次冲孔后读取当前孔下表面Z={punchedSurfaceZ:F4}，作为下一次冲孔补偿参考。");
+            }
+            else
+            {
+                Log($"读取当前孔表面Z={punchedSurfaceZ:F4}，更新后续补偿参考。");
+            }
+
+            return true;
         }
 
         private CompensationResult ResolvePunchCompensation(double targetX, double targetY)
@@ -451,6 +550,16 @@ namespace BLL
             double dx = x1 - x2;
             double dy = y1 - y2;
             return dx * dx + dy * dy;
+        }
+
+        private static bool AreSameCoordinate(double left, double right)
+        {
+            return Math.Abs(left - right) < 0.000001;
+        }
+
+        private static string FormatPunchLabel(string? punchLabel)
+        {
+            return string.IsNullOrWhiteSpace(punchLabel) ? string.Empty : $"[{punchLabel}]";
         }
 
         private void HandleBrokenPin()

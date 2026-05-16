@@ -214,7 +214,7 @@ namespace Fredy.Drilling.Holes.ViewModels
             NotifyProcessCommandStateChanged();
 
             var processType = IsFirstPass ? PunchProcessType.FirstPass : PunchProcessType.SecondPass;
-            _punchStateMachine.StartProcess(processType);
+            _punchStateMachine.StartProcess(processType, CurrentRecipeViewModel.Recipe);
 
             try
             {
