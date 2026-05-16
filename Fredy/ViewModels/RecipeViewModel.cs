@@ -383,6 +383,21 @@ namespace Fredy.Drilling.Holes.ViewModels
             OnPropertyChanged(nameof(RemainingCount));
         }
 
+        public void SetCompletedIndices(IEnumerable<int> completedIndices)
+        {
+            var completedIndexSet = completedIndices is HashSet<int> hashSet
+                ? hashSet
+                : completedIndices.ToHashSet();
+
+            for (int i = 0; i < PunchPoints.Count; i++)
+            {
+                PunchPoints[i].Complete = completedIndexSet.Contains(i);
+            }
+
+            OnPropertyChanged(nameof(CompletedCount));
+            OnPropertyChanged(nameof(RemainingCount));
+        }
+
         private void PunchDepthItems_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
         {
             if (e.OldItems is not null)

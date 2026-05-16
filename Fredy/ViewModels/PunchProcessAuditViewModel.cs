@@ -116,13 +116,16 @@ namespace Fredy.Drilling.Holes.ViewModels
 
         public ObservableCollection<string> Timeline { get; } = new();
 
-        public void Initialize(RecipeViewModel recipeViewModel, bool isSimulation, bool isFirstPass)
+        public void Initialize(IReadOnlyList<PunchPointViewModel> punchPoints, bool isSimulation, bool isFirstPass, string? rangeDescription = null)
         {
             HoleItems.Clear();
             HeatmapPoints.Clear();
             _heatmapPointsByHoleIndex.Clear();
             Timeline.Clear();
 
+            Title = string.IsNullOrWhiteSpace(rangeDescription)
+                ? "冲孔流程审计"
+                : $"冲孔流程审计 - {rangeDescription}";
             ProcessMode = $"{(isSimulation ? "Debug模拟" : "实际")}-{(isFirstPass ? "头道" : "二道")}";
             CurrentState = PunchState.ReadCoordinate.ToString();
             CompletionStatus = "进行中";
@@ -130,9 +133,9 @@ namespace Fredy.Drilling.Holes.ViewModels
             _currentHoleIndex = 1;
             _nearestHoleIndex = -1;
 
-            for (int i = 0; i < recipeViewModel.PunchPoints.Count; i++)
+            for (int i = 0; i < punchPoints.Count; i++)
             {
-                var point = recipeViewModel.PunchPoints[i];
+                var point = punchPoints[i];
                 HoleItems.Add(new PunchHoleAuditItemViewModel
                 {
                     HoleIndex = i + 1,

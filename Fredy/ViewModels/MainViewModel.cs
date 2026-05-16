@@ -11,6 +11,7 @@ using HAL;
 using Microsoft.Extensions.Logging;
 using Serilog;
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
@@ -20,6 +21,7 @@ using System.Windows;
 using System.Windows.Data;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using Fredy.Drilling.Holes.Windows.CustomPunchRange;
 
 namespace Fredy.Drilling.Holes.ViewModels
 {
@@ -43,6 +45,11 @@ namespace Fredy.Drilling.Holes.ViewModels
         private PunchProcessAuditViewModel? _punchAuditViewModel;
         private PunchAuditWindow? _punchAuditWindow;
         private readonly Serilog.ILogger? _serilogLogger;
+        private readonly HashSet<int> _completedPunchPointIndices = new();
+        private List<int>? _activePunchPointIndices;
+        private int _completedPunchPlanCount;
+        private int? _customPunchStartIndex;
+        private int? _customPunchEndIndex;
 
         [ObservableProperty] private MachineStatus _status = new();
         [ObservableProperty] private bool _isSimulate;
@@ -53,6 +60,8 @@ namespace Fredy.Drilling.Holes.ViewModels
         private RecipeViewModel? _currentRecipeViewModel;
 
         public ObservableCollection<string> RecipeNames { get; } = new();
+
+        public IAsyncRelayCommand CustomPunchingCommand { get; }
 
         public int LogCapacity => _logStore?.Capacity ?? 0;
 
@@ -86,6 +95,7 @@ namespace Fredy.Drilling.Holes.ViewModels
 
         public MainViewModel()
         {
+            CustomPunchingCommand = new AsyncRelayCommand(CustomPunchingAsync, CanCustomPunching);
             Logs = new ReadOnlyObservableCollection<AppLogEntry>(new ObservableCollection<AppLogEntry>());
             FilteredLogs = CollectionViewSource.GetDefaultView(Logs);
             FilteredLogs.Filter = FilterLogEntry;
@@ -103,6 +113,7 @@ namespace Fredy.Drilling.Holes.ViewModels
             IHardwareStateService hardwareStateService,
             ISecondPassAlignmentContext secondPassAlignmentContext)
         {
+            CustomPunchingCommand = new AsyncRelayCommand(CustomPunchingAsync, CanCustomPunching);
             _logStore = logStore;
             _logExportService = logExportService;
             _logger = logger;
@@ -143,9 +154,50 @@ namespace Fredy.Drilling.Holes.ViewModels
         [RelayCommand(CanExecute = nameof(CanStartPunching))]
         private async Task StartPunchingAsync()
         {
+            await StartPunchingCoreAsync();
+        }
+
+        private async Task CustomPunchingAsync()
+        {
+            if (CurrentRecipeViewModel?.PunchPoints.Count is not > 0)
+            {
+                _logger?.LogWarning("未加载有效配方，无法执行自定义冲孔");
+                return;
+            }
+
+            int totalCount = CurrentRecipeViewModel.PunchPoints.Count;
+            int defaultStartIndex = Math.Clamp(_customPunchStartIndex ?? 1, 1, totalCount);
+            int defaultEndIndex = Math.Clamp(_customPunchEndIndex ?? totalCount, defaultStartIndex, totalCount);
+
+            var window = new CustomPunchRangeWindow(totalCount, defaultStartIndex, defaultEndIndex)
+            {
+                Owner = Application.Current?.MainWindow,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner
+            };
+
+            if (window.ShowDialog() != true)
+            {
+                _logger?.LogInformation("用户取消了自定义冲孔区间设置");
+                return;
+            }
+
+            _customPunchStartIndex = window.SelectedStartIndex;
+            _customPunchEndIndex = window.SelectedEndIndex;
+            await StartPunchingCoreAsync(_customPunchStartIndex, _customPunchEndIndex);
+        }
+
+        private async Task StartPunchingCoreAsync(int? customStartIndex = null, int? customEndIndex = null)
+        {
             if (CurrentRecipeViewModel?.PunchPoints is not { Count: > 0 } punchPoints)
             {
                 _logger?.LogWarning("未加载有效配方，无法启动冲孔流程");
+                return;
+            }
+
+            var selectedPunchPointIndices = BuildPunchPointIndices(punchPoints.Count, customStartIndex, customEndIndex);
+            if (selectedPunchPointIndices.Count == 0)
+            {
+                _logger?.LogWarning("未找到有效的自定义冲孔区间");
                 return;
             }
 
@@ -157,8 +209,8 @@ namespace Fredy.Drilling.Holes.ViewModels
 
             if (!IsFirstPass)
             {
-                int total = punchPoints.Count;
-                int matched = _secondPassAlignmentContext?.MatchedPoints?.Count ?? 0;
+                int total = selectedPunchPointIndices.Count;
+                int matched = selectedPunchPointIndices.Count(index => _secondPassAlignmentContext?.MatchedPoints?.ContainsKey(index) == true);
                 int unmatched = total - matched;
 
                 if (unmatched > 0)
@@ -179,11 +231,17 @@ namespace Fredy.Drilling.Holes.ViewModels
                 }
             }
 
-            _logger?.LogInformation("收到启动冲孔命令，模式: {Mode}，工序: {Pass}", IsSimulate ? "模拟" : "实际", IsFirstPass ? "头道" : "二道");
+            var selectedPunchPoints = selectedPunchPointIndices
+                .Select(index => punchPoints[index])
+                .ToList();
+            string rangeDescription = customStartIndex.HasValue && customEndIndex.HasValue
+                ? $"自定义[{customStartIndex}, {customEndIndex}]"
+                : "全配方";
 
-            Status.PunchedHoles = 0;
-            CurrentRecipeViewModel.UpdateCompletedCount(0);
-            ShowPunchAuditWindow(CurrentRecipeViewModel, IsSimulate, IsFirstPass);
+            _logger?.LogInformation("收到启动冲孔命令，模式: {Mode}，工序: {Pass}，范围: {Range}", IsSimulate ? "模拟" : "实际", IsFirstPass ? "头道" : "二道", rangeDescription);
+
+            ResetPunchProgress(selectedPunchPointIndices);
+            ShowPunchAuditWindow(selectedPunchPoints, IsSimulate, IsFirstPass, rangeDescription);
 
             _punchingCancellationTokenSource?.Cancel();
             _punchingCancellationTokenSource = new CancellationTokenSource();
@@ -191,14 +249,15 @@ namespace Fredy.Drilling.Holes.ViewModels
             _punchStateMachine = CreatePunchStateMachine();
             _punchStateMachine.HoleCoordinateResolver = holeIndex =>
             {
-                int idx = Math.Clamp(holeIndex - 1, 0, punchPoints.Count - 1);
+                int idx = Math.Clamp(holeIndex - 1, 0, selectedPunchPointIndices.Count - 1);
+                int originalIndex = selectedPunchPointIndices[idx];
                 
-                if (!IsFirstPass && _secondPassAlignmentContext is { IsReady: true } && _secondPassAlignmentContext.MatchedPoints.TryGetValue(idx, out var matchedTarget))
+                if (!IsFirstPass && _secondPassAlignmentContext is { IsReady: true } && _secondPassAlignmentContext.MatchedPoints.TryGetValue(originalIndex, out var matchedTarget))
                 {
                     return matchedTarget;
                 }
 
-                var p = punchPoints[idx];
+                var p = punchPoints[originalIndex];
                 return (p.X, p.Y);
             };
             _punchStateMachine.HoleCoordinateTransformer = (x, y) =>
@@ -218,7 +277,7 @@ namespace Fredy.Drilling.Holes.ViewModels
 
             try
             {
-                _punchingTask = RunPunchingProcessAsync(CurrentRecipeViewModel, _punchStateMachine, processType, _punchingCancellationTokenSource.Token);
+                _punchingTask = RunPunchingProcessAsync(CurrentRecipeViewModel, _punchStateMachine, processType, selectedPunchPointIndices, _punchingCancellationTokenSource.Token);
                 await _punchingTask;
             }
             catch (OperationCanceledException)
@@ -419,6 +478,7 @@ namespace Fredy.Drilling.Holes.ViewModels
         {
             if (_recipeService is null || string.IsNullOrWhiteSpace(Status.WorkpieceType))
             {
+                ResetPunchTracking();
                 CurrentRecipeViewModel = null;
                 UpdateRecipeStatus();
                 NotifyProcessCommandStateChanged();
@@ -427,6 +487,7 @@ namespace Fredy.Drilling.Holes.ViewModels
 
             if (!_recipeService.Load(Status.WorkpieceType))
             {
+                ResetPunchTracking();
                 CurrentRecipeViewModel = null;
                 UpdateRecipeStatus();
                 NotifyProcessCommandStateChanged();
@@ -434,7 +495,7 @@ namespace Fredy.Drilling.Holes.ViewModels
                 return;
             }
 
-            Status.PunchedHoles = 0;
+            ResetPunchTracking();
             CurrentRecipeViewModel = _recipeService.CurrentRecipe is null ? null : new RecipeViewModel(_recipeService.CurrentRecipe);
             if (CurrentRecipeViewModel is not null)
             {
@@ -457,27 +518,31 @@ namespace Fredy.Drilling.Holes.ViewModels
                 return;
             }
 
-            Status.TotalHoles = punchPoints.Count;
+            var activePunchPointIndices = _activePunchPointIndices is { Count: > 0 }
+                ? _activePunchPointIndices
+                : Enumerable.Range(0, punchPoints.Count).ToList();
 
-            var completedCount = Math.Clamp(Status.PunchedHoles, 0, punchPoints.Count);
+            Status.TotalHoles = activePunchPointIndices.Count;
+
+            var completedCount = Math.Clamp(_completedPunchPlanCount, 0, activePunchPointIndices.Count);
             if (completedCount != Status.PunchedHoles)
             {
                 Status.PunchedHoles = completedCount;
                 return;
             }
 
-            CurrentRecipeViewModel.UpdateCompletedCount(completedCount);
-            Status.RemainingHoles = CurrentRecipeViewModel.RemainingCount;
+            CurrentRecipeViewModel.SetCompletedIndices(_completedPunchPointIndices);
+            Status.RemainingHoles = Math.Max(0, activePunchPointIndices.Count - completedCount);
 
-            if (completedCount >= punchPoints.Count)
+            if (completedCount >= activePunchPointIndices.Count)
             {
-                var lastPoint = punchPoints[^1];
+                var lastPoint = punchPoints[activePunchPointIndices[^1]];
                 Status.CurrentRing = lastPoint.RingNumber;
                 Status.CurrentHole = 0;
                 return;
             }
 
-            var nextPoint = punchPoints[completedCount];
+            var nextPoint = punchPoints[activePunchPointIndices[completedCount]];
             Status.CurrentRing = nextPoint.RingNumber;
             Status.CurrentHole = nextPoint.SequenceIndex;
         }
@@ -491,18 +556,19 @@ namespace Fredy.Drilling.Holes.ViewModels
             return new PunchStateMachine(hardwareController, _serilogLogger ?? Log.Logger);
         }
 
-        private async Task RunPunchingProcessAsync(RecipeViewModel recipeViewModel, PunchStateMachine punchStateMachine, PunchProcessType processType, CancellationToken cancellationToken)
+        private async Task RunPunchingProcessAsync(RecipeViewModel recipeViewModel, PunchStateMachine punchStateMachine, PunchProcessType processType, IReadOnlyList<int> activePunchPointIndices, CancellationToken cancellationToken)
         {
-            for (int index = 0; index < recipeViewModel.PunchPoints.Count; index++)
+            for (int index = 0; index < activePunchPointIndices.Count; index++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                var point = recipeViewModel.PunchPoints[index];
-                punchStateMachine.IsLastHole = index == recipeViewModel.PunchPoints.Count - 1;
+                int pointIndex = activePunchPointIndices[index];
+                var point = recipeViewModel.PunchPoints[pointIndex];
+                punchStateMachine.IsLastHole = index == activePunchPointIndices.Count - 1;
 
                 if (processType == PunchProcessType.SecondPass 
                     && _secondPassAlignmentContext is { IsReady: true } 
-                    && !_secondPassAlignmentContext.MatchedPoints.ContainsKey(index))
+                    && !_secondPassAlignmentContext.MatchedPoints.ContainsKey(pointIndex))
                 {
                     _logger?.LogInformation("跳过未检测到的孔位: 圈 {RingNumber}, 序号 {SequenceIndex}",
                         point.RingNumber,
@@ -540,8 +606,9 @@ namespace Fredy.Drilling.Holes.ViewModels
                     break;
                 }
 
-                point.Complete = true;
-                Status.PunchedHoles = index + 1;
+                _completedPunchPointIndices.Add(pointIndex);
+                _completedPunchPlanCount = index + 1;
+                UpdateRecipeStatus();
                 _punchAuditViewModel?.MarkHoleCompleted(index + 1);
 
                 if (punchStateMachine.CurrentState == PunchState.Finished)
@@ -596,10 +663,10 @@ namespace Fredy.Drilling.Holes.ViewModels
                 e.SampleCount);
         }
 
-        private void ShowPunchAuditWindow(RecipeViewModel recipeViewModel, bool isSimulation, bool isFirstPass)
+        private void ShowPunchAuditWindow(IReadOnlyList<PunchPointViewModel> selectedPunchPoints, bool isSimulation, bool isFirstPass, string rangeDescription)
         {
             _punchAuditViewModel ??= new PunchProcessAuditViewModel(_serilogLogger ?? Log.Logger);
-            _punchAuditViewModel.Initialize(recipeViewModel, isSimulation, isFirstPass);
+            _punchAuditViewModel.Initialize(selectedPunchPoints, isSimulation, isFirstPass, rangeDescription);
 
             if (_punchAuditWindow is null || !_punchAuditWindow.IsLoaded)
             {
@@ -714,6 +781,12 @@ namespace Fredy.Drilling.Holes.ViewModels
                 && !IsPunchingActive;
         }
 
+        private bool CanCustomPunching()
+        {
+            return CurrentRecipeViewModel?.PunchPoints.Count > 0
+                && CanUseCustomAction;
+        }
+
         private bool CanPausePunching()
         {
             return IsPunchingActive && !IsPunchingPaused;
@@ -744,10 +817,48 @@ namespace Fredy.Drilling.Holes.ViewModels
             OnPropertyChanged(nameof(ShowPausePunchingButton));
             OnPropertyChanged(nameof(ShowContinuePunchingButton));
             StartPunchingCommand.NotifyCanExecuteChanged();
+            CustomPunchingCommand.NotifyCanExecuteChanged();
             PausePunchingCommand.NotifyCanExecuteChanged();
             ContinuePunchingCommand.NotifyCanExecuteChanged();
             StopPunchingCommand.NotifyCanExecuteChanged();
             ResetMachineCommand.NotifyCanExecuteChanged();
+        }
+
+        private static List<int> BuildPunchPointIndices(int totalCount, int? startIndex = null, int? endIndex = null)
+        {
+            if (totalCount <= 0)
+            {
+                return new List<int>();
+            }
+
+            int start = Math.Clamp(startIndex ?? 1, 1, totalCount);
+            int end = Math.Clamp(endIndex ?? totalCount, 1, totalCount);
+
+            if (end < start)
+            {
+                return new List<int>();
+            }
+
+            return Enumerable.Range(start - 1, end - start + 1).ToList();
+        }
+
+        private void ResetPunchProgress(IReadOnlyList<int> activePunchPointIndices)
+        {
+            _activePunchPointIndices = activePunchPointIndices.ToList();
+            _completedPunchPointIndices.Clear();
+            _completedPunchPlanCount = 0;
+            CurrentRecipeViewModel?.SetCompletedIndices(Array.Empty<int>());
+            UpdateRecipeStatus();
+        }
+
+        private void ResetPunchTracking()
+        {
+            _activePunchPointIndices = null;
+            _completedPunchPointIndices.Clear();
+            _completedPunchPlanCount = 0;
+            _customPunchStartIndex = null;
+            _customPunchEndIndex = null;
+            Status.PunchedHoles = 0;
         }
 
         public void Dispose()

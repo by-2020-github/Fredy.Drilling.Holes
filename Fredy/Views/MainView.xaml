@@ -122,7 +122,11 @@
                                 Command="{Binding ContinuePunchingCommand}"
                                 Visibility="{Binding ShowContinuePunchingButton, Converter={StaticResource BoolToVis}}"/>
                     </Grid>
-                    <Button Content="自定义" Background="{StaticResource Brush.Status.Yellow}" Style="{StaticResource ControlButtonStyle}" IsEnabled="{Binding CanUseCustomAction}"/>
+                    <Button Content="自定义"
+                            Background="{StaticResource Brush.Status.Yellow}"
+                            Style="{StaticResource ControlButtonStyle}"
+                            Command="{Binding CustomPunchingCommand}"
+                            IsEnabled="{Binding CanUseCustomAction}"/>
                     <Button Content="复位" Background="{StaticResource Brush.Status.Yellow}" Style="{StaticResource ControlButtonStyle}" Command="{Binding ResetMachineCommand}"/>
                 </UniformGrid>
                 <Button Content="停止" Background="{StaticResource Brush.Status.Red}" Foreground="{StaticResource Brush.Foreground}" Height="50" FontSize="20" FontWeight="Bold" Margin="5" Command="{Binding StopPunchingCommand}"/>
