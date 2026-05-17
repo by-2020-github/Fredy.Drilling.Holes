@@ -22,6 +22,7 @@ using System.Windows.Data;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Fredy.Drilling.Holes.Windows.CustomPunchRange;
+using Fredy.Drilling.Holes.Services;
 
 namespace Fredy.Drilling.Holes.ViewModels
 {
@@ -36,6 +37,7 @@ namespace Fredy.Drilling.Holes.ViewModels
         private readonly IHardwareStateService? _hardwareStateService;
         private readonly ISecondPassAlignmentContext? _secondPassAlignmentContext;
         private readonly IMotionService? _motionService;
+        private readonly CoordinateService? _coordinateService;
         private CancellationTokenSource? _cameraPreviewCancellationTokenSource;
         private Task? _cameraPreviewTask;
         private PunchStateMachine? _punchStateMachine;
@@ -120,7 +122,8 @@ namespace Fredy.Drilling.Holes.ViewModels
             IHardwareController hardwareController,
             IHardwareStateService hardwareStateService,
             ISecondPassAlignmentContext secondPassAlignmentContext,
-            IMotionService motionService)
+            IMotionService motionService,
+            CoordinateService coordinateService)
         {
             CustomPunchingCommand = new AsyncRelayCommand(CustomPunchingAsync, CanCustomPunching);
             _logStore = logStore;
@@ -133,6 +136,7 @@ namespace Fredy.Drilling.Holes.ViewModels
             _hardwareStateService = hardwareStateService;
             _secondPassAlignmentContext = secondPassAlignmentContext;
             _motionService = motionService;
+            _coordinateService = coordinateService;
             Logs = logStore.Entries;
             FilteredLogs = CollectionViewSource.GetDefaultView(Logs);
             FilteredLogs.Filter = FilterLogEntry;
@@ -337,7 +341,17 @@ namespace Fredy.Drilling.Holes.ViewModels
             };
             _punchStateMachine.HoleCoordinateTransformer = (x, y) =>
             {
-                return (x, y);
+                if (_coordinateService is null) return (x, y);
+                try
+                {
+                    var machine = _coordinateService.WorkpieceToMachine(new Point2D(x, y));
+                    return (machine.X, machine.Y);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    _logger?.LogWarning("坐标转换失败（工件未校准），将使用原始坐标：{Message}", ex.Message);
+                    return (x, y);
+                }
             };
             // Debug模拟使用Mock硬件执行完整流程，避免跳过补偿计算与审计可视化
             _punchStateMachine.IsSimulationChecked = false;
@@ -665,11 +679,26 @@ namespace Fredy.Drilling.Holes.ViewModels
                 }
                 else
                 {
-                    _logger?.LogInformation("开始检测孔位: 圈 {RingNumber}, 序号 {SequenceIndex}, 坐标 ({X}, {Y})",
-                        point.RingNumber,
-                        point.SequenceIndex,
-                        point.X,
-                        point.Y);
+                    (double machX, double machY) = (point.X, point.Y);
+                        if (_coordinateService is not null)
+                        {
+                            try
+                            {
+                                var mp = _coordinateService.WorkpieceToMachine(new Point2D(point.X, point.Y));
+                                machX = mp.X;
+                                machY = mp.Y;
+                            }
+                            catch (InvalidOperationException) { }
+                        }
+
+                        _logger?.LogInformation(
+                            "开始冲孔位: 圈 {RingNumber}, 序号 {SequenceIndex}, 工件坐标 ({WX:F3}, {WY:F3}), 机械坐标 ({MX:F3}, {MY:F3})",
+                            point.RingNumber,
+                            point.SequenceIndex,
+                            point.X,
+                            point.Y,
+                            machX,
+                            machY);
                 }
 
                 while (punchStateMachine.CurrentState != PunchState.Finished

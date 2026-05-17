@@ -108,7 +108,7 @@ namespace Fredy.Drilling.Holes.ViewModels
     public partial class RecipeDepthItemViewModel : ObservableObject
     {
         private string _label;
-        private int _value;
+        private double _value;
 
         public RecipeDepthItemViewModel(RecipeDepthItem model)
         {
@@ -122,7 +122,7 @@ namespace Fredy.Drilling.Holes.ViewModels
             set => SetProperty(ref _label, value);
         }
 
-        public int Value
+        public double Value
         {
             get => _value;
             set => SetProperty(ref _value, Math.Max(0, value));
@@ -154,7 +154,7 @@ namespace Fredy.Drilling.Holes.ViewModels
         private IReadOnlyDictionary<int, (double X, double Y)>? _matchedPoints;
         private RecipeDepthItemViewModel? _selectedPunchDepthItem;
         private int _addPunchDepthCount = 1;
-        private int _newPunchDepthValue;
+        private double _newPunchDepthValue;
 
         public RecipeViewModel(Recipe recipe)
             : this(recipe, Log.Logger)
@@ -230,7 +230,7 @@ namespace Fredy.Drilling.Holes.ViewModels
             set => SetProperty(ref _addPunchDepthCount, Math.Max(1, value));
         }
 
-        public int NewPunchDepthValue
+        public double NewPunchDepthValue
         {
             get => _newPunchDepthValue;
             set => SetProperty(ref _newPunchDepthValue, Math.Max(0, value));
@@ -368,7 +368,7 @@ namespace Fredy.Drilling.Holes.ViewModels
 
         public int RemainingCount => Math.Max(0, TotalCount - CompletedCount);
 
-        public int FirstPunchTotalDepth => PunchDepthItems.Sum(x => x.Value);
+        public double FirstPunchTotalDepth => PunchDepthItems.Sum(x => x.Value);
 
         public void UpdateCompletedCount(int completedCount)
         {

@@ -36,26 +36,26 @@ namespace Common.Models
     {
         public string Label { get; set; } = string.Empty;
 
-        public int Value { get; set; }
+        public double Value { get; set; }
     }
 
     public class RecipeProcessParameters
     {
         public string WorkpieceType { get; set; } = "PS60-6X500-0.05X0.075X10";
 
-        public int FirstPunchDepth { get; set; } = 1400;
+        public double FirstPunchDepth { get; set; }
 
-        public int FirstAlarmDepth { get; set; } = 50;
+        public double FirstAlarmDepth { get; set; }
 
-        public int FirstLiftHeight { get; set; } = 260;
+        public double FirstLiftHeight { get; set; }
 
-        public int SecondPunchDepth { get; set; } = 200;
+        public double SecondPunchDepth { get; set; }
 
-        public int SecondAlarmDepth { get; set; } = 120;
+        public double SecondAlarmDepth { get; set; }
 
-        public int SecondLiftHeight { get; set; } = 260;
+        public double SecondLiftHeight { get; set; }
 
-        public int MinSafeDepth { get; set; } = 20;
+        public double MinSafeDepth { get; set; }
 
         public bool IsSecondDetectionActive { get; set; }
 
@@ -82,7 +82,7 @@ namespace Common.Models
 
         private static List<RecipeDepthItem> CreateDefaultPunchDepths()
         {
-            int[] defaultValues = { 400, 200, 300, 200, 100, 0, 0, 0 };
+            double[] defaultValues = { 0.04, 0.04, 0.02, 0, 0, 0, 0, 0 };
 
             return defaultValues
                 .Select((value, index) => new RecipeDepthItem

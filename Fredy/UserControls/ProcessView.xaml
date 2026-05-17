@@ -34,15 +34,18 @@
                 <UniformGrid Columns="2">
                     <StackPanel Orientation="Horizontal" Margin="0,5">
                         <TextBlock Text="头道冲孔深度" Width="110" VerticalAlignment="Center" FontSize="16"/>
-                        <hc:NumericUpDown Value="{Binding RecipeViewModel.FirstPunchTotalDepth, ElementName=Root, Mode=OneWay}" IsReadOnly="True" IsEnabled="False" Style="{StaticResource NumericIntUpDownStyle}" Width="100" Height="30"/>
+                        <hc:NumericUpDown Value="{Binding RecipeViewModel.FirstPunchTotalDepth, ElementName=Root, Mode=OneWay}" IsReadOnly="True" IsEnabled="False" Style="{StaticResource NumericDoubleUpDownStyle}" Width="100" Height="30"/>
+                        <TextBlock Text="mm" VerticalAlignment="Center" FontSize="14" Margin="4,0,0,0"/>
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" Margin="0,5">
                         <TextBlock Text="断针报警深度" Width="110" VerticalAlignment="Center" FontSize="16"/>
-                        <hc:NumericUpDown Value="{Binding RecipeViewModel.ProcessParameters.FirstAlarmDepth, ElementName=Root, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding IsEditing, ElementName=Root, Converter={StaticResource InverseBoolConverter}}" Style="{StaticResource NumericIntUpDownStyle}" Width="100" Height="30"/>
+                        <hc:NumericUpDown Value="{Binding RecipeViewModel.ProcessParameters.FirstAlarmDepth, ElementName=Root, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding IsEditing, ElementName=Root, Converter={StaticResource InverseBoolConverter}}" Style="{StaticResource NumericDoubleUpDownStyle}" Width="100" Height="30"/>
+                        <TextBlock Text="mm" VerticalAlignment="Center" FontSize="14" Margin="4,0,0,0"/>
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" Margin="0,5">
                         <TextBlock Text="头道抬起高度" Width="110" VerticalAlignment="Center" FontSize="16"/>
-                        <hc:NumericUpDown Value="{Binding RecipeViewModel.ProcessParameters.FirstLiftHeight, ElementName=Root, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding IsEditing, ElementName=Root, Converter={StaticResource InverseBoolConverter}}" Style="{StaticResource NumericIntUpDownStyle}" Width="100" Height="30"/>
+                        <hc:NumericUpDown Value="{Binding RecipeViewModel.ProcessParameters.FirstLiftHeight, ElementName=Root, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding IsEditing, ElementName=Root, Converter={StaticResource InverseBoolConverter}}" Style="{StaticResource NumericDoubleUpDownStyle}" Width="100" Height="30"/>
+                        <TextBlock Text="mm" VerticalAlignment="Center" FontSize="14" Margin="4,0,0,0"/>
                     </StackPanel>
                 </UniformGrid>
             </GroupBox>
@@ -56,21 +59,25 @@
                     <StackPanel>
                         <StackPanel Orientation="Horizontal" Margin="0,5">
                             <TextBlock Text="头道冲孔深度" Width="110" VerticalAlignment="Center" FontSize="16"/>
-                            <hc:NumericUpDown Value="{Binding RecipeViewModel.ProcessParameters.SecondPunchDepth, ElementName=Root, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding IsEditing, ElementName=Root, Converter={StaticResource InverseBoolConverter}}" Style="{StaticResource NumericIntUpDownStyle}" Width="100" Height="30"/>
+                            <hc:NumericUpDown Value="{Binding RecipeViewModel.ProcessParameters.SecondPunchDepth, ElementName=Root, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding IsEditing, ElementName=Root, Converter={StaticResource InverseBoolConverter}}" Style="{StaticResource NumericDoubleUpDownStyle}" Width="100" Height="30"/>
+                            <TextBlock Text="mm" VerticalAlignment="Center" FontSize="14" Margin="4,0,0,0"/>
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" Margin="0,5">
                             <TextBlock Text="断针报警深度" Width="110" VerticalAlignment="Center" FontSize="16"/>
-                            <hc:NumericUpDown Value="{Binding RecipeViewModel.ProcessParameters.SecondAlarmDepth, ElementName=Root, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding IsEditing, ElementName=Root, Converter={StaticResource InverseBoolConverter}}" Style="{StaticResource NumericIntUpDownStyle}" Width="100" Height="30"/>
+                            <hc:NumericUpDown Value="{Binding RecipeViewModel.ProcessParameters.SecondAlarmDepth, ElementName=Root, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding IsEditing, ElementName=Root, Converter={StaticResource InverseBoolConverter}}" Style="{StaticResource NumericDoubleUpDownStyle}" Width="100" Height="30"/>
+                            <TextBlock Text="mm" VerticalAlignment="Center" FontSize="14" Margin="4,0,0,0"/>
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" Margin="0,5">
                             <TextBlock Text="头道抬起高度" Width="110" VerticalAlignment="Center" FontSize="16"/>
-                            <hc:NumericUpDown Value="{Binding RecipeViewModel.ProcessParameters.SecondLiftHeight, ElementName=Root, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding IsEditing, ElementName=Root, Converter={StaticResource InverseBoolConverter}}" Style="{StaticResource NumericIntUpDownStyle}" Width="100" Height="30"/>
+                            <hc:NumericUpDown Value="{Binding RecipeViewModel.ProcessParameters.SecondLiftHeight, ElementName=Root, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding IsEditing, ElementName=Root, Converter={StaticResource InverseBoolConverter}}" Style="{StaticResource NumericDoubleUpDownStyle}" Width="100" Height="30"/>
+                            <TextBlock Text="mm" VerticalAlignment="Center" FontSize="14" Margin="4,0,0,0"/>
                         </StackPanel>
                     </StackPanel>
                     <StackPanel Grid.Column="1" VerticalAlignment="Top">
                         <StackPanel Orientation="Horizontal" Margin="0,5">
                             <TextBlock Text="最低安全深度" Width="110" VerticalAlignment="Center" FontSize="16"/>
-                            <hc:NumericUpDown Value="{Binding RecipeViewModel.ProcessParameters.MinSafeDepth, ElementName=Root, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding IsEditing, ElementName=Root, Converter={StaticResource InverseBoolConverter}}" Style="{StaticResource NumericIntUpDownStyle}" Width="100" Height="30"/>
+                            <hc:NumericUpDown Value="{Binding RecipeViewModel.ProcessParameters.MinSafeDepth, ElementName=Root, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding IsEditing, ElementName=Root, Converter={StaticResource InverseBoolConverter}}" Style="{StaticResource NumericDoubleUpDownStyle}" Width="100" Height="30"/>
+                            <TextBlock Text="mm" VerticalAlignment="Center" FontSize="14" Margin="4,0,0,0"/>
                         </StackPanel>
                         <CheckBox Content="二道检测" IsChecked="{Binding RecipeViewModel.ProcessParameters.IsSecondDetectionActive, ElementName=Root}"
                                   IsEnabled="{Binding IsEditing, ElementName=Root}"
@@ -94,8 +101,9 @@
                        
                         <TextBlock Text="默认深度" VerticalAlignment="Center" FontSize="14" Margin="0,0,8,0"/>
                         <hc:NumericUpDown Value="{Binding RecipeViewModel.NewPunchDepthValue, ElementName=Root, UpdateSourceTrigger=PropertyChanged}"
-                                          Style="{StaticResource NumericIntUpDownStyle}"
+                                          Style="{StaticResource NumericDoubleUpDownStyle}"
                                           Width="80" Height="28"/>
+                        <TextBlock Text="mm" VerticalAlignment="Center" FontSize="14" Margin="4,0,0,0"/>
                     </StackPanel>
 
               
@@ -122,11 +130,13 @@
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Text="{Binding Label}" VerticalAlignment="Center" FontSize="16"/>
-                                <hc:NumericUpDown Grid.Column="1"
-                                                  Value="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
-                                                  IsReadOnly="{Binding IsEditing, ElementName=Root, Converter={StaticResource InverseBoolConverter}}"
-                                                  Style="{StaticResource NumericIntUpDownStyle}"
-                                                  Width="100" Height="28" HorizontalAlignment="Left"/>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                    <hc:NumericUpDown Value="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
+                                                      IsReadOnly="{Binding IsEditing, ElementName=Root, Converter={StaticResource InverseBoolConverter}}"
+                                                      Style="{StaticResource NumericDoubleUpDownStyle}"
+                                                      Width="100" Height="28"/>
+                                    <TextBlock Text="mm" VerticalAlignment="Center" FontSize="14" Margin="4,0,0,0"/>
+                                </StackPanel>
                             </Grid>
                         </DataTemplate>
                     </ListBox.ItemTemplate>
