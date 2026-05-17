@@ -33,7 +33,7 @@
 
             <Border Grid.Row="0" Grid.Column="1" Margin="5" Background="{StaticResource Brush.Surface.Dark}" BorderBrush="{StaticResource Brush.Border.Strong}" BorderThickness="1">
                 <Grid>
-                    <TextBlock Text="中心ROI原图" Foreground="{StaticResource Brush.Foreground.Inverse}" VerticalAlignment="Top" HorizontalAlignment="Left" Margin="5" Background="{StaticResource Brush.Surface.DarkAlt}" Padding="4"/>
+                    <TextBlock Text="中心ROI原图（含标记）" Foreground="{StaticResource Brush.Foreground.Inverse}" VerticalAlignment="Top" HorizontalAlignment="Left" Margin="5" Background="{StaticResource Brush.Surface.DarkAlt}" Padding="4"/>
                     <Image x:Name="ImageRoi" Stretch="Uniform"/>
                 </Grid>
             </Border>
@@ -56,6 +56,9 @@
 
                     <TextBlock Text="ROI高度(px):" FontWeight="Medium"/>
                     <hc:NumericUpDown Value="{Binding RoiHeight, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Minimum="1" Maximum="4096" DecimalPlaces="0" Increment="1" Margin="0,5,0,10" Style="{StaticResource NumericIntUpDownStyle}"/>
+
+                    <TextBlock Text="中心圆半径(px):" FontWeight="Medium"/>
+                    <hc:NumericUpDown Value="{Binding CircleRadius, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Minimum="1" Maximum="1000" DecimalPlaces="0" Increment="1" Margin="0,5,0,10" Style="{StaticResource NumericIntUpDownStyle}"/>
 
                     <TextBlock Text="二值化阈值(0-255):" FontWeight="Medium"/>
                     <hc:NumericUpDown Value="{Binding Threshold, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Minimum="0" Maximum="255" DecimalPlaces="0" Increment="1" Margin="0,5,0,10" Style="{StaticResource NumericIntUpDownStyle}"/>

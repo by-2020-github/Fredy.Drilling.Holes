@@ -821,7 +821,8 @@ namespace Fredy.Drilling.Holes.UserControls
                     config.CenterRoiWidth,
                     config.CenterRoiHeight,
                     config.CenterRoiThreshold,
-                    config.CenterRoiBinaryInvert);
+                    config.CenterRoiBinaryInvert,
+                    config.CenterRoiCircleRadius);
             }
 
             if (ImageSource is BitmapSource bitmap)
@@ -831,7 +832,8 @@ namespace Fredy.Drilling.Holes.UserControls
                     config.CenterRoiWidth,
                     config.CenterRoiHeight,
                     config.CenterRoiThreshold,
-                    config.CenterRoiBinaryInvert);
+                    config.CenterRoiBinaryInvert,
+                    config.CenterRoiCircleRadius);
             }
 
             return null;

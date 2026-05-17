@@ -14,6 +14,7 @@ namespace Fredy.Drilling.Holes.ViewModels
         private int _roiHeight;
         private int _threshold;
         private bool _invert;
+        private int _circleRadius;
 
         public int RoiWidth
         {
@@ -66,6 +67,19 @@ namespace Fredy.Drilling.Holes.ViewModels
             }
         }
 
+        public int CircleRadius
+        {
+            get => _circleRadius;
+            set
+            {
+                var normalized = Math.Max(1, value);
+                if (SetProperty(ref _circleRadius, normalized))
+                {
+                    SettingsChanged?.Invoke();
+                }
+            }
+        }
+
         public IRelayCommand SaveConfigCommand { get; }
 
         public event Action? SettingsChanged;
@@ -80,6 +94,7 @@ namespace Fredy.Drilling.Holes.ViewModels
             RoiHeight = config.CenterRoiHeight;
             Threshold = config.CenterRoiThreshold;
             Invert = config.CenterRoiBinaryInvert;
+            CircleRadius = config.CenterRoiCircleRadius;
             SaveConfigCommand = new RelayCommand(SaveConfig);
         }
 
@@ -90,6 +105,7 @@ namespace Fredy.Drilling.Holes.ViewModels
             config.CenterRoiHeight = Math.Max(1, RoiHeight);
             config.CenterRoiThreshold = Math.Clamp(Threshold, 0, 255);
             config.CenterRoiBinaryInvert = Invert;
+            config.CenterRoiCircleRadius = Math.Max(1, CircleRadius);
             _configService.SaveWithArchive(config);
             _logger.Information("中心ROI二值化参数已保存");
         }

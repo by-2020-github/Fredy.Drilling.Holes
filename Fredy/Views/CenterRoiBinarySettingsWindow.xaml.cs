@@ -36,9 +36,9 @@ namespace Fredy.Drilling.Holes.Views
             ImageOriginal.Source = _sourceBitmap ?? (_sourceMat != null ? Tools.VisionUIHelper.MatToBitmapSource(_sourceMat) : null);
 
             using var preview = _sourceMat != null && !_sourceMat.Empty()
-                ? Tools.VisionUIHelper.BuildCenterRoiBinaryPreview(_sourceMat, ViewModel.RoiWidth, ViewModel.RoiHeight, ViewModel.Threshold, ViewModel.Invert)
+                ? Tools.VisionUIHelper.BuildCenterRoiBinaryPreview(_sourceMat, ViewModel.RoiWidth, ViewModel.RoiHeight, ViewModel.Threshold, ViewModel.Invert, ViewModel.CircleRadius)
                 : _sourceBitmap != null
-                    ? Tools.VisionUIHelper.BuildCenterRoiBinaryPreview(_sourceBitmap, ViewModel.RoiWidth, ViewModel.RoiHeight, ViewModel.Threshold, ViewModel.Invert)
+                    ? Tools.VisionUIHelper.BuildCenterRoiBinaryPreview(_sourceBitmap, ViewModel.RoiWidth, ViewModel.RoiHeight, ViewModel.Threshold, ViewModel.Invert, ViewModel.CircleRadius)
                     : null;
 
             if (preview == null)

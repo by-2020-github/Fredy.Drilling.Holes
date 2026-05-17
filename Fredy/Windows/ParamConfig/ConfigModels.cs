@@ -256,6 +256,8 @@ namespace Fredy.Drilling.Holes.Models
 
         public bool CenterRoiBinaryInvert { get; set; }
 
+        public int CenterRoiCircleRadius { get; set; } = 30;
+
         public CoordinateCalibrationData CoordinateCalibration { get; set; } = new();
 
         private static List<DetectionRingItem> CreateDefaultDetectionRingItems()

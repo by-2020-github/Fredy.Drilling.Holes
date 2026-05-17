@@ -184,15 +184,15 @@ namespace Fredy.Drilling.Holes.Tools
             }
         }
 
-        public static CenterRoiBinaryPreviewResult? BuildCenterRoiBinaryPreview(BitmapSource source, int roiWidth, int roiHeight, int threshold, bool invert)
+        public static CenterRoiBinaryPreviewResult? BuildCenterRoiBinaryPreview(BitmapSource source, int roiWidth, int roiHeight, int threshold, bool invert, int circleRadius = 30)
         {
             if (source == null) return null;
 
             using Mat mat = BitmapSourceToMat(source);
-            return BuildCenterRoiBinaryPreview(mat, roiWidth, roiHeight, threshold, invert);
+            return BuildCenterRoiBinaryPreview(mat, roiWidth, roiHeight, threshold, invert, circleRadius);
         }
 
-        public static CenterRoiBinaryPreviewResult? BuildCenterRoiBinaryPreview(Mat source, int roiWidth, int roiHeight, int threshold, bool invert)
+        public static CenterRoiBinaryPreviewResult? BuildCenterRoiBinaryPreview(Mat source, int roiWidth, int roiHeight, int threshold, bool invert, int circleRadius = 30)
         {
             if (source == null || source.Empty()) return null;
 
@@ -224,7 +224,30 @@ namespace Fredy.Drilling.Holes.Tools
             var binaryImage = new Mat();
             Cv2.Threshold(gray, binaryImage, Math.Clamp(threshold, 0, 255), 255, invert ? ThresholdTypes.BinaryInv : ThresholdTypes.Binary);
 
-            return new CenterRoiBinaryPreviewResult(roiImage, binaryImage, roiRect, source.Width, source.Height);
+            var roiWithMarkers = roiImage.Clone();
+            DrawCenterCrossAndCircle(roiWithMarkers, circleRadius);
+
+            DrawCenterCrossAndCircle(binaryImage, circleRadius);
+
+            return new CenterRoiBinaryPreviewResult(roiWithMarkers, binaryImage, roiRect, source.Width, source.Height);
+        }
+
+        private static void DrawCenterCrossAndCircle(Mat image, int circleRadius)
+        {
+            if (image == null || image.Empty()) return;
+
+            int centerX = image.Width / 2;
+            int centerY = image.Height / 2;
+
+            // 灰度图用白色（128灰），彩色图用红色
+            var color = image.Channels() == 1 ? new Scalar(128) : new Scalar(0, 0, 255);
+            int thickness = 1;
+
+            Cv2.Line(image, new OpenCvSharp.Point(centerX, 0), new OpenCvSharp.Point(centerX, image.Height), color, thickness);
+            Cv2.Line(image, new OpenCvSharp.Point(0, centerY), new OpenCvSharp.Point(image.Width, centerY), color, thickness);
+
+            int radius = Math.Max(1, Math.Min(circleRadius, Math.Min(image.Width, image.Height) / 2));
+            Cv2.Circle(image, new OpenCvSharp.Point(centerX, centerY), radius, color, thickness);
         }
 
         /// <summary>
