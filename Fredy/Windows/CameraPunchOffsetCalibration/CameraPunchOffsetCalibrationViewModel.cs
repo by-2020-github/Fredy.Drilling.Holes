@@ -4,6 +4,7 @@ using Common.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Fredy.Drilling.Holes.Models;
+using Fredy.Drilling.Holes.Services;
 using HAL;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
@@ -24,6 +25,7 @@ namespace Fredy.Drilling.Holes.ViewModels
         private readonly IIOCard? _ioCard;
         private readonly IHardwareStateService? _hardwareStateService;
         private readonly ICamera? _camera;
+        private readonly CoordinateService? _coordinateService;
         private CancellationTokenSource? _cameraPreviewCancellationTokenSource;
         private Task? _cameraPreviewTask;
         private bool _disposed;
@@ -51,7 +53,7 @@ namespace Fredy.Drilling.Holes.ViewModels
             InitializeCollections();
         }
 
-        public CameraPunchOffsetCalibrationViewModel(ILogger<CameraPunchOffsetCalibrationViewModel> logger, IMotionService motionService, IIOCard ioCard, IHardwareStateService hardwareStateService, ICamera camera)
+        public CameraPunchOffsetCalibrationViewModel(ILogger<CameraPunchOffsetCalibrationViewModel> logger, IMotionService motionService, IIOCard ioCard, IHardwareStateService hardwareStateService, ICamera camera, CoordinateService coordinateService)
             : this()
         {
             _logger = logger;
@@ -59,13 +61,18 @@ namespace Fredy.Drilling.Holes.ViewModels
             _ioCard = ioCard;
             _hardwareStateService = hardwareStateService;
             _camera = camera;
+            _coordinateService = coordinateService;
+
+            // 从已持久化的校准数据初始化 UI 显示值
+            OffsetX = coordinateService.Calibration.CameraToPunchOffsetX;
+            OffsetY = coordinateService.Calibration.CameraToPunchOffsetY;
 
             InitializeCollections(hardwareStateService.InputCount, hardwareStateService.OutputCount);
             ApplySnapshot(hardwareStateService.CurrentState);
             _hardwareStateService.StateChanged += HardwareStateService_StateChanged;
             _ = _hardwareStateService.RefreshAsync();
             StartCameraPreview();
-            _logger.LogInformation("手动控制视图模型已初始化");
+            _logger.LogInformation("手动控制视图模型已初始化，当前相机偏移 OffsetX={OffsetX:F3}, OffsetY={OffsetY:F3}", OffsetX, OffsetY);
         }
 
         [RelayCommand]
@@ -193,10 +200,22 @@ namespace Fredy.Drilling.Holes.ViewModels
         [RelayCommand]
         private void CalculateAndSaveOffset()
         {
-            OffsetX = CameraX - PunchX;
-            OffsetY = CameraY - PunchY;
-            _logger?.LogInformation("计算 Offset 结果: OffsetX={OffsetX}, OffsetY={OffsetY}", OffsetX, OffsetY);
-            MessageBox.Show($"计算结果: \nOffsetX: {OffsetX:F3} \nOffsetY: {OffsetY:F3}\n(当前仅显示，未存入配置)", "计算完成", MessageBoxButton.OK, MessageBoxImage.Information);
+            if (_coordinateService is null)
+            {
+                _logger?.LogWarning("CoordinateService 未初始化，无法保存偏移校准结果");
+                return;
+            }
+
+            var offset = _coordinateService.CalibrateCameraToPunchOffset(
+                new Point2D(PunchX, PunchY),
+                new Point2D(CameraX, CameraY));
+
+            OffsetX = offset.X;
+            OffsetY = offset.Y;
+
+            MessageBox.Show(
+                $"校准完成并已保存：\nOffsetX: {OffsetX:F3} mm\nOffsetY: {OffsetY:F3} mm",
+                "相机偏移校准", MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
         [RelayCommand]

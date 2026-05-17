@@ -55,18 +55,39 @@
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
-                        <TextBlock Text="计算所得圆心：" FontSize="16" FontWeight="Bold" Grid.Row="0" Grid.Column="0" VerticalAlignment="Center"/>
+
+                        <!-- 相机对准圆心时的机械坐标（原始拟合值） -->
+                        <TextBlock Text="相机圆心坐标：" FontSize="15" FontWeight="Bold"
+                                   Grid.Row="0" Grid.Column="0" VerticalAlignment="Center" Foreground="{StaticResource Brush.Status.Blue}"/>
                         <StackPanel Orientation="Horizontal" Grid.Row="0" Grid.Column="1" Margin="10,0,0,0">
-                            <TextBlock Text="{Binding CalculatedCenterX, StringFormat=X: {0:F3}}" Foreground="{StaticResource Brush.Status.Red}" FontSize="16" FontWeight="Bold" Margin="0,0,15,0"/>
-                            <TextBlock Text="{Binding CalculatedCenterY, StringFormat=Y: {0:F3}}" Foreground="{StaticResource Brush.Status.Red}" FontSize="16" FontWeight="Bold"/>
+                            <TextBlock Text="{Binding CameraAtWorkpieceCenterX, StringFormat=X: {0:F3}}"
+                                       Foreground="{StaticResource Brush.Status.Blue}" FontSize="15" FontWeight="Bold" Margin="0,0,15,0"/>
+                            <TextBlock Text="{Binding CameraAtWorkpieceCenterY, StringFormat=Y: {0:F3}}"
+                                       Foreground="{StaticResource Brush.Status.Blue}" FontSize="15" FontWeight="Bold"/>
                         </StackPanel>
-                        <TextBlock Text="计算所得半径：" FontSize="16" FontWeight="Bold" Grid.Row="1" Grid.Column="0" Margin="0,10,0,0" VerticalAlignment="Center"/>
-                        <TextBlock Text="{Binding CalculatedRadius, StringFormat=R: {0:F3}}" Foreground="{StaticResource Brush.Status.Red}" FontSize="16" FontWeight="Bold" Grid.Row="1" Grid.Column="1" Margin="10,10,0,0"/>
+
+                        <!-- 冲针/工件坐标系圆心（= 相机圆心 − CameraToPunchOffset） -->
+                        <TextBlock Text="冲针圆心坐标：" FontSize="15" FontWeight="Bold"
+                                   Grid.Row="1" Grid.Column="0" Margin="0,8,0,0" VerticalAlignment="Center" Foreground="{StaticResource Brush.Status.Red}"/>
+                        <StackPanel Orientation="Horizontal" Grid.Row="1" Grid.Column="1" Margin="10,8,0,0">
+                            <TextBlock Text="{Binding CalculatedCenterX, StringFormat=X: {0:F3}}"
+                                       Foreground="{StaticResource Brush.Status.Red}" FontSize="15" FontWeight="Bold" Margin="0,0,15,0"/>
+                            <TextBlock Text="{Binding CalculatedCenterY, StringFormat=Y: {0:F3}}"
+                                       Foreground="{StaticResource Brush.Status.Red}" FontSize="15" FontWeight="Bold"/>
+                        </StackPanel>
+
+                        <!-- 拟合半径 -->
+                        <TextBlock Text="计算所得半径：" FontSize="15" FontWeight="Bold"
+                                   Grid.Row="2" Grid.Column="0" Margin="0,8,0,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="{Binding CalculatedRadius, StringFormat=R: {0:F3}}"
+                                   Foreground="{StaticResource Brush.Status.Red}" FontSize="15" FontWeight="Bold"
+                                   Grid.Row="2" Grid.Column="1" Margin="10,8,0,0"/>
                     </Grid>
                 </StackPanel>
             </GroupBox>

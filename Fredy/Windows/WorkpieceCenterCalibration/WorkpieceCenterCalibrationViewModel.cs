@@ -2,6 +2,7 @@
 using Common.Tools;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Fredy.Drilling.Holes.Services;
 using HAL;
 using Microsoft.Extensions.Logging;
 using System;
@@ -21,6 +22,7 @@ namespace Fredy.Drilling.Holes.ViewModels
         private readonly IMotionService? _motionService;
         private readonly IHardwareStateService? _hardwareStateService;
         private readonly ICamera? _camera;
+        private readonly CoordinateService? _coordinateService;
 
         private CancellationTokenSource? _cameraPreviewCancellationTokenSource;
         private Task? _cameraPreviewTask;
@@ -38,22 +40,34 @@ namespace Fredy.Drilling.Holes.ViewModels
         [ObservableProperty] private double _calculatedCenterY;
         [ObservableProperty] private double _calculatedRadius;
 
+        /// <summary>相机对准工件圆心时的机械坐标（拟合原始值）。</summary>
+        [ObservableProperty] private double _cameraAtWorkpieceCenterX;
+        [ObservableProperty] private double _cameraAtWorkpieceCenterY;
+
         public ObservableCollection<System.Windows.Point> EdgePoints { get; } = new();
 
         public WorkpieceCenterCalibrationViewModel()
         {
         }
 
-        public WorkpieceCenterCalibrationViewModel(ILogger<WorkpieceCenterCalibrationViewModel> logger, IMotionService motionService, IHardwareStateService hardwareStateService, ICamera camera)
+        public WorkpieceCenterCalibrationViewModel(ILogger<WorkpieceCenterCalibrationViewModel> logger, IMotionService motionService, IHardwareStateService hardwareStateService, ICamera camera, CoordinateService coordinateService)
         {
             _logger = logger;
             _motionService = motionService;
             _hardwareStateService = hardwareStateService;
             _camera = camera;
+            _coordinateService = coordinateService;
+
+            // 从已持久化的校准数据初始化 UI 显示值
+            CalculatedCenterX = coordinateService.Calibration.WorkpieceCenterX;
+            CalculatedCenterY = coordinateService.Calibration.WorkpieceCenterY;
+            CameraAtWorkpieceCenterX = coordinateService.Calibration.CameraAtWorkpieceCenterX;
+            CameraAtWorkpieceCenterY = coordinateService.Calibration.CameraAtWorkpieceCenterY;
 
             _hardwareStateService.StateChanged += HardwareStateService_StateChanged;
             _ = _hardwareStateService.RefreshAsync();
             StartCameraPreview();
+            _logger.LogInformation("工件圆心校准视图已初始化，当前圆心 CX={CX:F3}, CY={CY:F3}", CalculatedCenterX, CalculatedCenterY);
         }
 
         private void HardwareStateService_StateChanged(object? sender, HardwareStateChangedEventArgs e)
@@ -130,18 +144,31 @@ namespace Fredy.Drilling.Holes.ViewModels
                 return;
             }
 
-            var points = EdgePoints.Select(p => (p.X, p.Y));
-            if (CircleFitter.FitCircle(points, out double cx, out double cy, out double r))
+            if (_coordinateService is null)
             {
-                CalculatedCenterX = cx;
-                CalculatedCenterY = cy;
-                CalculatedRadius = r;
-                _logger?.LogInformation("拟合成功: CX={CX}, CY={CY}, R={R}", cx, cy, r);
-                MessageBox.Show($"圆心坐标 X: {cx:F3}\n圆心坐标 Y: {cy:F3}\n半径 R: {r:F3}", "拟合结果", MessageBoxButton.OK, MessageBoxImage.Information);
+                _logger?.LogWarning("CoordinateService 未初始化，无法保存工件圆心");
+                return;
             }
-            else
+
+            try
             {
-                MessageBox.Show("特征点共线或异常，拟合失败", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                var edgePoints = EdgePoints.Select(p => new Point2D(p.X, p.Y));
+                var center = _coordinateService.CalibrateWorkpieceByEdgePoints(edgePoints, out double r);
+
+                CalculatedCenterX = center.X;
+                CalculatedCenterY = center.Y;
+                CalculatedRadius = r;
+                CameraAtWorkpieceCenterX = _coordinateService.Calibration.CameraAtWorkpieceCenterX;
+                CameraAtWorkpieceCenterY = _coordinateService.Calibration.CameraAtWorkpieceCenterY;
+
+                MessageBox.Show(
+                    $"校准完成并已保存：\n圆心 X: {center.X:F3} mm\n圆心 Y: {center.Y:F3} mm\n半径 R: {r:F3} mm",
+                    "工件圆心校准", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "工件圆心拟合失败");
+                MessageBox.Show($"拟合失败：{ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
