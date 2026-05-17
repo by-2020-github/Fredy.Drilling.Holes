@@ -46,11 +46,11 @@ namespace Fredy.Drilling.Holes.UserControls
 
         private string _selectedMotionType = MotionSimulatorType;
         private int _cardNo;
-        private int _startSpeed = 100;
-        private int _driveSpeed = 9000;
-        private int _acceleration = 1250;
-        private int _homeSearchSpeed = 3000;
-        private int _homeApproachSpeed = 700;
+        private double _startSpeed = 0.1;
+        private double _driveSpeed = 9.0;
+        private double _acceleration = 1.25;
+        private double _homeSearchSpeed = 3.0;
+        private double _homeApproachSpeed = 0.7;
         private int _axisNo = 1;
         private double _absolutePosition;
         private double _relativeDistance = 10d;
@@ -78,31 +78,31 @@ namespace Fredy.Drilling.Holes.UserControls
             set => SetProperty(ref _cardNo, value);
         }
 
-        public int StartSpeed
+        public double StartSpeed
         {
             get => _startSpeed;
             set => SetProperty(ref _startSpeed, value);
         }
 
-        public int DriveSpeed
+        public double DriveSpeed
         {
             get => _driveSpeed;
             set => SetProperty(ref _driveSpeed, value);
         }
 
-        public int Acceleration
+        public double Acceleration
         {
             get => _acceleration;
             set => SetProperty(ref _acceleration, value);
         }
 
-        public int HomeSearchSpeed
+        public double HomeSearchSpeed
         {
             get => _homeSearchSpeed;
             set => SetProperty(ref _homeSearchSpeed, value);
         }
 
-        public int HomeApproachSpeed
+        public double HomeApproachSpeed
         {
             get => _homeApproachSpeed;
             set => SetProperty(ref _homeApproachSpeed, value);

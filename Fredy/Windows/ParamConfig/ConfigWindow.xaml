@@ -18,11 +18,14 @@
         </Grid.ColumnDefinitions>
 
         <TabControl Grid.Column="0">
-            <TabItem Header="运动卡调试">
-                <usercontrols:MotionDebugControl></usercontrols:MotionDebugControl>
-            </TabItem>
-            <TabItem Header="运动参数设置">
+           
+            <TabItem Header="运动控制卡">
                 <TabControl Margin="10">
+
+                    <TabItem Header="运动卡调试">
+                        <usercontrols:MotionDebugControl></usercontrols:MotionDebugControl>
+                    </TabItem>
+
                     <TabItem Header="控制器参数">
                         <ScrollViewer VerticalScrollBarVisibility="Auto">
                             <StackPanel Margin="10">
@@ -270,14 +273,18 @@
                             </GroupBox>
                         </Grid>
                     </TabItem>
+
+      
                 </TabControl>
             </TabItem>
 
-            <TabItem Header="相机调试">
-                <views:HkCameraControl></views:HkCameraControl>
-            </TabItem>
-            <TabItem Header="相机参数">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
+
+
+            <TabItem Header="相机">
+                <TabControl>
+
+                    <TabItem Header="相机参数">
+                         <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="10">
                         <GroupBox Header="相机基础配置" Background="{StaticResource Brush.Status.Blue.Subtle}" Padding="10" Margin="0,0,0,10">
                             <Grid>
@@ -379,6 +386,15 @@
                         </GroupBox>
                     </StackPanel>
                 </ScrollViewer>
+                    
+                    </TabItem>
+                       
+                    <TabItem Header="相机调试">
+                        <views:HkCameraControl></views:HkCameraControl>
+                    </TabItem>
+
+                </TabControl>
+              
             </TabItem>
 
             <TabItem Header="一道探测参数">
