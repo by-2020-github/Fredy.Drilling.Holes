@@ -3,6 +3,27 @@ using System.Collections.Generic;
 
 namespace Fredy.Drilling.Holes.Models
 {
+    /// <summary>
+    /// 坐标校准数据（用于 JSON 持久化，与 CoordinateCalibration 领域类解耦）。
+    /// </summary>
+    public class CoordinateCalibrationData
+    {
+        /// <summary>相机视野中心相对于冲针的 X 偏移（机械坐标系，校准1结果）。</summary>
+        public double CameraToPunchOffsetX { get; set; }
+
+        /// <summary>相机视野中心相对于冲针的 Y 偏移（机械坐标系，校准1结果）。</summary>
+        public double CameraToPunchOffsetY { get; set; }
+
+        /// <summary>相机对准工件圆心时的机械坐标 X（校准2原始测量值）。</summary>
+        public double CameraAtWorkpieceCenterX { get; set; }
+
+        /// <summary>相机对准工件圆心时的机械坐标 Y（校准2原始测量值）。</summary>
+        public double CameraAtWorkpieceCenterY { get; set; }
+
+        /// <summary>相机轴向旋转修正角（弧度），默认 0。</summary>
+        public double CameraToWorkpieceRotationRad { get; set; }
+    }
+
     // 通用运动参数 (初速度 mm/s, 驱动速度 mm/s, 加速度 mm/s², 延时 ms)
     public partial class MotionParams : ObservableObject
     {
@@ -234,6 +255,8 @@ namespace Fredy.Drilling.Holes.Models
         public int CenterRoiThreshold { get; set; } = 128;
 
         public bool CenterRoiBinaryInvert { get; set; }
+
+        public CoordinateCalibrationData CoordinateCalibration { get; set; } = new();
 
         private static List<DetectionRingItem> CreateDefaultDetectionRingItems()
         {

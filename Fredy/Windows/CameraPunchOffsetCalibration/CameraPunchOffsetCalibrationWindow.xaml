@@ -8,8 +8,8 @@
              xmlns:models="clr-namespace:Fredy.Drilling.Holes.Models"
              xmlns:uc="clr-namespace:Fredy.Drilling.Holes.UserControls"
              mc:Ignorable="d" Background="{StaticResource Brush.Background.Subtle}"
-             d:DesignHeight="700" d:DesignWidth="1100"
-            MaxHeight="1024" MaxWidth="1280" Height="Auto" 
+             d:DesignHeight="1024" d:DesignWidth="1100"
+             MaxHeight="1024" MaxWidth="1280" Height="Auto" 
               Title="相机/冲针偏移校准"
               d:DataContext="{d:DesignInstance Type=vm:CameraPunchOffsetCalibrationViewModel, IsDesignTimeCreatable=True}">
 
@@ -19,171 +19,181 @@
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
 
-        <StackPanel Grid.Column="0">
-            <Grid Height="180">
-                <Grid.Resources>
-                    <Style TargetType="Button">
-                        <Setter Property="FontSize" Value="20"/>
-                        <Setter Property="FontWeight" Value="Bold"/>
-                        <Setter Property="Margin" Value="5"/>
-                    </Style>
-                </Grid.Resources>
-                <Button Content="X-" Background="{StaticResource Brush.Status.Yellow}" HorizontalAlignment="Left" VerticalAlignment="Center" Width="70" Height="70" Command="{Binding MoveAxisCommand}" CommandParameter="X-"/>
-                <Button Content="X+" Background="{StaticResource Brush.Status.Yellow}" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,100,0" Width="70" Height="70" Command="{Binding MoveAxisCommand}" CommandParameter="X+"/>
-                <Button Content="Y+" Background="{StaticResource Brush.Status.Green}" HorizontalAlignment="Center" VerticalAlignment="Top" Width="70" Height="70" Margin="0,0,80,0" Command="{Binding MoveAxisCommand}" CommandParameter="Y+"/>
-                <Button Content="Y-" Background="{StaticResource Brush.Status.Green}" HorizontalAlignment="Center" VerticalAlignment="Bottom" Width="70" Height="70" Margin="0,0,80,0" Command="{Binding MoveAxisCommand}" CommandParameter="Y-"/>
-                <Button Content="Z+" Background="{StaticResource Brush.Status.Blue}" HorizontalAlignment="Right" VerticalAlignment="Top" Width="70" Height="70" Command="{Binding MoveAxisCommand}" CommandParameter="Z+"/>
-                <Button Content="Z-" Background="{StaticResource Brush.Status.Blue}" HorizontalAlignment="Right" VerticalAlignment="Bottom" Width="70" Height="70" Command="{Binding MoveAxisCommand}" CommandParameter="Z-"/>
-            </Grid>
+        <Grid Grid.Column="0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
 
-            <StackPanel Orientation="Horizontal" Margin="0,20">
-                <TextBlock Text="点动步距：" FontSize="22" FontWeight="Bold" VerticalAlignment="Center"/>
-                <ComboBox Width="200" Height="40" FontSize="20" ItemsSource="{Binding JogStepOptions}" SelectedItem="{Binding JogStep}"/>
-            </StackPanel>
+                <!-- 点动控制 -->
+                <Grid Grid.Row="0">
+                    <Grid.Resources>
+                        <Style TargetType="Button">
+                            <Setter Property="FontSize" Value="18"/>
+                            <Setter Property="FontWeight" Value="Bold"/>
+                            <Setter Property="Margin" Value="3"/>
+                            <Setter Property="Width" Value="62"/>
+                            <Setter Property="Height" Value="62"/>
+                        </Style>
+                    </Grid.Resources>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="16"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
 
-            <GroupBox Header="GPIO_IN" Margin="0,15">
-                <ItemsControl ItemsSource="{Binding GpioIn}">
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <UniformGrid Columns="12"/>
-                        </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate DataType="{x:Type models:GpioItem}">
-                            <Border BorderBrush="{StaticResource Brush.Border.Strong}" BorderThickness="1" Margin="1" Height="25"
-                                    Background="{Binding IsActive, Converter={StaticResource StatusColorConverter}}">
-                                <TextBlock Text="{Binding Id}" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="10"/>
-                            </Border>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </GroupBox>
+                    <Button Grid.Row="1" Grid.Column="0" Content="X-" Background="{StaticResource Brush.Status.Yellow}" Command="{Binding MoveAxisCommand}" CommandParameter="X-"/>
+                    <Button Grid.Row="1" Grid.Column="2" Content="X+" Background="{StaticResource Brush.Status.Yellow}" Command="{Binding MoveAxisCommand}" CommandParameter="X+"/>
+                    <Button Grid.Row="0" Grid.Column="1" Content="Y+" Background="{StaticResource Brush.Status.Green}" Command="{Binding MoveAxisCommand}" CommandParameter="Y+"/>
+                    <Button Grid.Row="2" Grid.Column="1" Content="Y-" Background="{StaticResource Brush.Status.Green}" Command="{Binding MoveAxisCommand}" CommandParameter="Y-"/>
+                    <Button Grid.Row="0" Grid.Column="4" Content="Z+" Background="{StaticResource Brush.Status.Blue}" Command="{Binding MoveAxisCommand}" CommandParameter="Z+"/>
+                    <Button Grid.Row="2" Grid.Column="4" Content="Z-" Background="{StaticResource Brush.Status.Blue}" Command="{Binding MoveAxisCommand}" CommandParameter="Z-"/>
+                </Grid>
 
-            <GroupBox Header="GPIO_OUT" Margin="0,5">
-                <ItemsControl ItemsSource="{Binding GpioOut}">
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <StackPanel Orientation="Horizontal"/>
-                        </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate DataType="{x:Type models:GpioItem}">
-                            <Button Width="30"
-                                    Height="25"
-                                    Margin="2"
-                                    Padding="0"
-                                    BorderBrush="{StaticResource Brush.Border.Strong}"
-                                    BorderThickness="1"
-                                    Background="{Binding IsActive, Converter={StaticResource StatusColorConverter}}"
-                                    Command="{Binding DataContext.ToggleOutputCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                    CommandParameter="{Binding Id}">
-                                <TextBlock Text="{Binding Id}" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            </Button>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </GroupBox>
-
-            <TextBlock Text="机台坐标" FontSize="20" FontWeight="Bold" Margin="0,15,0,5"/>
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="150"/>
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
-                <StackPanel Grid.Column="0">
-                    <TextBlock Text="X:" FontSize="24" Margin="0,5"/>
-                    <TextBlock Text="Y:" FontSize="24" Margin="0,5"/>
-                    <TextBlock Text="Z:" FontSize="24" Margin="0,5"/>
+                <!-- 点动步距 -->
+                <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,8">
+                    <TextBlock Text="点动步距：" FontSize="20" FontWeight="Bold" VerticalAlignment="Center"/>
+                    <ComboBox VerticalAlignment="Center" Width="180" Height="36" FontSize="18" ItemsSource="{Binding JogStepOptions}" SelectedItem="{Binding JogStep}"/>
+                    <TextBlock Text="mm" FontSize="18" VerticalAlignment="Center" Margin="8,0,0,0"/>
                 </StackPanel>
-                <StackPanel Grid.Column="1" Margin="10,0">
-                    <Border Background="{StaticResource Brush.Status.Green}" Margin="0,5" Height="35">
-                        <TextBlock Text="{Binding MachineStatus.PosX, StringFormat=N3}" FontSize="22" FontWeight="Bold" HorizontalAlignment="Right" VerticalAlignment="Center"/>
-                    </Border>
-                    <Border Background="{StaticResource Brush.Status.Green}" Margin="0,5" Height="35">
-                        <TextBlock Text="{Binding MachineStatus.PosY, StringFormat=N3}" FontSize="22" FontWeight="Bold" HorizontalAlignment="Right" VerticalAlignment="Center"/>
-                    </Border>
-                    <Border Background="{StaticResource Brush.Status.Green}" Margin="0,5" Height="35">
-                        <TextBlock Text="{Binding MachineStatus.PosZ, StringFormat=N3}" FontSize="22" FontWeight="Bold" HorizontalAlignment="Right" VerticalAlignment="Center"/>
-                    </Border>
-                </StackPanel>
-                <StackPanel Grid.Column="2">
-                    <StackPanel Orientation="Horizontal" Margin="0,5">
-                        <TextBlock Text="未回零" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                        <Button Content="X轴回零" Width="100" Command="{Binding HomeAxisCommand}" CommandParameter="X"/>
-                    </StackPanel>
-                    <Button Content="Y轴回零" Width="100" Margin="50,5,0,5" Command="{Binding HomeAxisCommand}" CommandParameter="Y"/>
-                    <Button Content="Z轴回零" Width="100" Margin="50,5,0,5" Command="{Binding HomeAxisCommand}" CommandParameter="Z"/>
-                </StackPanel>
-            </Grid>
 
-            <GroupBox Header="坐标偏差校准 (Offset)" Margin="0,15" Background="{StaticResource Brush.Background.Subtle}">
-                <StackPanel Margin="5">
-                    <Grid>
+                <!-- GPIO_IN -->
+                <GroupBox Grid.Row="2" Header="GPIO_IN" Margin="0,6,0,0">
+                    <ItemsControl ItemsSource="{Binding GpioIn}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <UniformGrid Columns="12"/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type models:GpioItem}">
+                                <Border BorderBrush="{StaticResource Brush.Border.Strong}" BorderThickness="1" Margin="1" Height="22"
+                                        Background="{Binding IsActive, Converter={StaticResource StatusColorConverter}}">
+                                    <TextBlock Text="{Binding Id}" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="10"/>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </GroupBox>
+
+                <!-- GPIO_OUT -->
+                <GroupBox Grid.Row="3" Header="GPIO_OUT" Margin="0,4,0,0">
+                    <ItemsControl ItemsSource="{Binding GpioOut}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal"/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type models:GpioItem}">
+                                <Button Width="28" Height="22" Margin="2" Padding="0"
+                                        BorderBrush="{StaticResource Brush.Border.Strong}" BorderThickness="1"
+                                        Background="{Binding IsActive, Converter={StaticResource StatusColorConverter}}"
+                                        Command="{Binding DataContext.ToggleOutputCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                        CommandParameter="{Binding Id}">
+                                    <TextBlock Text="{Binding Id}" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </GroupBox>
+
+                <!-- 机台坐标标题 -->
+                <TextBlock Grid.Row="4" Text="机台坐标" FontSize="18" FontWeight="Bold" Margin="0,8,0,4"/>
+
+                <!-- 机台坐标 -->
+                <Grid Grid.Row="5">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="38"/>
+                        <RowDefinition Height="38"/>
+                        <RowDefinition Height="38"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Grid.Column="0" Text="X:" FontSize="22" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Y:" FontSize="22" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                    <TextBlock Grid.Row="2" Grid.Column="0" Text="Z:" FontSize="22" VerticalAlignment="Center" Margin="0,0,6,0"/>
+
+                    <Border Grid.Row="0" Grid.Column="1" Background="{StaticResource Brush.Status.Green}" Margin="0,3">
+                        <TextBlock Text="{Binding MachineStatus.PosX, StringFormat=N3}" FontSize="20" FontWeight="Bold" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                    </Border>
+                    <Border Grid.Row="1" Grid.Column="1" Background="{StaticResource Brush.Status.Green}" Margin="0,3">
+                        <TextBlock Text="{Binding MachineStatus.PosY, StringFormat=N3}" FontSize="20" FontWeight="Bold" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                    </Border>
+                    <Border Grid.Row="2" Grid.Column="1" Background="{StaticResource Brush.Status.Green}" Margin="0,3">
+                        <TextBlock Text="{Binding MachineStatus.PosZ, StringFormat=N3}" FontSize="20" FontWeight="Bold" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                    </Border>
+
+                    <Button Grid.Row="0" Grid.Column="2" Content="X轴回零" Width="85" Margin="6,3,0,3" Command="{Binding HomeAxisCommand}" CommandParameter="X"/>
+                    <Button Grid.Row="1" Grid.Column="2" Content="Y轴回零" Width="85" Margin="6,3,0,3" Command="{Binding HomeAxisCommand}" CommandParameter="Y"/>
+                    <Button Grid.Row="2" Grid.Column="2" Content="Z轴回零" Width="85" Margin="6,3,0,3" Command="{Binding HomeAxisCommand}" CommandParameter="Z"/>
+                </Grid>
+
+                <!-- 坐标偏差校准（填满剩余高度） -->
+                <GroupBox Grid.Row="6" Header="坐标偏差校准 (Offset)" Margin="0,8,0,0" Background="{StaticResource Brush.Background.Subtle}">
+                    <Grid Margin="4">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="1.5*"/>
                             <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="1.5*"/>
+                            <ColumnDefinition Width="1.4*"/>
                         </Grid.ColumnDefinitions>
-                        <Button Content="1. 记录冲针" FontSize="16" Height="40" Margin="5" Command="{Binding MarkPunchPositionCommand}"/>
-                        <Button Grid.Column="1" Content="打孔" FontSize="16" Height="40" Margin="5" Command="{Binding TestPunchCommand}" Background="{StaticResource Brush.Status.Red.Subtle}"/>
-                        <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="10,0,0,0">
-                            <TextBlock Text="{Binding PunchX, StringFormat=X: {0:F3}}"/>
-                            <TextBlock Text="{Binding PunchY, StringFormat=Y: {0:F3}}"/>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <Button Grid.Row="0" Grid.Column="0" Content="1. 记录冲针" FontSize="14" Margin="3" Command="{Binding MarkPunchPositionCommand}"/>
+                        <Button Grid.Row="0" Grid.Column="1" Content="打孔" FontSize="14" Margin="3" Command="{Binding TestPunchCommand}" Background="{StaticResource Brush.Status.Red.Subtle}"/>
+                        <StackPanel Grid.Row="0" Grid.Column="2" VerticalAlignment="Center" Margin="8,0,0,0">
+                            <TextBlock Text="{Binding PunchX, StringFormat=X: {0:F3}}" FontSize="12"/>
+                            <TextBlock Text="{Binding PunchY, StringFormat=Y: {0:F3}}" FontSize="12"/>
+                        </StackPanel>
+
+                        <Button Grid.Row="1" Grid.Column="0" Content="2. 记录相机" FontSize="14" Margin="3" Command="{Binding MarkCameraPositionCommand}"/>
+                        <CheckBox Grid.Row="1" Grid.Column="1" Content="视觉辅助" VerticalAlignment="Center" HorizontalAlignment="Center" IsChecked="{Binding EnableVisionAssist}"/>
+                        <StackPanel Grid.Row="1" Grid.Column="2" VerticalAlignment="Center" Margin="8,0,0,0">
+                            <TextBlock Text="{Binding CameraX, StringFormat=X: {0:F3}}" FontSize="12"/>
+                            <TextBlock Text="{Binding CameraY, StringFormat=Y: {0:F3}}" FontSize="12"/>
+                        </StackPanel>
+
+                        <Button Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" Content="3. 计算并应用 Offset"
+                                FontSize="15" FontWeight="Bold" Margin="3"
+                                Background="{StaticResource Brush.Status.Green}"
+                                Command="{Binding CalculateAndSaveOffsetCommand}"/>
+                        <StackPanel Grid.Row="2" Grid.Column="2" VerticalAlignment="Center" Margin="8,0,0,0">
+                            <TextBlock Text="{Binding OffsetX, StringFormat=dX: {0:F3}}" FontWeight="Bold" Foreground="{StaticResource Brush.Status.Red}" FontSize="14"/>
+                            <TextBlock Text="{Binding OffsetY, StringFormat=dY: {0:F3}}" FontWeight="Bold" Foreground="{StaticResource Brush.Status.Red}" FontSize="14"/>
                         </StackPanel>
                     </Grid>
-                    <Grid Margin="0,5">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="1.5*"/>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="1.5*"/>
-                        </Grid.ColumnDefinitions>
-                        <Button Content="2. 记录相机" FontSize="16" Height="40" Margin="5" Command="{Binding MarkCameraPositionCommand}"/>
-                        <CheckBox Grid.Column="1" Content="视觉辅助" VerticalAlignment="Center" HorizontalAlignment="Center" IsChecked="{Binding EnableVisionAssist}"/>
-                        <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="10,0,0,0">
-                            <TextBlock Text="{Binding CameraX, StringFormat=X: {0:F3}}"/>
-                            <TextBlock Text="{Binding CameraY, StringFormat=Y: {0:F3}}"/>
-                        </StackPanel>
-                    </Grid>
-                    <Grid Margin="0,5">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="2.5*"/>
-                            <ColumnDefinition Width="1.5*"/>
-                        </Grid.ColumnDefinitions>
-                        <Button Content="3. 计算并应用 Offset" FontSize="18" FontWeight="Bold" Height="45" Margin="5" Background="{StaticResource Brush.Status.Green}" Command="{Binding CalculateAndSaveOffsetCommand}"/>
-                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="10,0,0,0">
-                            <TextBlock Text="{Binding OffsetX, StringFormat=dX: {0:F3}}" FontWeight="Bold" Foreground="{StaticResource Brush.Status.Red}" FontSize="16"/>
-                            <TextBlock Text="{Binding OffsetY, StringFormat=dY: {0:F3}}" FontWeight="Bold" Foreground="{StaticResource Brush.Status.Red}" FontSize="16"/>
-                        </StackPanel>
-                    </Grid>
-                </StackPanel>
-            </GroupBox>
-        </StackPanel>
+                </GroupBox>
+        </Grid>
 
         <Grid Grid.Column="1" Margin="10,0,0,0">
             <Grid.RowDefinitions>
                 <RowDefinition Height="*"/>
-                <RowDefinition Height="100"/>
+                <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
             <Border x:Name="LiveVideo" BorderBrush="{StaticResource Brush.Border.Strong}" BorderThickness="1" Background="{StaticResource Brush.Background.Disabled}">
                 <uc:CameraViewerControl ImageMat="{Binding CameraPreviewMat}" />
             </Border>
-
-            <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Bottom">
-                <Button Content="-" Width="60" Height="60" Background="{StaticResource Brush.Status.Blue.Subtle}" Command="{Binding ChangeSizeCommand}" CommandParameter="Canvas-"/>
-                <StackPanel VerticalAlignment="Center" Margin="10,0">
-                     <hc:NumericUpDown Value="{Binding CanvasSize, UpdateSourceTrigger=PropertyChanged}" Width="80" FontSize="18" HorizontalContentAlignment="Center" Style="{StaticResource NumericIntUpDownStyle}" Margin="0"/>
-                    <TextBlock Text="画面大小" HorizontalAlignment="Center"/>
-                </StackPanel>
-                <Button Content="+" Width="60" Height="60" Background="{StaticResource Brush.Status.Blue.Subtle}" Margin="0,0,20,0" Command="{Binding ChangeSizeCommand}" CommandParameter="Canvas+"/>
-
-                <Button Content="-" Width="60" Height="60" Background="{StaticResource Brush.Status.Yellow.Subtle}" Command="{Binding ChangeSizeCommand}" CommandParameter="Ring-"/>
-                <StackPanel VerticalAlignment="Center" Margin="10,0">
-                     <hc:NumericUpDown Value="{Binding RingSize, UpdateSourceTrigger=PropertyChanged}" Width="80" FontSize="18" HorizontalContentAlignment="Center" Style="{StaticResource NumericIntUpDownStyle}" Margin="0"/>
-                    <TextBlock Text="圈大小：" HorizontalAlignment="Center"/>
-                </StackPanel>
-                <Button Content="+" Width="60" Height="60" Background="{StaticResource Brush.Status.Yellow.Subtle}" Command="{Binding ChangeSizeCommand}" CommandParameter="Ring+"/>
-            </StackPanel>
         </Grid>
     </Grid>
 </Window>

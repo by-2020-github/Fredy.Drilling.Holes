@@ -202,6 +202,7 @@ namespace Fredy.Drilling.Holes
             services.AddSingleton<ISecondPassAlignmentContext, SecondPassAlignmentContext>();
             services.AddSingleton(_ => new PathManager(AppContext.BaseDirectory));
             services.AddSingleton<RecipeService>();
+            services.AddSingleton<CoordinateService>();
 
             services.AddSingleton(logStore);
             services.AddSingleton<IAppLogStore>(logStore);

@@ -59,6 +59,8 @@ namespace Fredy.Drilling.Holes.Services
                     var archiveFileName = $"config-{DateTime.Now:yyyyMMdd-HHmmss}.json";
                     var archivePath = Path.Combine(archiveDirectory, archiveFileName);
                     File.Copy(configFilePath, archivePath, overwrite: true);
+
+
                 }
 
                 var normalized = Clone(config);
