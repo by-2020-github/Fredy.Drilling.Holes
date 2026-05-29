@@ -1,4 +1,5 @@
 using HAL;
+using Serilog;
 using System;
 using System.Collections.Specialized;
 using System.ComponentModel;
@@ -17,7 +18,7 @@ namespace Fredy.Drilling.Holes.UserControls
 
             if (!DesignerProperties.GetIsInDesignMode(this))
             {
-                _viewModel = new MotionDebugViewModel();
+                _viewModel = new MotionDebugViewModel(Log.Logger);
                 DataContext = _viewModel;
                 _viewModel.Logs.CollectionChanged += Logs_CollectionChanged;
                 Unloaded += MotionDebugControl_Unloaded;

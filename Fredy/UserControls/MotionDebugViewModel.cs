@@ -27,13 +27,15 @@ namespace Fredy.Drilling.Holes.UserControls
         private bool _refreshFailureReported;
         private long _lastNativeCallSequence;
         private readonly ConfigService? _configService;
+        private readonly ILogger _logger;
 
-        public MotionDebugViewModel()
+        public MotionDebugViewModel(ILogger logger)
         {
             _configService = App.ServiceProvider?.GetService<ConfigService>();
             MotionTypes = [MotionSimulatorType, MotionAdt8940Type];
             StartRefreshLoop();
             AddLog("调试面板已就绪，请先初始化控制器。");
+            this._logger = logger;
         }
 
         public ObservableCollection<string> MotionTypes { get; }
@@ -310,10 +312,10 @@ namespace Fredy.Drilling.Holes.UserControls
         {
             if (!IsMotionAdt8940Selected)
             {
-                return new MotionSimulator(Log.Logger);
+                return new MotionSimulator(_logger);
             }
-
-            var motion = new MotionAdt8940(Log.Logger, CardNo, StartSpeed, DriveSpeed, Acceleration, HomeSearchSpeed, HomeApproachSpeed);
+            _logger.Information("Initializing MotionAdt8940 with CardNo={CardNo}, StartSpeed={StartSpeed}, DriveSpeed={DriveSpeed}, Acceleration={Acceleration}, HomeSearchSpeed={HomeSearchSpeed}, HomeApproachSpeed={HomeApproachSpeed}", CardNo, StartSpeed, DriveSpeed, Acceleration, HomeSearchSpeed, HomeApproachSpeed);
+            var motion = new MotionAdt8940(_logger, CardNo, StartSpeed, DriveSpeed, Acceleration, HomeSearchSpeed, HomeApproachSpeed);
             var config = _configService?.CurrentConfig;
             if (config is not null)
             {

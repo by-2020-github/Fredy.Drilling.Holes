@@ -239,14 +239,16 @@ namespace BLL
             CancellationToken cancellationToken,
             Action<AxisParam> updateAxis)
         {
+            _logger.Verbose("请求移动轴 {AxisNo} 到位置 {Position}，速度 {Velocity}，等待完成: {Wait}", axis.AxisNo, position, velocity, wait);
             ValidateAxisLimit(axis, position);
             updateAxis(axis);
             await _motion.EnableAsync(axis.AxisNo).ConfigureAwait(false);
             await _motion.MoveAbsoluteAsync(axis.AxisNo, position, wait, velocity, cancellationToken).ConfigureAwait(false);
         }
 
-        private static void ValidateAxisLimit(AxisParam axis, double position)
+        private void ValidateAxisLimit(AxisParam axis, double position)
         {
+            _logger.Verbose("验证轴 {AxisNo} 的目标位置 {Position} 是否在限位范围内,限位：左 {LeftLimit}, 右 {RightLimit}", axis.AxisNo, position, axis.LeftLimit, axis.RightLimit);
             if (axis.LeftLimit.HasValue && position < axis.LeftLimit.Value)
             {
                 throw new ArgumentOutOfRangeException(nameof(position), position, $"Axis {axis.AxisNo} position is less than left limit {axis.LeftLimit.Value}.");

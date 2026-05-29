@@ -110,7 +110,7 @@ namespace HAL
                 position = axisState.Position;
             }
 
-            _logger.Verbose("[MotionSimulator] GetPositionAsync: AxisNo={AxisNo}, Position={Position}", axisNo, position);
+            //_logger.Verbose("[MotionSimulator] GetPositionAsync: AxisNo={AxisNo}, Position={Position}", axisNo, position);
             return Task.FromResult(position);
         }
 

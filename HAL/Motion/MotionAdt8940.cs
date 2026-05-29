@@ -13,9 +13,16 @@ namespace HAL
     {
         private readonly ILogger _logger;
 
+        /// <summary>
+        /// IsNegative指示传感器是否在负方向安装:
+        //  true（默认）：开关激活时当前在负方向，复位时要往正方向走
+        //  false: 开关在正方形安装，开关激活时当前在正方向，复位时要往负方向走
+        /// </summary>
+        /// <param name="PortIndex"></param>
+        /// <param name="IsNegative"></param>
         public readonly record struct HomingPort(
             int PortIndex,
-            bool IsLowLevelActive);
+            bool IsNegative);
 
         public readonly record struct HomingOptions(
             double HomeSearchSpeed,
@@ -308,24 +315,24 @@ namespace HAL
         private async Task HomeZAxisAsync(int axisNo, CancellationToken cancellationToken)
         {
             var port = GetMechanicalPort(axisNo);
-            var activeLevel = GetActiveLevel(port);
-            var inactiveLevel = GetInactiveLevel(port);
+            var towardHomeDirection = GetTowardHomeDirection(port);
+            var awayFromHomeDirection = GetOppositeDirection(towardHomeDirection);
             var currentLevel = await ReadInputLevelAsync(port.PortIndex, cancellationToken).ConfigureAwait(false);
             var axis = GetAxisParam(axisNo);
             var startSpeedPulse = ToSpeedPulse(_startSpeed, axis);
             var searchSpeedPulse = ToSpeedPulse(_homingOptions.HomeSearchSpeed, axis);
             var accelPulse = ToAccelerationPulse(_acceleration, axis);
 
-            LogHomeDebug("Axis {AxisNo} Z homing start. Port={PortIndex}, ActiveLevel={ActiveLevel}, InactiveLevel={InactiveLevel}, CurrentLevel={CurrentLevel}", axisNo, port.PortIndex, activeLevel, inactiveLevel, currentLevel);
+            LogHomeDebug("Axis {AxisNo} Z homing start. Port={PortIndex}, CurrentLevel={CurrentLevel}, TowardDirection={TowardDirection}, AwayDirection={AwayDirection}", axisNo, port.PortIndex, currentLevel, towardHomeDirection, awayFromHomeDirection);
 
-            if (currentLevel == activeLevel)
+            if (currentLevel != 0)
             {
                 LogHomeDebug("Axis {AxisNo} Z homing detected active level initially. Moving away from sensor first.", axisNo);
                 await MoveContinuousUntilInputLevelAsync(
                     axisNo,
-                    _homingOptions.ZHomeTowardPositiveDirection ? 0 : 1,
+                    awayFromHomeDirection,
                     port,
-                    inactiveLevel,
+                    0,
                     startSpeedPulse,
                     searchSpeedPulse,
                     accelPulse,
@@ -333,12 +340,12 @@ namespace HAL
                     cancellationToken).ConfigureAwait(false);
             }
 
-            LogHomeDebug("Axis {AxisNo} Z homing moving toward home sensor. TowardPositive={TowardPositive}", axisNo, _homingOptions.ZHomeTowardPositiveDirection);
+            LogHomeDebug("Axis {AxisNo} Z homing moving toward home sensor. TowardDirection={TowardDirection}", axisNo, towardHomeDirection);
             await MoveContinuousUntilInputLevelAsync(
                 axisNo,
-                _homingOptions.ZHomeTowardPositiveDirection ? 1 : 0,
+                towardHomeDirection,
                 port,
-                activeLevel,
+                1,
                 startSpeedPulse,
                 searchSpeedPulse,
                 accelPulse,
@@ -362,8 +369,8 @@ namespace HAL
         private async Task HomeXYMechanicalAsync(int axisNo, CancellationToken cancellationToken)
         {
             var port = GetMechanicalPort(axisNo);
-            var activeLevel = GetActiveLevel(port);
-            var inactiveLevel = GetInactiveLevel(port);
+            var towardHomeDirection = GetTowardHomeDirection(port);
+            var awayFromHomeDirection = GetOppositeDirection(towardHomeDirection);
             var currentLevel = await ReadInputLevelAsync(port.PortIndex, cancellationToken).ConfigureAwait(false);
             var axis = GetAxisParam(axisNo);
             var startSpeedPulse = ToSpeedPulse(_startSpeed, axis);
@@ -373,17 +380,17 @@ namespace HAL
             var slowSpeedPulse = ToSpeedPulse(_homingOptions.SlowHomeSpeed, axis);
             var slowAccelPulse = ToAccelerationPulse(_homingOptions.SlowHomeAcceleration, axis);
 
-            LogHomeDebug("Axis {AxisNo} mechanical homing start. Port={PortIndex}, ActiveLevel={ActiveLevel}, InactiveLevel={InactiveLevel}, CurrentLevel={CurrentLevel}", axisNo, port.PortIndex, activeLevel, inactiveLevel, currentLevel);
+            LogHomeDebug("Axis {AxisNo} mechanical homing start. Port={PortIndex}, CurrentLevel={CurrentLevel}, TowardDirection={TowardDirection}, AwayDirection={AwayDirection}", axisNo, port.PortIndex, currentLevel, towardHomeDirection, awayFromHomeDirection);
 
-            if (currentLevel == activeLevel)
+            if (currentLevel != 0)
             {
-                // 流程图 LEFT_BRANCH：开关电平=设定值，先向正方向离开传感器
-                LogHomeDebug("Axis {AxisNo} mechanical home input already active (LEFT_BRANCH). Moving away in positive direction first.", axisNo);
+                // 流程图 LEFT_BRANCH：开关已触发，先沿远离原点方向离开传感器
+                LogHomeDebug("Axis {AxisNo} mechanical home input already active (LEFT_BRANCH). Moving away from home first. AwayDirection={AwayDirection}", axisNo, awayFromHomeDirection);
                 await MoveContinuousUntilInputLevelAsync(
                     axisNo,
-                    1,
+                    awayFromHomeDirection,
                     port,
-                    inactiveLevel,
+                    0,
                     startSpeedPulse,
                     searchSpeedPulse,
                     accelPulse,
@@ -393,42 +400,42 @@ namespace HAL
                 // 流程图 LEFT_BRANCH：停止后向正方向移动退让距离
                 if (_homingOptions.HomeBackoffMm > 0)
                 {
-                    var backoffPulse = ToPulse(_homingOptions.HomeBackoffMm, axis);
-                    LogHomeDebug("Axis {AxisNo} LEFT_BRANCH backoff. Mm={Mm}, Pulse={Pulse}", axisNo, _homingOptions.HomeBackoffMm, backoffPulse);
+                    var backoffPulse = ToSignedPulseDistance(_homingOptions.HomeBackoffMm, axis, awayFromHomeDirection);
+                    LogHomeDebug("Axis {AxisNo} LEFT_BRANCH backoff. Mm={Mm}, Pulse={Pulse}, AwayDirection={AwayDirection}", axisNo, _homingOptions.HomeBackoffMm, backoffPulse, awayFromHomeDirection);
                     await MoveRelativePulseAsync(axisNo, backoffPulse, cancellationToken).ConfigureAwait(false);
                 }
             }
             else
             {
-                // 流程图 RIGHT_BRANCH：开关电平≠设定值，先向负方向运动找到非激活沿
-                LogHomeDebug("Axis {AxisNo} mechanical home input inactive (RIGHT_BRANCH). Moving in negative direction to find inactive edge.", axisNo);
+                // 流程图 RIGHT_BRANCH：开关未触发，沿原点方向搜索开关
+                LogHomeDebug("Axis {AxisNo} mechanical home input inactive (RIGHT_BRANCH). Moving toward home sensor. TowardDirection={TowardDirection}", axisNo, towardHomeDirection);
                 await MoveContinuousUntilInputLevelAsync(
                     axisNo,
-                    0,
+                    towardHomeDirection,
                     port,
-                    inactiveLevel,
+                    1,
                     startSpeedPulse,
                     searchSpeedPulse,
                     accelPulse,
                     _homingOptions.HomeTimeoutMs,
                     cancellationToken).ConfigureAwait(false);
 
-                // 流程图 RIGHT_BRANCH：停止后向正方向移动退让距离（与 LEFT_BRANCH 一致）
+                // 流程图 RIGHT_BRANCH：停止后沿远离原点方向退让距离（与 LEFT_BRANCH 一致）
                 if (_homingOptions.HomeBackoffMm > 0)
                 {
-                    var backoffPulse = ToPulse(_homingOptions.HomeBackoffMm, axis);
-                    LogHomeDebug("Axis {AxisNo} RIGHT_BRANCH backoff. Mm={Mm}, Pulse={Pulse}", axisNo, _homingOptions.HomeBackoffMm, backoffPulse);
+                    var backoffPulse = ToSignedPulseDistance(_homingOptions.HomeBackoffMm, axis, awayFromHomeDirection);
+                    LogHomeDebug("Axis {AxisNo} RIGHT_BRANCH backoff. Mm={Mm}, Pulse={Pulse}, AwayDirection={AwayDirection}", axisNo, _homingOptions.HomeBackoffMm, backoffPulse, awayFromHomeDirection);
                     await MoveRelativePulseAsync(axisNo, backoffPulse, cancellationToken).ConfigureAwait(false);
                 }
             }
 
-            // 流程图：慢速向负方向运动精确找到激活沿（dir=0 为负方向）
-            LogHomeDebug("Axis {AxisNo} starting slow approach in negative direction to find active home level.", axisNo);
+            // 流程图：慢速沿原点方向运动，精确找到激活沿
+            LogHomeDebug("Axis {AxisNo} starting slow approach toward home to find active home level. TowardDirection={TowardDirection}", axisNo, towardHomeDirection);
             await MoveContinuousUntilInputLevelAsync(
                 axisNo,
-                0,
+                towardHomeDirection,
                 port,
-                activeLevel,
+                1,
                 slowStartPulse,
                 slowSpeedPulse,
                 slowAccelPulse,
@@ -442,14 +449,15 @@ namespace HAL
             var port = GetGratingPort(axisNo);
             ValidatePort(port, $"Axis {axisNo} grating");
             var axis = GetAxisParam(axisNo);
+            var towardHomeDirection = GetTowardHomeDirection(port);
 
-            LogHomeDebug("Axis {AxisNo} grating IO homing start. Port={PortIndex}, ActiveLevel={ActiveLevel}", axisNo, port.PortIndex, GetActiveLevel(port));
+            LogHomeDebug("Axis {AxisNo} grating IO homing start. Port={PortIndex}, TowardDirection={TowardDirection}", axisNo, port.PortIndex, towardHomeDirection);
 
             await MoveContinuousUntilInputLevelAsync(
                 axisNo,
-                0,
+                towardHomeDirection,
                 port,
-                GetActiveLevel(port),
+                1,
                 ToSpeedPulse(_homingOptions.GratingHomeStartSpeed, axis),
                 ToSpeedPulse(_homingOptions.GratingHomeSpeed, axis),
                 ToAccelerationPulse(_homingOptions.GratingHomeAcceleration, axis),
@@ -460,6 +468,10 @@ namespace HAL
 
         private async Task HomeXYByLatchAsync(int axisNo, CancellationToken cancellationToken)
         {
+            var port = GetGratingPort(axisNo);
+            ValidatePort(port, $"Axis {axisNo} grating");
+            var towardHomeDirection = GetTowardHomeDirection(port);
+
             LogHomeDebug("Axis {AxisNo} latch homing start.", axisNo);
             await ClearLockStatusAsync(axisNo, cancellationToken).ConfigureAwait(false);
             await SetLockPositionModeAsync(axisNo, 1, 0, 1, cancellationToken).ConfigureAwait(false);
@@ -468,7 +480,7 @@ namespace HAL
             {
                 LogHomeDebug("Axis {AxisNo} latch mode configured. Starting continuous move.", axisNo);
                 ConfigureMotion(axisNo, _homingOptions.GratingHomeStartSpeed, _homingOptions.GratingHomeSpeed, _homingOptions.GratingHomeAcceleration);
-                ExecuteNative(() => adt8940a1.adt8940a1_continue_move(_cardNo, axisNo, 0), $"Start latch home move for axis {axisNo}");
+                ExecuteNative(() => adt8940a1.adt8940a1_continue_move(_cardNo, axisNo, towardHomeDirection), $"Start latch home move for axis {axisNo}");
 
                 await WaitForLockStatusAsync(axisNo, cancellationToken).ConfigureAwait(false);
                 LogHomeDebug("Axis {AxisNo} latch signal detected. Stopping axis.", axisNo);
@@ -511,8 +523,10 @@ namespace HAL
             try
             {
                 var startedAt = Environment.TickCount64;
+                var times = 0;
                 while (true)
                 {
+                    times++;
                     cancellationToken.ThrowIfCancellationRequested();
 
                     var level = await ReadInputLevelAsync(port.PortIndex, cancellationToken).ConfigureAwait(false);
@@ -529,6 +543,10 @@ namespace HAL
                     }
 
                     await Task.Delay(PollInterval, cancellationToken).ConfigureAwait(false);
+                    if (times % 10 == 0)
+                    {
+                        _logger.Debug("Axis {AxisNo} continuous move waiting. Port={PortIndex}, TargetLevel={TargetLevel}", axisNo, port.PortIndex, targetLevel);
+                    }
                 }
             }
             finally
@@ -1055,14 +1073,31 @@ namespace HAL
             };
         }
 
-        private static int GetActiveLevel(HomingPort port)
+        /// <summary>
+        /// 计算朝向原点传感器的运动方向。
+        /// dir=0 表示负方向，dir=1 表示正方向。
+        /// 当 IsNegative=true 时，表示原点传感器安装在负方向，回零应朝负方向运动；
+        /// 当 IsNegative=false 时，表示原点传感器安装在正方向，回零应朝正方向运动。
+        /// </summary>
+        private static int GetTowardHomeDirection(HomingPort port)
         {
-            return port.IsLowLevelActive ? 0 : 1;
+            return port.IsNegative ? 0 : 1;
         }
 
-        private static int GetInactiveLevel(HomingPort port)
+        /// <summary>
+        /// 计算指定方向的反方向。
+        /// 常用于已压到原点开关时先脱离传感器：
+        /// direction=0（负方向）返回 1（正方向），direction=1（正方向）返回 0（负方向）。
+        /// </summary>
+        private static int GetOppositeDirection(int direction)
         {
-            return port.IsLowLevelActive ? 1 : 0;
+            return direction == 0 ? 1 : 0;
+        }
+
+        private static int ToSignedPulseDistance(double distanceMm, AxisParam axis, int direction)
+        {
+            var pulseDistance = ToPulse(distanceMm, axis);
+            return direction == 0 ? -pulseDistance : pulseDistance;
         }
 
         private static void ValidatePort(HomingPort port, string name)
@@ -1235,18 +1270,18 @@ namespace HAL
 
         private void LogHomeDebug(string messageTemplate, params object?[] propertyValues)
         {
-            _logger.Debug(messageTemplate, propertyValues);
+            _logger.Information(messageTemplate, propertyValues);
         }
 
         private void LogHomeDebug(Exception? exception, string messageTemplate, params object?[] propertyValues)
         {
             if (exception is null)
             {
-                _logger.Debug(messageTemplate, propertyValues);
+                _logger.Information(messageTemplate, propertyValues);
                 return;
             }
 
-            _logger.Debug(exception, messageTemplate, propertyValues);
+            _logger.Error(exception, messageTemplate, propertyValues);
         }
     }
 }

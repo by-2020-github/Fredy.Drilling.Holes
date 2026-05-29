@@ -392,7 +392,7 @@ namespace HAL
 
                 if (_isContinuousGrabbing)
                 {
-                    Logger.Debug("GrabSingleFrameSynchronously is running while continuous grab loop is active.");
+                    //Logger.Verbose("GrabSingleFrameSynchronously is running while continuous grab loop is active.");
                 }
 
                 camera = _camera!;
