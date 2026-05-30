@@ -7,7 +7,9 @@ using HAL;
 using Microsoft.Extensions.DependencyInjection;
 using Serilog;
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -18,18 +20,24 @@ namespace Fredy.Drilling.Holes.UserControls
     {
         private const string MotionSimulatorType = nameof(MotionSimulator);
         private const string MotionAdt8940Type = nameof(MotionAdt8940);
-        private static readonly TimeSpan PositionRefreshInterval = TimeSpan.FromMilliseconds(250);
+        private static readonly int[] DefaultAxisNumbers = [1, 2, 3];
 
-        private CancellationTokenSource? _refreshCancellationTokenSource;
-        private Task? _refreshTask;
         private IMoton? _motion;
         private bool _disposed;
-        private bool _refreshFailureReported;
         private long _lastNativeCallSequence;
+        private bool _refreshFailureReported;
+        private CancellationTokenSource? _refreshCancellationTokenSource;
+        private Task? _refreshTask;
         private readonly ConfigService? _configService;
         private readonly IHardwareStateService? _hardwareStateService;
         private readonly IIOCard? _ioCard;
         private readonly ILogger _logger;
+        private readonly Dictionary<int, AxisParam> _axisParameters = new();
+        private static readonly TimeSpan PositionRefreshInterval = TimeSpan.FromMilliseconds(250);
+        private static readonly TimeSpan AxisMoveMinTimeout = TimeSpan.FromSeconds(5);
+        private static readonly TimeSpan AxisMoveBufferTimeout = TimeSpan.FromSeconds(3);
+        private static readonly TimeSpan AxisMoveMaxTimeout = TimeSpan.FromSeconds(120);
+        private const double PositionComparisonTolerance = 0.001d;
 
         public MotionDebugViewModel(ILogger logger)
         {
@@ -38,6 +46,9 @@ namespace Fredy.Drilling.Holes.UserControls
             _hardwareStateService = App.ServiceProvider?.GetService<IHardwareStateService>();
             _ioCard = App.ServiceProvider?.GetService<IIOCard>();
             MotionTypes = [MotionSimulatorType, MotionAdt8940Type];
+
+            PrimeAxisParameterCache(_configService?.CurrentConfig);
+            InitializeAxisItems();
             InitializeGpioCollections(_hardwareStateService?.InputCount ?? 24, _hardwareStateService?.OutputCount ?? 9);
             if (_hardwareStateService is not null)
             {
@@ -51,6 +62,8 @@ namespace Fredy.Drilling.Holes.UserControls
         }
 
         public ObservableCollection<string> MotionTypes { get; }
+
+        public ObservableCollection<MotionDebugAxisItem> AxisItems { get; } = new();
 
         public ObservableCollection<GpioItem> GpioIn { get; } = new();
 
@@ -67,12 +80,7 @@ namespace Fredy.Drilling.Holes.UserControls
         private double _acceleration = 1.25;
         private double _homeSearchSpeed = 3.0;
         private double _homeApproachSpeed = 0.7;
-        private int _axisNo = 1;
-        private double _absolutePosition;
-        private double _relativeDistance = 10d;
-        private bool _waitForCompletion = true;
         private bool _isInitialized;
-        private double _currentPosition;
         private string _statusMessage = "请选择控制器并执行初始化。";
 
         public string SelectedMotionType
@@ -123,46 +131,10 @@ namespace Fredy.Drilling.Holes.UserControls
             set => SetProperty(ref _homeApproachSpeed, value);
         }
 
-        public int AxisNo
-        {
-            get => _axisNo;
-            set
-            {
-                if (SetProperty(ref _axisNo, value) && IsInitialized)
-                {
-                    _ = RefreshPositionCoreAsync(CancellationToken.None);
-                }
-            }
-        }
-
-        public double AbsolutePosition
-        {
-            get => _absolutePosition;
-            set => SetProperty(ref _absolutePosition, value);
-        }
-
-        public double RelativeDistance
-        {
-            get => _relativeDistance;
-            set => SetProperty(ref _relativeDistance, value);
-        }
-
-        public bool WaitForCompletion
-        {
-            get => _waitForCompletion;
-            set => SetProperty(ref _waitForCompletion, value);
-        }
-
         public bool IsInitialized
         {
             get => _isInitialized;
             set => SetProperty(ref _isInitialized, value);
-        }
-
-        public double CurrentPosition
-        {
-            get => _currentPosition;
-            set => SetProperty(ref _currentPosition, value);
         }
 
         public string StatusMessage
@@ -177,11 +149,10 @@ namespace Fredy.Drilling.Holes.UserControls
             try
             {
                 DisposeMotion();
+                PrimeAxisParameterCache(_configService?.CurrentConfig);
                 _lastNativeCallSequence = 0;
                 _motion = CreateMotion();
-                _refreshFailureReported = false;
                 IsInitialized = true;
-                await RefreshPositionCoreAsync(CancellationToken.None).ConfigureAwait(true);
                 AppendNativeCallLogs();
                 SetStatus($"{SelectedMotionType} 初始化成功。");
             }
@@ -190,9 +161,48 @@ namespace Fredy.Drilling.Holes.UserControls
                 AppendNativeCallLogs();
                 DisposeMotion();
                 IsInitialized = false;
-                CurrentPosition = 0;
                 SetError("初始化", ex);
             }
+
+            await Task.CompletedTask;
+        }
+
+        [RelayCommand]
+        private void AddAxis()
+        {
+            var existingAxisNumbers = new HashSet<int>(AxisItems.Select(item => item.AxisNo));
+            var nextAxisNo = 1;
+            while (existingAxisNumbers.Contains(nextAxisNo))
+            {
+                nextAxisNo++;
+            }
+
+            var axisItem = CreateAxisItem(nextAxisNo);
+            AxisItems.Add(axisItem);
+            ConfigureAxisSpeedCore(axisItem, applyToMotion: IsInitialized && _motion is not null);
+            if (IsInitialized && _motion is not null)
+            {
+                _ = RefreshAxisPositionAsync(axisItem, CancellationToken.None);
+            }
+
+            SetStatus($"已添加调试轴 {nextAxisNo}。");
+        }
+
+        [RelayCommand]
+        private void DeleteAxis(MotionDebugAxisItem? axisItem)
+        {
+            if (axisItem is null)
+            {
+                return;
+            }
+
+            if (!AxisItems.Remove(axisItem))
+            {
+                return;
+            }
+
+            _axisParameters.Remove(axisItem.AxisNo);
+            SetStatus($"已移除调试轴 {axisItem.AxisNo}。");
         }
 
         [RelayCommand]
@@ -200,87 +210,97 @@ namespace Fredy.Drilling.Holes.UserControls
         {
             AppendNativeCallLogs();
             DisposeMotion();
-            _refreshFailureReported = false;
             _lastNativeCallSequence = 0;
             IsInitialized = false;
-            CurrentPosition = 0;
             SetStatus("控制器已释放。");
         }
 
         [RelayCommand(AllowConcurrentExecutions = false)]
-        private Task RefreshPositionAsync()
+        private Task MoveAbsoluteAxisAsync(MotionDebugAxisItem? axisItem)
         {
-            return ExecuteMotionAsync(
-                motion => RefreshPositionCoreAsync(CancellationToken.None),
-                "读取位置成功。",
-                "读取位置",
-                refreshPositionAfterExecute: false);
+            return ExecuteAxisMoveAsync(
+                axisItem,
+                (item, _) => item.AbsolutePosition,
+                (item, targetPosition) => $"轴 {item.AxisNo} 绝对移动到 {targetPosition:F3} mm。",
+                item => $"轴 {item.AxisNo} 绝对移动");
         }
 
         [RelayCommand(AllowConcurrentExecutions = false)]
-        private Task EnableAxisAsync()
+        private Task MoveRelativeAxisAsync(MotionDebugAxisItem? axisItem)
         {
-            return ExecuteMotionAsync(
-                motion => motion.EnableAsync(AxisNo),
-                $"轴 {AxisNo} 已使能。",
-                $"使能轴 {AxisNo}");
+            return ExecuteAxisMoveAsync(
+                axisItem,
+                (item, currentPosition) => currentPosition + item.RelativeDistance,
+                (item, targetPosition) => $"轴 {item.AxisNo} 相对移动 {item.RelativeDistance:F3} mm，目标 {targetPosition:F3} mm。",
+                item => $"轴 {item.AxisNo} 相对移动");
+        }
+
+        [RelayCommand]
+        private void SetAxisSpeed(MotionDebugAxisItem? axisItem)
+        {
+            if (axisItem is null)
+            {
+                return;
+            }
+
+            try
+            {
+                ConfigureAxisSpeedCore(axisItem, applyToMotion: IsInitialized && _motion is not null);
+                AppendNativeCallLogs();
+                SetStatus(IsInitialized && _motion is not null
+                    ? $"轴 {axisItem.AxisNo} 速度已设置为 {axisItem.Speed:F3} mm/s。"
+                    : $"轴 {axisItem.AxisNo} 速度已保存，初始化后生效。");
+            }
+            catch (Exception ex)
+            {
+                AppendNativeCallLogs();
+                SetError($"轴 {axisItem.AxisNo} 设置速度", ex);
+            }
         }
 
         [RelayCommand(AllowConcurrentExecutions = false)]
-        private Task DisableAxisAsync()
+        private Task EnableAxisAsync(MotionDebugAxisItem? axisItem)
         {
-            return ExecuteMotionAsync(
-                motion => motion.DisableAsync(AxisNo),
-                $"轴 {AxisNo} 已禁用。",
-                $"禁用轴 {AxisNo}");
+            return ExecuteAxisMotionAsync(
+                axisItem,
+                (motion, item) =>
+                {
+                    ConfigureAxisSpeedCore(item, applyToMotion: true);
+                    return motion.EnableAsync(item.AxisNo);
+                },
+                item => $"轴 {item.AxisNo} 已使能。",
+                item => $"使能轴 {item.AxisNo}");
         }
 
         [RelayCommand(AllowConcurrentExecutions = false)]
-        private Task HomeAxisAsync()
+        private Task DisableAxisAsync(MotionDebugAxisItem? axisItem)
         {
-            return ExecuteMotionAsync(
-                motion => motion.HomeAsync(AxisNo, WaitForCompletion),
-                $"轴 {AxisNo} 回零命令已发送。",
-                $"轴 {AxisNo} 回零",
-                refreshPositionAfterExecute: WaitForCompletion);
+            return ExecuteAxisMotionAsync(
+                axisItem,
+                (motion, item) => motion.DisableAsync(item.AxisNo),
+                item => $"轴 {item.AxisNo} 已关闭使能。",
+                item => $"关闭使能轴 {item.AxisNo}");
         }
 
         [RelayCommand(AllowConcurrentExecutions = false)]
-        private Task MoveAbsoluteAsync()
+        private Task ResetAxisAsync(MotionDebugAxisItem? axisItem)
         {
-            return ExecuteMotionAsync(
-                motion => motion.MoveAbsoluteAsync(AxisNo, AbsolutePosition, WaitForCompletion, DriveSpeed),
-                $"轴 {AxisNo} 绝对移动到 {AbsolutePosition:F3} mm。",
-                $"轴 {AxisNo} 绝对移动",
-                refreshPositionAfterExecute: WaitForCompletion);
+            return ExecuteAxisMotionAsync(
+                axisItem,
+                (motion, item) => motion.HomeAsync(item.AxisNo, wait: true),
+                item => $"轴 {item.AxisNo} 复位完成。",
+                item => $"轴 {item.AxisNo} 复位",
+                refreshPositionAfterExecute: true);
         }
 
         [RelayCommand(AllowConcurrentExecutions = false)]
-        private Task MoveRelativeAsync()
+        private Task EmergencyStopAxisAsync(MotionDebugAxisItem? axisItem)
         {
-            return ExecuteMotionAsync(
-                motion => motion.MoveRelativeAsync(AxisNo, RelativeDistance, WaitForCompletion, DriveSpeed),
-                $"轴 {AxisNo} 相对移动 {RelativeDistance:F3} mm。",
-                $"轴 {AxisNo} 相对移动",
-                refreshPositionAfterExecute: WaitForCompletion);
-        }
-
-        [RelayCommand(AllowConcurrentExecutions = false)]
-        private Task StopAxisAsync()
-        {
-            return ExecuteMotionAsync(
-                motion => motion.StopAsync(AxisNo),
-                $"轴 {AxisNo} 已减速停止。",
-                $"停止轴 {AxisNo}");
-        }
-
-        [RelayCommand(AllowConcurrentExecutions = false)]
-        private Task EmergencyStopAxisAsync()
-        {
-            return ExecuteMotionAsync(
-                motion => motion.EmergencyStopAsync(AxisNo),
-                $"轴 {AxisNo} 已急停。",
-                $"急停轴 {AxisNo}");
+            return ExecuteAxisMotionAsync(
+                axisItem,
+                (motion, item) => motion.EmergencyStopAsync(item.AxisNo),
+                item => $"轴 {item.AxisNo} 已急停。",
+                item => $"急停轴 {item.AxisNo}");
         }
 
         [RelayCommand(AllowConcurrentExecutions = false)]
@@ -329,22 +349,29 @@ namespace Fredy.Drilling.Holes.UserControls
 
         private IMoton CreateMotion()
         {
+            PrimeAxisParameterCache(_configService?.CurrentConfig);
+
             if (!IsMotionAdt8940Selected)
             {
-                return new MotionSimulator(_logger);
+                var simulator = new MotionSimulator(_logger);
+                ApplyAxisItemsToMotion(simulator);
+                return simulator;
             }
+
             _logger.Information("Initializing MotionAdt8940 with CardNo={CardNo}, StartSpeed={StartSpeed}, DriveSpeed={DriveSpeed}, Acceleration={Acceleration}, HomeSearchSpeed={HomeSearchSpeed}, HomeApproachSpeed={HomeApproachSpeed}", CardNo, StartSpeed, DriveSpeed, Acceleration, HomeSearchSpeed, HomeApproachSpeed);
             var motion = new MotionAdt8940(_logger, CardNo, StartSpeed, DriveSpeed, Acceleration, HomeSearchSpeed, HomeApproachSpeed);
+            if (_axisParameters.Count > 0)
+            {
+                motion.ConfigureAxes(_axisParameters.Values.ToArray());
+            }
+
             var config = _configService?.CurrentConfig;
             if (config is not null)
             {
-                motion.ConfigureAxes(
-                    BuildAxisParam(config.XAxis),
-                    BuildAxisParam(config.YAxis),
-                    BuildAxisParam(config.ZAxis));
                 motion.ConfigureHoming(BuildAdtHomingOptions(config));
             }
 
+            ApplyAxisItemsToMotion(motion);
             return motion;
         }
 
@@ -392,8 +419,18 @@ namespace Fredy.Drilling.Holes.UserControls
             return new MotionAdt8940.HomingPort(port.PortIndex, port.IsNegative ?? port.IsLowLevelActive, port.IsLowLevelActive);
         }
 
-        private async Task ExecuteMotionAsync(Func<IMoton, Task> action, string successMessage, string actionName, bool refreshPositionAfterExecute = true)
+        private async Task ExecuteAxisMotionAsync(
+            MotionDebugAxisItem? axisItem,
+            Func<IMoton, MotionDebugAxisItem, Task> action,
+            Func<MotionDebugAxisItem, string> successMessageFactory,
+            Func<MotionDebugAxisItem, string> actionNameFactory,
+            bool refreshPositionAfterExecute = false)
         {
+            if (axisItem is null)
+            {
+                return;
+            }
+
             if (_motion is null || !IsInitialized)
             {
                 SetStatus("请先初始化控制器。");
@@ -402,35 +439,98 @@ namespace Fredy.Drilling.Holes.UserControls
 
             try
             {
-                await action(_motion).ConfigureAwait(true);
+                await action(_motion, axisItem).ConfigureAwait(true);
                 if (refreshPositionAfterExecute)
                 {
-                    await RefreshPositionCoreAsync(CancellationToken.None).ConfigureAwait(true);
+                    await RefreshAxisPositionAsync(axisItem, CancellationToken.None).ConfigureAwait(true);
                 }
 
                 AppendNativeCallLogs();
-                SetStatus(successMessage);
+                SetStatus(successMessageFactory(axisItem));
             }
             catch (Exception ex)
             {
                 AppendNativeCallLogs();
-                SetError(actionName, ex);
+                SetError(actionNameFactory(axisItem), ex);
             }
         }
 
-        private async Task RefreshPositionCoreAsync(CancellationToken cancellationToken)
+        private async Task ExecuteAxisMoveAsync(
+            MotionDebugAxisItem? axisItem,
+            Func<MotionDebugAxisItem, double, double> targetPositionFactory,
+            Func<MotionDebugAxisItem, double, string> successMessageFactory,
+            Func<MotionDebugAxisItem, string> actionNameFactory)
         {
-            if (_motion is null || !IsInitialized)
+            if (axisItem is null)
             {
                 return;
             }
 
-            var position = await _motion.GetPositionAsync(AxisNo, cancellationToken).ConfigureAwait(false);
-            await UpdateOnUiThreadAsync(() =>
+            if (_motion is null || !IsInitialized)
             {
-                CurrentPosition = position;
+                SetStatus("请先初始化控制器。");
+                return;
+            }
+
+            var actionName = actionNameFactory(axisItem);
+            double currentPosition = axisItem.CurrentPosition;
+            double targetPosition = axisItem.CurrentPosition;
+            var timeout = AxisMoveMinTimeout;
+
+            try
+            {
+                ConfigureAxisSpeedCore(axisItem, applyToMotion: true);
+
+                currentPosition = await _motion.GetPositionAsync(axisItem.AxisNo).ConfigureAwait(true);
+                axisItem.CurrentPosition = currentPosition;
+
+                targetPosition = targetPositionFactory(axisItem, currentPosition);
+                var moveDistance = Math.Abs(targetPosition - currentPosition);
+                if (moveDistance <= PositionComparisonTolerance)
+                {
+                    SetStatus($"轴 {axisItem.AxisNo} {actionName}跳过，当前位置 {currentPosition:F3} mm 已接近目标 {targetPosition:F3} mm。");
+                    return;
+                }
+
+                timeout = CalculateAxisMoveTimeout(moveDistance, axisItem.Speed);
+                using var timeoutCancellationTokenSource = new CancellationTokenSource(timeout);
+                await _motion.MoveAbsoluteAsync(axisItem.AxisNo, targetPosition, wait: true, axisItem.Speed, timeoutCancellationTokenSource.Token).ConfigureAwait(true);
+                await RefreshAxisPositionAsync(axisItem, CancellationToken.None).ConfigureAwait(true);
+
                 AppendNativeCallLogs();
-            }).ConfigureAwait(false);
+                SetStatus(successMessageFactory(axisItem, targetPosition));
+            }
+            catch (OperationCanceledException)
+            {
+                AppendNativeCallLogs();
+                var refreshedPosition = await TryRefreshAxisPositionAsync(axisItem).ConfigureAwait(true);
+                var finalPosition = refreshedPosition ?? axisItem.CurrentPosition;
+                StatusMessage = $"{actionName}超时，轴已停止。目标 {targetPosition:F3} mm，当前位置 {finalPosition:F3} mm，超时 {timeout.TotalSeconds:F1} 秒。";
+                _logger.Warning("{ActionName}超时: Axis={AxisNo}, Target={TargetPosition}, Current={CurrentPosition}, TimeoutSeconds={TimeoutSeconds}", actionName, axisItem.AxisNo, targetPosition, finalPosition, timeout.TotalSeconds);
+            }
+            catch (Exception ex)
+            {
+                AppendNativeCallLogs();
+                var refreshedPosition = await TryRefreshAxisPositionAsync(axisItem).ConfigureAwait(true);
+                StatusMessage = refreshedPosition.HasValue
+                    ? $"{actionName}失败: {ex.Message}；当前位置 {refreshedPosition.Value:F3} mm。"
+                    : $"{actionName}失败: {ex.Message}";
+                _logger.Error(ex, "{ActionName}失败", actionName);
+            }
+        }
+
+        private void PrimeAxisParameterCache(AppConfig? config)
+        {
+            _axisParameters.Clear();
+
+            if (config is null)
+            {
+                return;
+            }
+
+            RegisterAxisParameter(BuildAxisParam(config.XAxis));
+            RegisterAxisParameter(BuildAxisParam(config.YAxis));
+            RegisterAxisParameter(BuildAxisParam(config.ZAxis));
         }
 
         private void DisposeMotion()
@@ -441,6 +541,184 @@ namespace Fredy.Drilling.Holes.UserControls
             }
 
             _motion = null;
+        }
+
+        private void InitializeAxisItems()
+        {
+            AxisItems.Clear();
+            foreach (var axisNo in DefaultAxisNumbers)
+            {
+                AxisItems.Add(CreateAxisItem(axisNo));
+            }
+        }
+
+        private MotionDebugAxisItem CreateAxisItem(int axisNo)
+        {
+            return new MotionDebugAxisItem
+            {
+                AxisNo = axisNo,
+                AbsolutePosition = 0d,
+                RelativeDistance = 1d,
+                CurrentPosition = 0d,
+                Speed = GetAxisParameter(axisNo).Velocity
+            };
+        }
+
+        private static TimeSpan CalculateAxisMoveTimeout(double moveDistance, double speed)
+        {
+            var normalizedSpeed = NormalizePositive(speed, 1d);
+            var expectedSeconds = moveDistance / normalizedSpeed;
+            var timeout = TimeSpan.FromSeconds(expectedSeconds) + AxisMoveBufferTimeout;
+            if (timeout < AxisMoveMinTimeout)
+            {
+                return AxisMoveMinTimeout;
+            }
+
+            if (timeout > AxisMoveMaxTimeout)
+            {
+                return AxisMoveMaxTimeout;
+            }
+
+            return timeout;
+        }
+
+        private void StartRefreshLoop()
+        {
+            _refreshCancellationTokenSource?.Cancel();
+            _refreshCancellationTokenSource?.Dispose();
+            _refreshCancellationTokenSource = new CancellationTokenSource();
+            _refreshTask = Task.Run(() => RefreshLoopAsync(_refreshCancellationTokenSource.Token));
+        }
+
+        private async Task RefreshLoopAsync(CancellationToken cancellationToken)
+        {
+            using var timer = new PeriodicTimer(PositionRefreshInterval);
+
+            try
+            {
+                while (await timer.WaitForNextTickAsync(cancellationToken).ConfigureAwait(false))
+                {
+                    if (_motion is null || !IsInitialized || AxisItems.Count == 0)
+                    {
+                        continue;
+                    }
+
+                    try
+                    {
+                        var axisItems = AxisItems.ToArray();
+                        for (var i = 0; i < axisItems.Length; i++)
+                        {
+                            await RefreshAxisPositionAsync(axisItems[i], cancellationToken).ConfigureAwait(false);
+                        }
+
+                        _refreshFailureReported = false;
+                    }
+                    catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                    {
+                        break;
+                    }
+                    catch (Exception ex)
+                    {
+                        if (_refreshFailureReported)
+                        {
+                            continue;
+                        }
+
+                        _refreshFailureReported = true;
+                        await UpdateOnUiThreadAsync(() =>
+                        {
+                            StatusMessage = $"后台位置刷新失败: {ex.Message}";
+                        }).ConfigureAwait(false);
+                        _logger.Warning(ex, "后台位置刷新失败");
+                    }
+                }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+            }
+        }
+
+        private async Task RefreshAxisPositionAsync(MotionDebugAxisItem axisItem, CancellationToken cancellationToken)
+        {
+            if (_motion is null || !IsInitialized)
+            {
+                return;
+            }
+
+            var currentPosition = await _motion.GetPositionAsync(axisItem.AxisNo, cancellationToken).ConfigureAwait(false);
+            await UpdateOnUiThreadAsync(() => axisItem.CurrentPosition = currentPosition).ConfigureAwait(false);
+        }
+
+        private async Task<double?> TryRefreshAxisPositionAsync(MotionDebugAxisItem axisItem)
+        {
+            try
+            {
+                await RefreshAxisPositionAsync(axisItem, CancellationToken.None).ConfigureAwait(true);
+                return axisItem.CurrentPosition;
+            }
+            catch (Exception ex)
+            {
+                _logger.Warning(ex, "刷新轴 {AxisNo} 当前位置失败", axisItem.AxisNo);
+                return null;
+            }
+        }
+
+        private void ApplyAxisItemsToMotion(IMoton motion)
+        {
+            foreach (var axisItem in AxisItems)
+            {
+                ConfigureAxisSpeedCore(axisItem, applyToMotion: false);
+                motion.ConfigureAxis(_axisParameters[axisItem.AxisNo]);
+            }
+        }
+
+        private void ConfigureAxisSpeedCore(MotionDebugAxisItem axisItem, bool applyToMotion)
+        {
+            var fallbackVelocity = NormalizePositive(DriveSpeed, 1d);
+            var fallbackAcceleration = NormalizePositive(Acceleration, 1d);
+            var currentAxisParameter = GetAxisParameter(axisItem.AxisNo);
+            var normalizedVelocity = NormalizePositive(axisItem.Speed, fallbackVelocity);
+
+            if (!axisItem.Speed.Equals(normalizedVelocity))
+            {
+                axisItem.Speed = normalizedVelocity;
+            }
+
+            var axisParameter = currentAxisParameter with
+            {
+                Velocity = normalizedVelocity,
+                Acceleration = NormalizePositive(currentAxisParameter.Acceleration, fallbackAcceleration),
+                Deceleration = NormalizePositive(currentAxisParameter.Deceleration, fallbackAcceleration)
+            };
+
+            RegisterAxisParameter(axisParameter);
+
+            if (applyToMotion && _motion is not null)
+            {
+                _motion.ConfigureAxis(axisParameter);
+            }
+        }
+
+        private void RegisterAxisParameter(AxisParam axisParameter)
+        {
+            _axisParameters[axisParameter.AxisNo] = axisParameter;
+        }
+
+        private AxisParam GetAxisParameter(int axisNo)
+        {
+            if (_axisParameters.TryGetValue(axisNo, out var axisParameter))
+            {
+                return axisParameter;
+            }
+
+            var fallbackVelocity = NormalizePositive(DriveSpeed, 1d);
+            var fallbackAcceleration = NormalizePositive(Acceleration, 1d);
+            return new AxisParam(axisNo, fallbackVelocity, fallbackAcceleration, fallbackAcceleration);
+        }
+
+        private static double NormalizePositive(double value, double fallback)
+        {
+            return value > 0d ? value : fallback;
         }
 
         private void AppendNativeCallLogs()
@@ -522,57 +800,6 @@ namespace Fredy.Drilling.Holes.UserControls
             }
 
             _ = dispatcher.InvokeAsync(() => ApplySnapshot(e.State));
-        }
-
-        private void StartRefreshLoop()
-        {
-            _refreshCancellationTokenSource?.Cancel();
-            _refreshCancellationTokenSource?.Dispose();
-            _refreshCancellationTokenSource = new CancellationTokenSource();
-            _refreshTask = Task.Run(() => RefreshLoopAsync(_refreshCancellationTokenSource.Token));
-        }
-
-        private async Task RefreshLoopAsync(CancellationToken cancellationToken)
-        {
-            using var timer = new PeriodicTimer(PositionRefreshInterval);
-
-            try
-            {
-                while (await timer.WaitForNextTickAsync(cancellationToken).ConfigureAwait(false))
-                {
-                    if (_motion is null || !IsInitialized)
-                    {
-                        continue;
-                    }
-
-                    try
-                    {
-                        await RefreshPositionCoreAsync(cancellationToken).ConfigureAwait(false);
-                        _refreshFailureReported = false;
-                    }
-                    catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-                    {
-                        break;
-                    }
-                    catch (Exception ex)
-                    {
-                        if (_refreshFailureReported)
-                        {
-                            continue;
-                        }
-
-                        _refreshFailureReported = true;
-                        await UpdateOnUiThreadAsync(() =>
-                        {
-                            StatusMessage = $"后台位置刷新失败: {ex.Message}";
-                        }).ConfigureAwait(false);
-                        _logger.Warning(ex, "后台位置刷新失败");
-                    }
-                }
-            }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-            }
         }
 
         private void SetStatus(string message)

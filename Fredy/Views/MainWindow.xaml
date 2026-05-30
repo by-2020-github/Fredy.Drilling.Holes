@@ -16,9 +16,9 @@
         <Menu Grid.Row="0">
             <MenuItem Header="复位">
             <MenuItem Header="复位 (X/Y)" Command="{Binding ResetCommand}"/>
-            <MenuItem Header="只复位 X" Command="{Binding ResetXCommand}"/>
-            <MenuItem Header="只复位 Y" Command="{Binding ResetYCommand}"/>
-            <MenuItem Header="只复位 Z" Command="{Binding ResetZCommand}"/>
+            <MenuItem Header="复位 X" Command="{Binding ResetXCommand}"/>
+            <MenuItem Header="复位 Y" Command="{Binding ResetYCommand}"/>
+            <MenuItem Header="复位 Z" Command="{Binding ResetZCommand}"/>
             </MenuItem>
             <MenuItem Header="取消复位" Command="{Binding CancelResetCommand}"/>
             <Separator/>

@@ -27,155 +27,211 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
-            <Grid Grid.Row="0">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="0.95*"/>
-                    <ColumnDefinition Width="12"/>
-                    <ColumnDefinition Width="1.25*"/>
-                </Grid.ColumnDefinitions>
+            <GroupBox Grid.Row="0" Header="控制器初始化" Padding="12">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
 
-                <!-- 控制器初始化 -->
-                <GroupBox Grid.Column="0" Header="控制器初始化" Padding="12">
-                    <Grid>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                        </Grid.RowDefinitions>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Row="0" Grid.Column="0"
+                               Margin="0,0,8,0" VerticalAlignment="Center"
+                               Text="控制器类型"/>
+                    <ComboBox Grid.Row="0" Grid.Column="1"
+                              MinWidth="180"
+                              ItemsSource="{Binding MotionTypes}"
+                              SelectedItem="{Binding SelectedMotionType}"/>
 
-                        <TextBlock Grid.Row="0" Grid.Column="0"
-                                   Margin="0,0,8,0" VerticalAlignment="Center"
-                                   Text="控制器类型"/>
-                        <ComboBox Grid.Row="0" Grid.Column="1"
-                                  MinWidth="180"
-                                  ItemsSource="{Binding MotionTypes}"
-                                  SelectedItem="{Binding SelectedMotionType}"/>
+                    <TextBlock Grid.Row="1" Grid.ColumnSpan="2"
+                               Margin="0,10,0,6" FontWeight="SemiBold"
+                               Text="ADT8940 初始化参数"
+                               Visibility="{Binding IsMotionAdt8940Selected, Converter={StaticResource BoolToVis}}"/>
 
-                        <TextBlock Grid.Row="1" Grid.ColumnSpan="2"
-                                   Margin="0,10,0,6" FontWeight="SemiBold"
-                                   Text="ADT8940 初始化参数"
-                                   Visibility="{Binding IsMotionAdt8940Selected, Converter={StaticResource BoolToVis}}"/>
+                    <UniformGrid Grid.Row="2" Grid.ColumnSpan="2"
+                                 Margin="0,0,0,6" Columns="3"
+                                 Visibility="{Binding IsMotionAdt8940Selected, Converter={StaticResource BoolToVis}}">
+                        <StackPanel Margin="0,0,8,6">
+                            <TextBlock Text="CardNo"/>
+                            <hc:NumericUpDown Value="{Binding CardNo, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource NumericIntUpDownStyle}"/>
+                        </StackPanel>
+                        <StackPanel Margin="0,0,8,6">
+                            <TextBlock Text="起始速度 (mm/s)"/>
+                            <hc:NumericUpDown Value="{Binding StartSpeed, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource NumericDoubleUpDownStyle}"/>
+                        </StackPanel>
+                        <StackPanel Margin="0,0,0,6">
+                            <TextBlock Text="运行速度 (mm/s)"/>
+                            <hc:NumericUpDown Value="{Binding DriveSpeed, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource NumericDoubleUpDownStyle}"/>
+                        </StackPanel>
+                        <StackPanel Margin="0,0,8,6">
+                            <TextBlock Text="加速度 (mm/s²)"/>
+                            <hc:NumericUpDown Value="{Binding Acceleration, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource NumericDoubleUpDownStyle}"/>
+                        </StackPanel>
+                        <StackPanel Margin="0,0,8,6">
+                            <TextBlock Text="搜索速度 (mm/s)"/>
+                            <hc:NumericUpDown Value="{Binding HomeSearchSpeed, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource NumericDoubleUpDownStyle}"/>
+                        </StackPanel>
+                        <StackPanel Margin="0,0,0,6">
+                            <TextBlock Text="逼近速度 (mm/s)"/>
+                            <hc:NumericUpDown Value="{Binding HomeApproachSpeed, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource NumericDoubleUpDownStyle}"/>
+                        </StackPanel>
+                    </UniformGrid>
 
-                        <UniformGrid Grid.Row="2" Grid.ColumnSpan="2"
-                                     Margin="0,0,0,6" Columns="3"
-                                     Visibility="{Binding IsMotionAdt8940Selected, Converter={StaticResource BoolToVis}}">
-                            <StackPanel Margin="0,0,8,6">
-                                <TextBlock Text="CardNo"/>
-                                <hc:NumericUpDown Value="{Binding CardNo, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource NumericIntUpDownStyle}"/>
-                            </StackPanel>
-                            <StackPanel Margin="0,0,8,6">
-                                <TextBlock Text="起始速度 (mm/s)"/>
-                                <hc:NumericUpDown Value="{Binding StartSpeed, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource NumericDoubleUpDownStyle}"/>
-                            </StackPanel>
-                            <StackPanel Margin="0,0,0,6">
-                                <TextBlock Text="运行速度 (mm/s)"/>
-                                <hc:NumericUpDown Value="{Binding DriveSpeed, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource NumericDoubleUpDownStyle}"/>
-                            </StackPanel>
-                            <StackPanel Margin="0,0,8,6">
-                                <TextBlock Text="加速度 (mm/s²)"/>
-                                <hc:NumericUpDown Value="{Binding Acceleration, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource NumericDoubleUpDownStyle}"/>
-                            </StackPanel>
-                            <StackPanel Margin="0,0,8,6">
-                                <TextBlock Text="搜索速度 (mm/s)"/>
-                                <hc:NumericUpDown Value="{Binding HomeSearchSpeed, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource NumericDoubleUpDownStyle}"/>
-                            </StackPanel>
-                            <StackPanel Margin="0,0,0,6">
-                                <TextBlock Text="逼近速度 (mm/s)"/>
-                                <hc:NumericUpDown Value="{Binding HomeApproachSpeed, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource NumericDoubleUpDownStyle}"/>
-                            </StackPanel>
-                        </UniformGrid>
+                    <WrapPanel Grid.Row="3" Grid.ColumnSpan="2"
+                               Margin="0,10,0,0"
+                               ItemHeight="32">
+                        <Button Width="110" Height="32" Margin="0,0,8,8"
+                                Command="{Binding InitializeCommand}"
+                                Content="初始化"/>
+                        <Button Width="110" Height="32" Margin="0,0,0,8"
+                                Command="{Binding ResetControllerCommand}"
+                                Content="释放控制器"/>
+                    </WrapPanel>
 
-                        <WrapPanel Grid.Row="3" Grid.ColumnSpan="2"
-                                   Margin="0,10,0,0"
-                                   ItemHeight="32">
-                            <Button Width="110" Height="32" Margin="0,0,8,8"
-                                    Command="{Binding InitializeCommand}"
-                                    Content="初始化"/>
-                            <Button Width="110" Height="32" Margin="0,0,0,8"
-                                    Command="{Binding ResetControllerCommand}"
-                                    Content="释放控制器"/>
-                        </WrapPanel>
+                    <Border Grid.Row="4" Grid.ColumnSpan="2"
+                            Margin="0,4,0,0"
+                            Padding="8,6"
+                            Background="{StaticResource Brush.Status.Blue.Subtle}"
+                            CornerRadius="4">
+                        <TextBlock Foreground="DarkSlateBlue"
+                                   Text="{Binding StatusMessage}"
+                                   TextWrapping="Wrap"/>
+                    </Border>
+                </Grid>
+            </GroupBox>
 
-                        <Border Grid.Row="4" Grid.ColumnSpan="2"
-                                Margin="0,4,0,0"
-                                Padding="8,6"
-                                Background="{StaticResource Brush.Status.Blue.Subtle}"
-                                CornerRadius="4">
-                            <TextBlock Foreground="DarkSlateBlue"
-                                       Text="{Binding StatusMessage}"
-                                       TextWrapping="Wrap"/>
-                        </Border>
-                    </Grid>
-                </GroupBox>
+            <GroupBox Grid.Row="1" Margin="0,8,0,0" Padding="12">
+                <GroupBox.Header>
+                    <DockPanel LastChildFill="False">
+                        <TextBlock VerticalAlignment="Center" FontWeight="SemiBold" Text="单轴调试"/>
+                        <Button Margin="12,0,0,0"
+                                MinWidth="72"
+                                Height="28"
+                                Padding="12,0"
+                                Command="{Binding AddAxisCommand}"
+                                Content="Add"/>
+                    </DockPanel>
+                </GroupBox.Header>
 
-                <!-- 轴调试 -->
-                <GroupBox Grid.Column="2" Header="轴调试" Padding="12" IsEnabled="{Binding IsInitialized}">
-                    <Grid>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                        </Grid.RowDefinitions>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="130"/>
-                            <ColumnDefinition Width="16"/>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="150"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
+                <ItemsControl ItemsSource="{Binding AxisItems}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type local:MotionDebugAxisItem}">
+                            <Border Margin="0,0,0,8"
+                                    Padding="10"
+                                    BorderBrush="{StaticResource Brush.Border.Strong}"
+                                    BorderThickness="1"
+                                    CornerRadius="4"
+                                    Background="{StaticResource Brush.Background.Subtle}">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="150"/>
+                                        <ColumnDefinition Width="180"/>
+                                        <ColumnDefinition Width="180"/>
+                                        <ColumnDefinition Width="180"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
 
-                        <TextBlock Grid.Row="0" Grid.Column="0" Margin="0,0,8,0" VerticalAlignment="Center" Text="AxisNo"/>
-                        <hc:NumericUpDown Grid.Row="0" Grid.Column="1"
-                                          Value="{Binding AxisNo, UpdateSourceTrigger=PropertyChanged}"
-                                          Style="{StaticResource NumericIntUpDownStyle}"/>
-                        <CheckBox Grid.Row="0" Grid.Column="3"
-                                  Margin="0,0,12,0" VerticalAlignment="Center"
-                                  IsChecked="{Binding WaitForCompletion}"
-                                  Content="等待完成"/>
+                                    <DockPanel Grid.Row="0"
+                                               Grid.Column="0"
+                                               Grid.ColumnSpan="5"
+                                               LastChildFill="False">
+                                        <TextBlock VerticalAlignment="Center"
+                                                   FontSize="14"
+                                                   FontWeight="SemiBold"
+                                                   Text="{Binding AxisNo, StringFormat=轴号: Axis {0}}"/>
+                                        <Button Margin="12,0,0,0"
+                                                Width="72"
+                                                Height="28"
+                                                Command="{Binding DataContext.DeleteAxisCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                CommandParameter="{Binding}"
+                                                Content="删除轴"/>
+                                    </DockPanel>
 
-                        <TextBlock Grid.Row="1" Grid.Column="0" Margin="0,10,8,0" VerticalAlignment="Center" Text="当前坐标(mm)"/>
-                        <TextBox Grid.Row="1" Grid.Column="1" Margin="0,10,0,0"
-                                 IsReadOnly="True"
-                                 Text="{Binding CurrentPosition, StringFormat=F3}"/>
-                        <Button Grid.Row="1" Grid.Column="4"
-                                Margin="0,10,0,0" Width="120" Height="30"
-                                HorizontalAlignment="Left"
-                                Command="{Binding RefreshPositionCommand}"
-                                Content="读取位置"/>
+                                    <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,10,12,0">
+                                        <TextBlock Text="当前坐标 (mm)"/>
+                                        <TextBox IsReadOnly="True"
+                                                 Text="{Binding CurrentPosition, StringFormat=F3}"/>
+                                    </StackPanel>
 
-                        <TextBlock Grid.Row="2" Grid.Column="0" Margin="0,10,8,0" VerticalAlignment="Center" Text="绝对位置(mm)"/>
-                        <hc:NumericUpDown Grid.Row="2" Grid.Column="1" Margin="0,10,0,0"
-                                          Value="{Binding AbsolutePosition, UpdateSourceTrigger=PropertyChanged}"
-                                          Style="{StaticResource NumericDoubleUpDownStyle}"/>
-                        <TextBlock Grid.Row="2" Grid.Column="3" Margin="0,10,8,0" VerticalAlignment="Center" Text="相对距离(mm)"/>
-                        <hc:NumericUpDown Grid.Row="2" Grid.Column="4" Margin="0,10,0,0"
-                                          Value="{Binding RelativeDistance, UpdateSourceTrigger=PropertyChanged}"
-                                          Style="{StaticResource NumericDoubleUpDownStyle}"/>
+                                    <StackPanel Grid.Row="1" Grid.Column="1" Margin="0,10,12,0">
+                                        <TextBlock Text="绝对位置 (mm)"/>
+                                        <hc:NumericUpDown Value="{Binding AbsolutePosition, UpdateSourceTrigger=PropertyChanged}"
+                                                          Style="{StaticResource NumericDoubleUpDownStyle}"/>
+                                    </StackPanel>
 
-                        <UniformGrid Grid.Row="3" Grid.ColumnSpan="6" Margin="0,14,0,0" Columns="4">
-                            <Button Margin="4" Height="32" Command="{Binding EnableAxisCommand}" Content="使能"/>
-                            <Button Margin="4" Height="32" Command="{Binding DisableAxisCommand}" Content="禁用"/>
-                            <Button Margin="4" Height="32" Command="{Binding HomeAxisCommand}" Content="回零"/>
-                            <Button Margin="4" Height="32" Command="{Binding MoveAbsoluteCommand}" Content="绝对移动"/>
-                            <Button Margin="4" Height="32" Command="{Binding MoveRelativeCommand}" Content="相对移动"/>
-                            <Button Margin="4" Height="32" Command="{Binding StopAxisCommand}" Content="减速停止"/>
-                            <Button Margin="4" Height="32" Command="{Binding EmergencyStopAxisCommand}" Content="急停"/>
-                        </UniformGrid>
-                    </Grid>
-                </GroupBox>
-            </Grid>
+                                    <StackPanel Grid.Row="1" Grid.Column="2" Margin="0,10,12,0">
+                                        <TextBlock Text="相对距离 (mm)"/>
+                                        <hc:NumericUpDown Value="{Binding RelativeDistance, UpdateSourceTrigger=PropertyChanged}"
+                                                          Style="{StaticResource NumericDoubleUpDownStyle}"/>
+                                    </StackPanel>
 
-            <Grid Grid.Row="1" Margin="0,8,0,0">
+                                    <StackPanel Grid.Row="1" Grid.Column="3" Margin="0,10,0,0">
+                                        <TextBlock Text="速度 (mm/s)"/>
+                                        <hc:NumericUpDown Value="{Binding Speed, UpdateSourceTrigger=PropertyChanged}"
+                                                          Style="{StaticResource NumericDoubleUpDownStyle}"/>
+                                    </StackPanel>
+
+                                    <UniformGrid Grid.Row="2" Grid.ColumnSpan="5" Margin="0,10,0,0" Columns="7">
+                                        <Button Margin="4" Height="32"
+                                                Command="{Binding DataContext.MoveAbsoluteAxisCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                CommandParameter="{Binding}"
+                                                Content="绝对移动"/>
+                                        <Button Margin="4" Height="32"
+                                                Command="{Binding DataContext.MoveRelativeAxisCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                CommandParameter="{Binding}"
+                                                Content="相对移动"/>
+                                        <Button Margin="4" Height="32"
+                                                Command="{Binding DataContext.SetAxisSpeedCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                CommandParameter="{Binding}"
+                                                Content="设置速度"/>
+                                        <Button Margin="4" Height="32"
+                                                Command="{Binding DataContext.EnableAxisCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                CommandParameter="{Binding}"
+                                                Content="使能"/>
+                                        <Button Margin="4" Height="32"
+                                                Command="{Binding DataContext.DisableAxisCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                CommandParameter="{Binding}"
+                                                Content="关闭使能"/>
+                                        <Button Margin="4" Height="32"
+                                                Background="{StaticResource Brush.Status.Green}"
+                                                Foreground="{StaticResource Brush.Foreground.Inverse}"
+                                                Command="{Binding DataContext.ResetAxisCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                CommandParameter="{Binding}"
+                                                Content="复位"/>
+                                        <Button Margin="4" Height="32"
+                                                Background="{StaticResource Brush.Status.Red}"
+                                                Foreground="{StaticResource Brush.Foreground.Inverse}"
+                                                Command="{Binding DataContext.EmergencyStopAxisCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                CommandParameter="{Binding}"
+                                                Content="急停"/>
+                                    </UniformGrid>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </GroupBox>
+
+            <Grid Grid.Row="2" Margin="0,8,0,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="3*"/>
                     <ColumnDefinition Width="12"/>
