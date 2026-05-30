@@ -390,7 +390,7 @@ namespace Fredy.Drilling.Holes.ViewModels
 
         private static HAL.MotionAdt8940.HomingPort BuildHomingPort(PortItem port)
         {
-            return new HAL.MotionAdt8940.HomingPort(port.PortIndex, port.IsLowLevelActive);
+            return new HAL.MotionAdt8940.HomingPort(port.PortIndex, ResolvePortIsNegative(port), port.IsLowLevelActive);
         }
 
         protected override void OnPropertyChanged(PropertyChangedEventArgs e)
@@ -688,13 +688,20 @@ namespace Fredy.Drilling.Holes.ViewModels
             AddIfChanged(lines, "光栅尺回零", _originalConfig.IsGratingHome, current.IsGratingHome);
 
             AddIfChanged(lines, "X机械零位端口", _originalConfig.XLimitPort.PortIndex, current.XLimitPort.PortIndex);
-            AddIfChanged(lines, "X机械零位低电平", _originalConfig.XLimitPort.IsLowLevelActive, current.XLimitPort.IsLowLevelActive);
+            AddIfChanged(lines, "X机械零位低电平有效", _originalConfig.XLimitPort.IsLowLevelActive, current.XLimitPort.IsLowLevelActive);
+            AddIfChanged(lines, "X机械零位安装负方向", ResolvePortIsNegative(_originalConfig.XLimitPort), ResolvePortIsNegative(current.XLimitPort));
             AddIfChanged(lines, "Y机械零位端口", _originalConfig.YLimitPort.PortIndex, current.YLimitPort.PortIndex);
-            AddIfChanged(lines, "Y机械零位低电平", _originalConfig.YLimitPort.IsLowLevelActive, current.YLimitPort.IsLowLevelActive);
+            AddIfChanged(lines, "Y机械零位低电平有效", _originalConfig.YLimitPort.IsLowLevelActive, current.YLimitPort.IsLowLevelActive);
+            AddIfChanged(lines, "Y机械零位安装负方向", ResolvePortIsNegative(_originalConfig.YLimitPort), ResolvePortIsNegative(current.YLimitPort));
             AddIfChanged(lines, "Z机械零位端口", _originalConfig.AdtHoming.ZLimitPort.PortIndex, current.AdtHoming.ZLimitPort.PortIndex);
-            AddIfChanged(lines, "Z机械零位低电平", _originalConfig.AdtHoming.ZLimitPort.IsLowLevelActive, current.AdtHoming.ZLimitPort.IsLowLevelActive);
+            AddIfChanged(lines, "Z机械零位低电平有效", _originalConfig.AdtHoming.ZLimitPort.IsLowLevelActive, current.AdtHoming.ZLimitPort.IsLowLevelActive);
+            AddIfChanged(lines, "Z机械零位安装负方向", ResolvePortIsNegative(_originalConfig.AdtHoming.ZLimitPort), ResolvePortIsNegative(current.AdtHoming.ZLimitPort));
             AddIfChanged(lines, "X光栅零位端口", _originalConfig.AdtHoming.XGratingPort.PortIndex, current.AdtHoming.XGratingPort.PortIndex);
+            AddIfChanged(lines, "X光栅零位低电平有效", _originalConfig.AdtHoming.XGratingPort.IsLowLevelActive, current.AdtHoming.XGratingPort.IsLowLevelActive);
+            AddIfChanged(lines, "X光栅零位安装负方向", ResolvePortIsNegative(_originalConfig.AdtHoming.XGratingPort), ResolvePortIsNegative(current.AdtHoming.XGratingPort));
             AddIfChanged(lines, "Y光栅零位端口", _originalConfig.AdtHoming.YGratingPort.PortIndex, current.AdtHoming.YGratingPort.PortIndex);
+            AddIfChanged(lines, "Y光栅零位低电平有效", _originalConfig.AdtHoming.YGratingPort.IsLowLevelActive, current.AdtHoming.YGratingPort.IsLowLevelActive);
+            AddIfChanged(lines, "Y光栅零位安装负方向", ResolvePortIsNegative(_originalConfig.AdtHoming.YGratingPort), ResolvePortIsNegative(current.AdtHoming.YGratingPort));
             AddIfChanged(lines, "回零超时", _originalConfig.AdtHoming.HomeTimeoutMs, current.AdtHoming.HomeTimeoutMs);
             AddIfChanged(lines, "回零脱离距离 (mm)", _originalConfig.AdtHoming.HomeBackoffMm, current.AdtHoming.HomeBackoffMm);
             AddIfChanged(lines, "Z回零抬起距离 (mm)", _originalConfig.AdtHoming.ZHomeLiftMm, current.AdtHoming.ZHomeLiftMm);
@@ -848,12 +855,18 @@ namespace Fredy.Drilling.Holes.ViewModels
             };
         }
 
+        private static bool ResolvePortIsNegative(PortItem? port)
+        {
+            return port?.IsNegative ?? port?.IsLowLevelActive ?? false;
+        }
+
         private static PortItem ClonePort(PortItem source)
         {
             return new PortItem
             {
                 PortIndex = source.PortIndex,
-                IsLowLevelActive = source.IsLowLevelActive
+                IsLowLevelActive = source.IsLowLevelActive,
+                IsNegative = ResolvePortIsNegative(source)
             };
         }
 

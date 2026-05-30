@@ -46,20 +46,21 @@ namespace Fredy.Drilling.Holes.Models
         [ObservableProperty] private double? _inPositionTolerance;
     }
 
-    // 端口项 (编号 + 低电平取反)
+    // 端口项 (编号 + 电平有效性 + 传感器安装方向)
     public partial class PortItem : ObservableObject
     {
         [ObservableProperty] private int _portIndex;
         [ObservableProperty] private bool _isLowLevelActive;
+        [ObservableProperty] private bool? _isNegative = true;
     }
 
     public class AdtHomingConfig : ObservableObject
     {
-        public PortItem ZLimitPort { get; set; } = new() { PortIndex = 14 };
+        public PortItem ZLimitPort { get; set; } = new() { PortIndex = 14, IsNegative = false };
 
-        public PortItem XGratingPort { get; set; } = new() { PortIndex = -1, IsLowLevelActive = true };
+        public PortItem XGratingPort { get; set; } = new() { PortIndex = -1, IsLowLevelActive = true, IsNegative = true };
 
-        public PortItem YGratingPort { get; set; } = new() { PortIndex = -1, IsLowLevelActive = true };
+        public PortItem YGratingPort { get; set; } = new() { PortIndex = -1, IsLowLevelActive = true, IsNegative = true };
 
         private int _homeTimeoutMs = 10000;
 
@@ -206,9 +207,9 @@ namespace Fredy.Drilling.Holes.Models
 
         public bool IsGratingHome { get; set; }
 
-        public PortItem XLimitPort { get; set; } = new() { PortIndex = 14 };
+        public PortItem XLimitPort { get; set; } = new() { PortIndex = 14, IsNegative = false };
 
-        public PortItem YLimitPort { get; set; } = new() { PortIndex = 14 };
+        public PortItem YLimitPort { get; set; } = new() { PortIndex = 14, IsNegative = false };
 
         public AdtHomingConfig AdtHoming { get; set; } = new();
 

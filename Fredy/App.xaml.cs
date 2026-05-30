@@ -374,7 +374,7 @@ namespace Fredy.Drilling.Holes
 
         private static MotionAdt8940.HomingPort BuildHomingPort(Models.PortItem port)
         {
-            return new MotionAdt8940.HomingPort(port.PortIndex, port.IsLowLevelActive);
+            return new MotionAdt8940.HomingPort(port.PortIndex, port.IsNegative ?? port.IsLowLevelActive, port.IsLowLevelActive);
         }
 
         private static void LogStartupInformation()

@@ -389,7 +389,7 @@ namespace Fredy.Drilling.Holes.UserControls
 
         private static MotionAdt8940.HomingPort BuildHomingPort(PortItem port)
         {
-            return new MotionAdt8940.HomingPort(port.PortIndex, port.IsLowLevelActive);
+            return new MotionAdt8940.HomingPort(port.PortIndex, port.IsNegative ?? port.IsLowLevelActive, port.IsLowLevelActive);
         }
 
         private async Task ExecuteMotionAsync(Func<IMoton, Task> action, string successMessage, string actionName, bool refreshPositionAfterExecute = true)

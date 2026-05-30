@@ -195,50 +195,60 @@
                                                     <ColumnDefinition Width="Auto"/>
                                                     <ColumnDefinition Width="60"/>
                                                     <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="Auto"/>
                                                 </Grid.ColumnDefinitions>
                                                 <TextBlock Text="X机械零位" VerticalAlignment="Center"/>
                                                 <hc:NumericUpDown Grid.Column="1" Value="{Binding XLimitPort.PortIndex}" Style="{StaticResource NumericIntUpDownStyle}" Margin="5,0"/>
-                                                <CheckBox Grid.Column="2" Content="低电平" IsChecked="{Binding XLimitPort.IsLowLevelActive}" VerticalAlignment="Center"/>
+                                                <!--<CheckBox Grid.Column="2" Content="低电平有效" IsChecked="{Binding XLimitPort.IsLowLevelActive}" VerticalAlignment="Center" Margin="8,0,0,0"/>-->
+                                                <CheckBox Grid.Column="3" Content="安装负方向" IsChecked="{Binding XLimitPort.IsNegative}" VerticalAlignment="Center" Margin="8,0,0,0"/>
                                             </Grid>
                                             <Grid Margin="0,5">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="Auto"/>
                                                     <ColumnDefinition Width="60"/>
+                                                    <ColumnDefinition Width="Auto"/>
                                                     <ColumnDefinition Width="Auto"/>
                                                 </Grid.ColumnDefinitions>
                                                 <TextBlock Text="Y机械零位" VerticalAlignment="Center"/>
                                                 <hc:NumericUpDown Grid.Column="1" Value="{Binding YLimitPort.PortIndex}" Style="{StaticResource NumericIntUpDownStyle}" Margin="5,0"/>
-                                                <CheckBox Grid.Column="2" Content="低电平" IsChecked="{Binding YLimitPort.IsLowLevelActive}" VerticalAlignment="Center"/>
+                                                <!--<CheckBox Grid.Column="2" Content="低电平有效" IsChecked="{Binding YLimitPort.IsLowLevelActive}" VerticalAlignment="Center" Margin="8,0,0,0"/>-->
+                                                <CheckBox Grid.Column="3" Content="安装负方向" IsChecked="{Binding YLimitPort.IsNegative}" VerticalAlignment="Center" Margin="8,0,0,0"/>
                                             </Grid>
                                             <Grid Margin="0,5">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="Auto"/>
                                                     <ColumnDefinition Width="60"/>
+                                                    <ColumnDefinition Width="Auto"/>
                                                     <ColumnDefinition Width="Auto"/>
                                                 </Grid.ColumnDefinitions>
                                                 <TextBlock Text="Z机械零位" VerticalAlignment="Center"/>
                                                 <hc:NumericUpDown Grid.Column="1" Value="{Binding AdtHoming.ZLimitPort.PortIndex}" Style="{StaticResource NumericIntUpDownStyle}" Margin="5,0"/>
-                                                <CheckBox Grid.Column="2" Content="低电平" IsChecked="{Binding AdtHoming.ZLimitPort.IsLowLevelActive}" VerticalAlignment="Center"/>
+                                                <!--<CheckBox Grid.Column="2" Content="低电平有效" IsChecked="{Binding AdtHoming.ZLimitPort.IsLowLevelActive}" VerticalAlignment="Center" Margin="8,0,0,0"/>-->
+                                                <CheckBox Grid.Column="3" Content="安装负方向" IsChecked="{Binding AdtHoming.ZLimitPort.IsNegative}" VerticalAlignment="Center" Margin="8,0,0,0"/>
                                             </Grid>
                                             <Grid Margin="0,5">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="Auto"/>
                                                     <ColumnDefinition Width="60"/>
+                                                    <ColumnDefinition Width="Auto"/>
                                                     <ColumnDefinition Width="Auto"/>
                                                 </Grid.ColumnDefinitions>
                                                 <TextBlock Text="X光栅零位" VerticalAlignment="Center"/>
                                                 <hc:NumericUpDown Grid.Column="1" Value="{Binding AdtHoming.XGratingPort.PortIndex}" Style="{StaticResource NumericIntUpDownStyle}" Margin="5,0"/>
-                                                <CheckBox Grid.Column="2" Content="低电平" IsChecked="{Binding AdtHoming.XGratingPort.IsLowLevelActive}" VerticalAlignment="Center"/>
+                                                <!--<CheckBox Grid.Column="2" Content="低电平有效" IsChecked="{Binding AdtHoming.XGratingPort.IsLowLevelActive}" VerticalAlignment="Center" Margin="8,0,0,0"/>-->
+                                                <CheckBox Grid.Column="3" Content="安装负方向" IsChecked="{Binding AdtHoming.XGratingPort.IsNegative}" VerticalAlignment="Center" Margin="8,0,0,0"/>
                                             </Grid>
                                             <Grid Margin="0,5">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="Auto"/>
                                                     <ColumnDefinition Width="60"/>
                                                     <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="Auto"/>
                                                 </Grid.ColumnDefinitions>
                                                 <TextBlock Text="Y光栅零位" VerticalAlignment="Center"/>
                                                 <hc:NumericUpDown Grid.Column="1" Value="{Binding AdtHoming.YGratingPort.PortIndex}" Style="{StaticResource NumericIntUpDownStyle}" Margin="5,0"/>
-                                                <CheckBox Grid.Column="2" Content="低电平" IsChecked="{Binding AdtHoming.YGratingPort.IsLowLevelActive}" VerticalAlignment="Center"/>
+                                                <!--<CheckBox Grid.Column="2" Content="低电平有效" IsChecked="{Binding AdtHoming.YGratingPort.IsLowLevelActive}" VerticalAlignment="Center" Margin="8,0,0,0"/>-->
+                                                <CheckBox Grid.Column="3" Content="安装负方向" IsChecked="{Binding AdtHoming.YGratingPort.IsNegative}" VerticalAlignment="Center" Margin="8,0,0,0"/>
                                             </Grid>
                                         </StackPanel>
                                     </GroupBox>

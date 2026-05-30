@@ -14,15 +14,20 @@ namespace HAL
         private readonly ILogger _logger;
 
         /// <summary>
-        /// IsNegative指示传感器是否在负方向安装:
-        //  true（默认）：开关激活时当前在负方向，复位时要往正方向走
-        //  false: 开关在正方形安装，开关激活时当前在正方向，复位时要往负方向走
+        /// IsNegative 指示传感器是否在负方向安装：
+        //  true：传感器安装在负方向，传感器激活时当前位于负方向
+        //  false：传感器安装在正方向，传感器激活时当前位于正方向
+        /// IsLowLevelActive 指示传感器是否低电平有效：
+        //  true：0 表示传感器激活，1 表示未激活
+        //  false：1 表示传感器激活，0 表示未激活
         /// </summary>
         /// <param name="PortIndex"></param>
         /// <param name="IsNegative"></param>
+        /// <param name="IsLowLevelActive"></param>
         public readonly record struct HomingPort(
             int PortIndex,
-            bool IsNegative);
+            bool IsNegative,
+            bool IsLowLevelActive = false);
 
         public readonly record struct HomingOptions(
             double HomeSearchSpeed,
@@ -121,11 +126,11 @@ namespace HAL
                 false,
                 false,
                 false,
-                new HomingPort(14, false),
-                new HomingPort(14, false),
-                new HomingPort(14, false),
-                new HomingPort(0, true),
-                new HomingPort(0, true));
+                new HomingPort(14, false, false),
+                new HomingPort(14, false, false),
+                new HomingPort(14, false, false),
+                new HomingPort(0, true, true),
+                new HomingPort(0, true, true));
         }
 
         public void ConfigureHoming(HomingOptions options)
@@ -319,22 +324,24 @@ namespace HAL
             var port = GetMechanicalPort(axisNo);
             var towardHomeDirection = GetTowardHomeDirection(port);
             var awayFromHomeDirection = GetOppositeDirection(towardHomeDirection);
-            var currentLevel = await ReadInputLevelAsync(port.PortIndex, cancellationToken).ConfigureAwait(false);
+            var currentLevel = NormalizeSignalLevel(await ReadInputLevelAsync(port.PortIndex, cancellationToken).ConfigureAwait(false));
+            var activeLevel = GetPortActiveSignalLevel(port);
+            var inactiveLevel = GetPortInactiveSignalLevel(port);
             var axis = GetAxisParam(axisNo);
             var startSpeedPulse = ToSpeedPulse(_startSpeed, axis);
             var searchSpeedPulse = ToSpeedPulse(_homingOptions.HomeSearchSpeed, axis);
             var accelPulse = ToAccelerationPulse(_acceleration, axis);
 
-            LogHomeDebug("Axis {AxisNo} Z homing start. Port={PortIndex}, CurrentLevel={CurrentLevel}, TowardDirection={TowardDirection}, AwayDirection={AwayDirection}", axisNo, port.PortIndex, currentLevel, towardHomeDirection, awayFromHomeDirection);
+            LogHomeDebug("Axis {AxisNo} Z homing start. Port={PortIndex}, CurrentLevel={CurrentLevel}, ActiveLevel={ActiveLevel}, IsNegative={IsNegative}, IsLowLevelActive={IsLowLevelActive}, TowardDirection={TowardDirection}, AwayDirection={AwayDirection}", axisNo, port.PortIndex, currentLevel, activeLevel, port.IsNegative, port.IsLowLevelActive, towardHomeDirection, awayFromHomeDirection);
 
-            if (currentLevel != 0)
+            if (currentLevel == activeLevel)
             {
                 LogHomeDebug("Axis {AxisNo} Z homing detected active level initially. Moving away from sensor first.", axisNo);
                 await MoveContinuousUntilInputLevelAsync(
                     axisNo,
                     awayFromHomeDirection,
                     port,
-                    0,
+                    inactiveLevel,
                     startSpeedPulse,
                     searchSpeedPulse,
                     accelPulse,
@@ -347,7 +354,7 @@ namespace HAL
                 axisNo,
                 towardHomeDirection,
                 port,
-                1,
+                activeLevel,
                 startSpeedPulse,
                 searchSpeedPulse,
                 accelPulse,
@@ -371,16 +378,16 @@ namespace HAL
         private async Task HomeXYMechanicalAsync(int axisNo, CancellationToken cancellationToken)
         {
             var port = GetMechanicalPort(axisNo);
-            var currentLevel = await ReadInputLevelAsync(port.PortIndex, cancellationToken).ConfigureAwait(false);
+            var currentLevel = NormalizeSignalLevel(await ReadInputLevelAsync(port.PortIndex, cancellationToken).ConfigureAwait(false));
             var axis = GetAxisParam(axisNo);
             var startSpeedPulse = ToSpeedPulse(_startSpeed, axis);
             var searchSpeedPulse = ToSpeedPulse(_homingOptions.HomeSearchSpeed, axis);
             var accelPulse = ToAccelerationPulse(_acceleration, axis);
-            var normalizedCurrentLevel = currentLevel == 0 ? 0 : 1;
-            var firstTargetLevel = normalizedCurrentLevel == 0 ? 1 : 0;
-            var firstDirection = GetDirectionToFlipHomeInput(port, normalizedCurrentLevel);
+            var currentActiveState = GetPortActiveState(port, currentLevel);
+            var firstTargetLevel = currentLevel == 0 ? 1 : 0;
+            var firstDirection = GetDirectionToFlipHomeInput(port, currentActiveState);
             var slowDirection = GetOppositeDirection(firstDirection);
-            var slowTargetLevel = normalizedCurrentLevel;
+            var slowTargetLevel = currentLevel;
 
 
             var slowK = 2;
@@ -389,11 +396,13 @@ namespace HAL
             var slowAccelPulse = Math.Max(1, accelPulse / slowK);
 
             LogHomeDebug(
-                "Axis {AxisNo} mechanical homing start. Port={PortIndex}, IsNegative={IsNegative}, CurrentLevel={CurrentLevel}, FirstDirection={FirstDirection}, FirstTargetLevel={FirstTargetLevel}, SlowDirection={SlowDirection}, SlowTargetLevel={SlowTargetLevel}",
+                "Axis {AxisNo} mechanical homing start. Port={PortIndex}, IsNegative={IsNegative}, IsLowLevelActive={IsLowLevelActive}, CurrentLevel={CurrentLevel}, CurrentActiveState={CurrentActiveState}, FirstDirection={FirstDirection}, FirstTargetLevel={FirstTargetLevel}, SlowDirection={SlowDirection}, SlowTargetLevel={SlowTargetLevel}",
                 axisNo,
                 port.PortIndex,
                 port.IsNegative,
-                normalizedCurrentLevel,
+                port.IsLowLevelActive,
+                currentLevel,
+                currentActiveState,
                 firstDirection,
                 firstTargetLevel,
                 slowDirection,
@@ -432,14 +441,15 @@ namespace HAL
             ValidatePort(port, $"Axis {axisNo} grating");
             var axis = GetAxisParam(axisNo);
             var towardHomeDirection = GetTowardHomeDirection(port);
+            var activeLevel = GetPortActiveSignalLevel(port);
 
-            LogHomeDebug("Axis {AxisNo} grating IO homing start. Port={PortIndex}, TowardDirection={TowardDirection}", axisNo, port.PortIndex, towardHomeDirection);
+            LogHomeDebug("Axis {AxisNo} grating IO homing start. Port={PortIndex}, ActiveLevel={ActiveLevel}, TowardDirection={TowardDirection}", axisNo, port.PortIndex, activeLevel, towardHomeDirection);
 
             await MoveContinuousUntilInputLevelAsync(
                 axisNo,
                 towardHomeDirection,
                 port,
-                1,
+                activeLevel,
                 ToSpeedPulse(_homingOptions.GratingHomeStartSpeed, axis),
                 ToSpeedPulse(_homingOptions.GratingHomeSpeed, axis),
                 ToAccelerationPulse(_homingOptions.GratingHomeAcceleration, axis),
@@ -508,7 +518,7 @@ namespace HAL
             
             ExecuteNative(() => adt8940a1.adt8940a1_continue_move(_cardNo, axisNo, dir), $"Continuous move axis {axisNo} dir {dir}");
 
-            var targetLevelNormalized = targetLevel == 0 ? 0 : 1;
+            var targetLevelNormalized = NormalizeSignalLevel(targetLevel);
             var stopHandled = false;
 
             try
@@ -521,7 +531,7 @@ namespace HAL
                     cancellationToken.ThrowIfCancellationRequested();
 
                     var level = await ReadInputLevelAsync(port.PortIndex, cancellationToken).ConfigureAwait(false);
-                    var normalizedLevel = level == 0 ? 0 : 1;
+                    var normalizedLevel = NormalizeSignalLevel(level);
                     if (normalizedLevel == targetLevelNormalized)
                     {
                         LogHomeDebug("Axis {AxisNo} continuous move reached target level. Port={PortIndex}, Level={Level}, NormalizedLevel={NormalizedLevel}, TargetLevel={TargetLevel}", axisNo, port.PortIndex, level, normalizedLevel, targetLevelNormalized);
@@ -944,23 +954,6 @@ namespace HAL
             }
         }
 
-        private void ConfigureHome(int axisNo)
-        {
-            var axis = GetAxisParam(axisNo);
-            var startSpeedPulse = ToSpeedPulse(_startSpeed, axis);
-            var searchSpeedPulse = ToSpeedPulse(_homeSearchSpeed, axis);
-            var approachSpeedPulse = ToSpeedPulse(_homeApproachSpeed, axis);
-            var accelCard = ToCardAcceleration(ToAccelerationPulse(_acceleration, axis));
-
-            ExecuteNative(
-                () => adt8940a1.adt8940a1_SetHomeMode_Ex(_cardNo, axisNo, 0, 0, 0, -1, 100, 10, 0),
-                $"Configure home mode for axis {axisNo}");
-
-            ExecuteNative(
-                () => adt8940a1.adt8940a1_SetHomeSpeed_Ex(_cardNo, axisNo, startSpeedPulse, searchSpeedPulse, approachSpeedPulse, accelCard, approachSpeedPulse),
-                $"Configure home speed for axis {axisNo}");
-        }
-
         private void ConfigureMotion(int axisNo)
         {
             var axis = GetAxisParam(axisNo);
@@ -1102,18 +1095,18 @@ namespace HAL
 
         /// <summary>
         /// 计算朝向原点传感器的运动方向。
-        /// 控制卡方向定义：dir=1 表示负方向，dir=0 表示正方向。
+        /// 控制卡方向定义：dir=1 表示正方向，dir=0 表示负方向。
         /// 当 IsNegative=true 时，表示原点传感器安装在负方向，朝向原点应走负方向；
         /// 当 IsNegative=false 时，表示原点传感器安装在正方向，朝向原点应走正方向。
         /// </summary>
         private static int GetTowardHomeDirection(HomingPort port)
         {
-            return port.IsNegative ? 1 : 0;
+            return port.IsNegative ? 0 : 1;
         }
 
         /// <summary>
         /// 计算指定方向的反方向。
-        /// 控制卡方向定义：direction=1（负方向），direction=0（正方向）。
+        /// 控制卡方向定义：direction=1（正方向），direction=0（负方向）。
         /// </summary>
         private static int GetOppositeDirection(int direction)
         {
@@ -1121,23 +1114,36 @@ namespace HAL
         }
 
         /// <summary>
-        /// 根据当前传感器状态计算第一段运动方向，使传感器状态发生第一次取反。
-        /// 控制卡方向定义：dir=1 表示负方向，dir=0 表示正方向。
-        /// IsNegative=true：ON 表示当前在负方向，先向正方向离开；OFF 表示当前在正方向，先向负方向寻找。
-        /// IsNegative=false：ON 表示当前在正方向，先向负方向离开；OFF 表示当前在负方向，先向正方向寻找。
+        /// 根据当前传感器激活状态计算第一段运动方向，使传感器状态发生第一次取反。
+        /// 控制卡方向定义：dir=1 表示正方向，dir=0 表示负方向。
+        /// currentActiveState=1 表示当前传感器已激活，currentActiveState=0 表示当前传感器未激活。
         /// </summary>
-        private static int GetDirectionToFlipHomeInput(HomingPort port, int currentLevel)
+        private static int GetDirectionToFlipHomeInput(HomingPort port, int currentActiveState)
         {
             var towardHomeDirection = GetTowardHomeDirection(port);
-            return currentLevel == 0
+            return currentActiveState == 0
                 ? towardHomeDirection
                 : GetOppositeDirection(towardHomeDirection);
         }
 
-        private static int ToSignedPulseDistance(double distanceMm, AxisParam axis, int direction)
+        private static int NormalizeSignalLevel(int level)
         {
-            var pulseDistance = ToPulse(distanceMm, axis);
-            return direction == 1 ? -pulseDistance : pulseDistance;
+            return level == 0 ? 0 : 1;
+        }
+
+        private static int GetPortActiveSignalLevel(HomingPort port)
+        {
+            return port.IsLowLevelActive ? 0 : 1;
+        }
+
+        private static int GetPortInactiveSignalLevel(HomingPort port)
+        {
+            return port.IsLowLevelActive ? 1 : 0;
+        }
+
+        private static int GetPortActiveState(HomingPort port, int signalLevel)
+        {
+            return NormalizeSignalLevel(signalLevel) == GetPortActiveSignalLevel(port) ? 1 : 0;
         }
 
         private static void ValidatePort(HomingPort port, string name)
