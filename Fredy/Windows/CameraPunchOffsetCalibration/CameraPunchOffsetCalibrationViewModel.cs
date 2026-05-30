@@ -30,8 +30,7 @@ namespace Fredy.Drilling.Holes.ViewModels
         private Task? _cameraPreviewTask;
         private bool _disposed;
 
-        [ObservableProperty] private MachineStatus _machineStatus = new();
-        [ObservableProperty] private double _jogStep = 10;
+        [ObservableProperty] private double _jogStep = 1;
         [ObservableProperty] private int _canvasSize = 200;
         [ObservableProperty] private int _ringSize = 50;
         [ObservableProperty] private OpenCvSharp.Mat? _cameraPreviewMat;
@@ -111,43 +110,6 @@ namespace Fredy.Drilling.Holes.ViewModels
             catch (Exception ex)
             {
                 _logger?.LogError(ex, "执行轴向移动命令失败: {Direction}", direction);
-            }
-        }
-
-        [RelayCommand]
-        private async Task HomeAxis(string axis)
-        {
-            if (string.IsNullOrWhiteSpace(axis) || _motionService is null || _hardwareStateService is null)
-            {
-                _logger?.LogWarning("轴回零命令无效或运动服务未初始化: {Axis}", axis);
-                return;
-            }
-
-            try
-            {
-                switch (axis.ToUpperInvariant())
-                {
-                    case "X":
-                        await _motionService.HomeXAsync().ConfigureAwait(true);
-                        break;
-                    case "Y":
-                        await _motionService.HomeYAsync().ConfigureAwait(true);
-                        break;
-                    case "Z":
-                        await _motionService.HomeZAsync().ConfigureAwait(true);
-                        break;
-                    default:
-                        _logger?.LogWarning("未识别的轴回零命令: {Axis}", axis);
-                        return;
-                }
-
-                MachineStatus.IsHomed = true;
-                await _hardwareStateService.RefreshAsync().ConfigureAwait(true);
-                _logger?.LogInformation("执行轴回零命令: {Axis}", axis);
-            }
-            catch (Exception ex)
-            {
-                _logger?.LogError(ex, "执行轴回零命令失败: {Axis}", axis);
             }
         }
 
@@ -267,12 +229,6 @@ namespace Fredy.Drilling.Holes.ViewModels
 
         private void ApplySnapshot(HardwareStateSnapshot state)
         {
-            MachineStatus.IsMotionCardReady = state.IsMotionCardReady;
-            MachineStatus.IsCameraConnected = state.IsCameraConnected;
-            MachineStatus.PosX = state.X;
-            MachineStatus.PosY = state.Y;
-            MachineStatus.PosZ = state.Z;
-
             foreach (var item in GpioIn)
             {
                 item.IsActive = state.Inputs.TryGetValue(item.Id, out var value) && value;

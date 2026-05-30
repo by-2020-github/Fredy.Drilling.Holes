@@ -56,6 +56,8 @@ namespace HAL
         private delegate int NativeCallWithValue(out int value);
 
         private static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(20);
+        private static readonly TimeSpan HomeStopReadyPollInterval = TimeSpan.FromMilliseconds(5);
+        private const int HomeStopReadyMaxWaitMs = 200;
         private const int MaxNativeCallRecordCount = 500;
 
         private readonly ConcurrentDictionary<int, bool> _axisEnabled = new();
@@ -369,77 +371,57 @@ namespace HAL
         private async Task HomeXYMechanicalAsync(int axisNo, CancellationToken cancellationToken)
         {
             var port = GetMechanicalPort(axisNo);
-            var towardHomeDirection = GetTowardHomeDirection(port);
-            var awayFromHomeDirection = GetOppositeDirection(towardHomeDirection);
             var currentLevel = await ReadInputLevelAsync(port.PortIndex, cancellationToken).ConfigureAwait(false);
             var axis = GetAxisParam(axisNo);
             var startSpeedPulse = ToSpeedPulse(_startSpeed, axis);
             var searchSpeedPulse = ToSpeedPulse(_homingOptions.HomeSearchSpeed, axis);
             var accelPulse = ToAccelerationPulse(_acceleration, axis);
-            var slowStartPulse = ToSpeedPulse(_homingOptions.SlowHomeStartSpeed, axis);
-            var slowSpeedPulse = ToSpeedPulse(_homingOptions.SlowHomeSpeed, axis);
-            var slowAccelPulse = ToAccelerationPulse(_homingOptions.SlowHomeAcceleration, axis);
+            var normalizedCurrentLevel = currentLevel == 0 ? 0 : 1;
+            var firstTargetLevel = normalizedCurrentLevel == 0 ? 1 : 0;
+            var firstDirection = GetDirectionToFlipHomeInput(port, normalizedCurrentLevel);
+            var slowDirection = GetOppositeDirection(firstDirection);
+            var slowTargetLevel = normalizedCurrentLevel;
 
-            LogHomeDebug("Axis {AxisNo} mechanical homing start. Port={PortIndex}, CurrentLevel={CurrentLevel}, TowardDirection={TowardDirection}, AwayDirection={AwayDirection}", axisNo, port.PortIndex, currentLevel, towardHomeDirection, awayFromHomeDirection);
 
-            if (currentLevel != 0)
-            {
-                // 流程图 LEFT_BRANCH：开关已触发，先沿远离原点方向离开传感器
-                LogHomeDebug("Axis {AxisNo} mechanical home input already active (LEFT_BRANCH). Moving away from home first. AwayDirection={AwayDirection}", axisNo, awayFromHomeDirection);
-                await MoveContinuousUntilInputLevelAsync(
-                    axisNo,
-                    awayFromHomeDirection,
-                    port,
-                    0,
-                    startSpeedPulse,
-                    searchSpeedPulse,
-                    accelPulse,
-                    _homingOptions.HomeTimeoutMs,
-                    cancellationToken).ConfigureAwait(false);
+            var slowK = 2;
+            var slowStartPulse = Math.Max(1, startSpeedPulse / slowK);
+            var slowSpeedPulse = Math.Max(1, searchSpeedPulse / slowK);
+            var slowAccelPulse = Math.Max(1, accelPulse / slowK);
 
-                // 流程图 LEFT_BRANCH：停止后向正方向移动退让距离
-                if (_homingOptions.HomeBackoffMm > 0)
-                {
-                    var backoffPulse = ToSignedPulseDistance(_homingOptions.HomeBackoffMm, axis, awayFromHomeDirection);
-                    LogHomeDebug("Axis {AxisNo} LEFT_BRANCH backoff. Mm={Mm}, Pulse={Pulse}, AwayDirection={AwayDirection}", axisNo, _homingOptions.HomeBackoffMm, backoffPulse, awayFromHomeDirection);
-                    await MoveRelativePulseAsync(axisNo, backoffPulse, cancellationToken).ConfigureAwait(false);
-                }
-            }
-            else
-            {
-                // 流程图 RIGHT_BRANCH：开关未触发，沿原点方向搜索开关
-                LogHomeDebug("Axis {AxisNo} mechanical home input inactive (RIGHT_BRANCH). Moving toward home sensor. TowardDirection={TowardDirection}", axisNo, towardHomeDirection);
-                await MoveContinuousUntilInputLevelAsync(
-                    axisNo,
-                    towardHomeDirection,
-                    port,
-                    1,
-                    startSpeedPulse,
-                    searchSpeedPulse,
-                    accelPulse,
-                    _homingOptions.HomeTimeoutMs,
-                    cancellationToken).ConfigureAwait(false);
+            LogHomeDebug(
+                "Axis {AxisNo} mechanical homing start. Port={PortIndex}, IsNegative={IsNegative}, CurrentLevel={CurrentLevel}, FirstDirection={FirstDirection}, FirstTargetLevel={FirstTargetLevel}, SlowDirection={SlowDirection}, SlowTargetLevel={SlowTargetLevel}",
+                axisNo,
+                port.PortIndex,
+                port.IsNegative,
+                normalizedCurrentLevel,
+                firstDirection,
+                firstTargetLevel,
+                slowDirection,
+                slowTargetLevel);
 
-                // 流程图 RIGHT_BRANCH：停止后沿远离原点方向退让距离（与 LEFT_BRANCH 一致）
-                if (_homingOptions.HomeBackoffMm > 0)
-                {
-                    var backoffPulse = ToSignedPulseDistance(_homingOptions.HomeBackoffMm, axis, awayFromHomeDirection);
-                    LogHomeDebug("Axis {AxisNo} RIGHT_BRANCH backoff. Mm={Mm}, Pulse={Pulse}, AwayDirection={AwayDirection}", axisNo, _homingOptions.HomeBackoffMm, backoffPulse, awayFromHomeDirection);
-                    await MoveRelativePulseAsync(axisNo, backoffPulse, cancellationToken).ConfigureAwait(false);
-                }
-            }
-
-            // 流程图：慢速沿原点方向运动，精确找到激活沿
-            LogHomeDebug("Axis {AxisNo} starting slow approach toward home to find active home level. TowardDirection={TowardDirection}", axisNo, towardHomeDirection);
+            // 第一段：根据当前 ON/OFF 状态判断当前位置，并向能够让传感器第一次取反的方向运动。
             await MoveContinuousUntilInputLevelAsync(
                 axisNo,
-                towardHomeDirection,
+                firstDirection,
                 port,
-                1,
+                firstTargetLevel,
+                startSpeedPulse,
+                searchSpeedPulse,
+                accelPulse,
+                _homingOptions.HomeTimeoutMs,
+                cancellationToken).ConfigureAwait(false);
+
+            // 第二段：速度降为第一段的slowK分之一，反方向慢速运动，直到传感器再次取反，认为到达零点边沿。
+            LogHomeDebug("Axis {AxisNo} mechanical homing slow reverse. SlowDirection={SlowDirection}, SlowTargetLevel={SlowTargetLevel}", axisNo, slowDirection, slowTargetLevel);
+            await MoveContinuousUntilInputLevelAsync(
+                axisNo,
+                slowDirection,
+                port,
+                slowTargetLevel,
                 slowStartPulse,
                 slowSpeedPulse,
                 slowAccelPulse,
-                _homingOptions.HomeTimeoutMs,
+                _homingOptions.HomeTimeoutMs * slowK,
                 cancellationToken).ConfigureAwait(false);
             LogHomeDebug("Axis {AxisNo} mechanical homing completed.", axisNo);
         }
@@ -517,8 +499,17 @@ namespace HAL
         {
             ValidatePort(port, $"Axis {axisNo} home");
             LogHomeDebug("Axis {AxisNo} continuous move wait start. Dir={Dir}, Port={PortIndex}, TargetLevel={TargetLevel}, StartSpeed={StartSpeed}, DriveSpeed={DriveSpeed}, Acceleration={Acceleration}, TimeoutMs={TimeoutMs}", axisNo, dir, port.PortIndex, targetLevel, startSpeed, driveSpeed, acceleration, timeoutMs);
-            ConfigureMotion(axisNo, startSpeed, driveSpeed, acceleration);
+            
+            // 修复：此处的 startSpeed, driveSpeed, acceleration 已经是 Pulse 单位。
+            // 直接调用底层，避免原 ConfigureMotion 误将其作为 mm/s 再次乘以脉冲当量导致速度极大而电机堵转
+            ExecuteNative(() => adt8940a1.adt8940a1_set_startv(_cardNo, axisNo, Math.Max(100, startSpeed)), $"Set start speed for axis {axisNo}");
+            ExecuteNative(() => adt8940a1.adt8940a1_set_speed(_cardNo, axisNo, Math.Max(100, driveSpeed)), $"Set drive speed for axis {axisNo}");
+            ExecuteNative(() => adt8940a1.adt8940a1_set_acc(_cardNo, axisNo, ToCardAcceleration(acceleration)), $"Set acceleration for axis {axisNo}");
+            
             ExecuteNative(() => adt8940a1.adt8940a1_continue_move(_cardNo, axisNo, dir), $"Continuous move axis {axisNo} dir {dir}");
+
+            var targetLevelNormalized = targetLevel == 0 ? 0 : 1;
+            var stopHandled = false;
 
             try
             {
@@ -530,29 +521,38 @@ namespace HAL
                     cancellationToken.ThrowIfCancellationRequested();
 
                     var level = await ReadInputLevelAsync(port.PortIndex, cancellationToken).ConfigureAwait(false);
-                    if (level == targetLevel)
+                    var normalizedLevel = level == 0 ? 0 : 1;
+                    if (normalizedLevel == targetLevelNormalized)
                     {
-                        LogHomeDebug("Axis {AxisNo} continuous move reached target level. Port={PortIndex}, Level={Level}", axisNo, port.PortIndex, level);
+                        LogHomeDebug("Axis {AxisNo} continuous move reached target level. Port={PortIndex}, Level={Level}, NormalizedLevel={NormalizedLevel}, TargetLevel={TargetLevel}", axisNo, port.PortIndex, level, normalizedLevel, targetLevelNormalized);
+                        var stopStartedAt = Environment.TickCount64;
+                        ExecuteNative(() => adt8940a1.adt8940a1_sudden_stop(_cardNo, axisNo), $"Immediate stop axis {axisNo} on home input match");
+                        stopHandled = true;
+                        var stopReady = await WaitForAxisMotionIdleAsync(axisNo, Math.Min(timeoutMs, HomeStopReadyMaxWaitMs), cancellationToken).ConfigureAwait(false);
+                        LogHomeDebug("Axis {AxisNo} home stop settle completed. Ready={Ready}, ElapsedMs={ElapsedMs}", axisNo, stopReady, Environment.TickCount64 - stopStartedAt);
                         return;
                     }
 
                     if (Environment.TickCount64 - startedAt >= timeoutMs)
                     {
-                        LogHomeDebug("Axis {AxisNo} continuous move wait timed out. Port={PortIndex}, LastLevel={Level}, TimeoutMs={TimeoutMs}", axisNo, port.PortIndex, level, timeoutMs);
+                        LogHomeDebug("Axis {AxisNo} continuous move wait timed out. Port={PortIndex}, LastLevel={Level}, NormalizedLevel={NormalizedLevel}, TargetLevel={TargetLevel}, TimeoutMs={TimeoutMs}", axisNo, port.PortIndex, level, normalizedLevel, targetLevelNormalized, timeoutMs);
                         throw new TimeoutException($"Axis {axisNo} home input wait timed out on port {port.PortIndex}.");
                     }
 
                     await Task.Delay(PollInterval, cancellationToken).ConfigureAwait(false);
                     if (times % 10 == 0)
                     {
-                        _logger.Debug("Axis {AxisNo} continuous move waiting. Port={PortIndex}, TargetLevel={TargetLevel}", axisNo, port.PortIndex, targetLevel);
+                        _logger.Debug("Axis {AxisNo} continuous move waiting. Port={PortIndex}, TargetLevel={TargetLevel}", axisNo, port.PortIndex, targetLevelNormalized);
                     }
                 }
             }
             finally
             {
-                LogHomeDebug("Axis {AxisNo} continuous move wait exit. Issuing stop.", axisNo);
-                await StopAsync(axisNo).ConfigureAwait(false);
+                if (!stopHandled)
+                {
+                    LogHomeDebug("Axis {AxisNo} continuous move wait exit without target match. Issuing stop.", axisNo);
+                    await StopAsync(axisNo).ConfigureAwait(false);
+                }
             }
         }
 
@@ -584,6 +584,33 @@ namespace HAL
             }
 
             return result;
+        }
+
+        private async Task<bool> WaitForAxisMotionIdleAsync(int axisNo, int maxWaitMs, CancellationToken cancellationToken)
+        {
+            var startedAt = Environment.TickCount64;
+            while (true)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                ExecuteNative(
+                    (out int status) => adt8940a1.adt8940a1_get_status(_cardNo, axisNo, out status),
+                    $"Get status for axis {axisNo}",
+                    out var motionStatus);
+
+                if (motionStatus == 0)
+                {
+                    return true;
+                }
+
+                if (Environment.TickCount64 - startedAt >= maxWaitMs)
+                {
+                    _logger.Warning("Axis {AxisNo} did not report idle within {MaxWaitMs}ms after sudden stop; continuing homing.", axisNo, maxWaitMs);
+                    return false;
+                }
+
+                await Task.Delay(HomeStopReadyPollInterval, cancellationToken).ConfigureAwait(false);
+            }
         }
 
         private async Task WaitForLockStatusAsync(int axisNo, CancellationToken cancellationToken)
@@ -1075,29 +1102,42 @@ namespace HAL
 
         /// <summary>
         /// 计算朝向原点传感器的运动方向。
-        /// dir=0 表示负方向，dir=1 表示正方向。
-        /// 当 IsNegative=true 时，表示原点传感器安装在负方向，回零应朝负方向运动；
-        /// 当 IsNegative=false 时，表示原点传感器安装在正方向，回零应朝正方向运动。
+        /// 控制卡方向定义：dir=1 表示负方向，dir=0 表示正方向。
+        /// 当 IsNegative=true 时，表示原点传感器安装在负方向，朝向原点应走负方向；
+        /// 当 IsNegative=false 时，表示原点传感器安装在正方向，朝向原点应走正方向。
         /// </summary>
         private static int GetTowardHomeDirection(HomingPort port)
         {
-            return port.IsNegative ? 0 : 1;
+            return port.IsNegative ? 1 : 0;
         }
 
         /// <summary>
         /// 计算指定方向的反方向。
-        /// 常用于已压到原点开关时先脱离传感器：
-        /// direction=0（负方向）返回 1（正方向），direction=1（正方向）返回 0（负方向）。
+        /// 控制卡方向定义：direction=1（负方向），direction=0（正方向）。
         /// </summary>
         private static int GetOppositeDirection(int direction)
         {
             return direction == 0 ? 1 : 0;
         }
 
+        /// <summary>
+        /// 根据当前传感器状态计算第一段运动方向，使传感器状态发生第一次取反。
+        /// 控制卡方向定义：dir=1 表示负方向，dir=0 表示正方向。
+        /// IsNegative=true：ON 表示当前在负方向，先向正方向离开；OFF 表示当前在正方向，先向负方向寻找。
+        /// IsNegative=false：ON 表示当前在正方向，先向负方向离开；OFF 表示当前在负方向，先向正方向寻找。
+        /// </summary>
+        private static int GetDirectionToFlipHomeInput(HomingPort port, int currentLevel)
+        {
+            var towardHomeDirection = GetTowardHomeDirection(port);
+            return currentLevel == 0
+                ? towardHomeDirection
+                : GetOppositeDirection(towardHomeDirection);
+        }
+
         private static int ToSignedPulseDistance(double distanceMm, AxisParam axis, int direction)
         {
             var pulseDistance = ToPulse(distanceMm, axis);
-            return direction == 0 ? -pulseDistance : pulseDistance;
+            return direction == 1 ? -pulseDistance : pulseDistance;
         }
 
         private static void ValidatePort(HomingPort port, string name)

@@ -22,7 +22,6 @@ using System.Windows.Data;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Fredy.Drilling.Holes.Windows.CustomPunchRange;
-using Fredy.Drilling.Holes.Services;
 
 namespace Fredy.Drilling.Holes.ViewModels
 {
@@ -176,39 +175,75 @@ namespace Fredy.Drilling.Holes.ViewModels
         [RelayCommand(CanExecute = nameof(CanStartReset))]
         private async Task ResetAsync()
         {
-            if (_motionService is null) return;
-            _resetCancellationTokenSource = new CancellationTokenSource();
-            IsResetting = true;
-            ResetCommand.NotifyCanExecuteChanged();
-            CancelResetCommand.NotifyCanExecuteChanged();
-            try
+            await ExecuteResetAsync("X/Y 复位", async token =>
             {
-                var token = _resetCancellationTokenSource.Token;
-                await _motionService.HomeXAsync(true, token);
+                await _motionService!.HomeXAsync(true, token);
                 token.ThrowIfCancellationRequested();
                 await _motionService.HomeYAsync(true, token);
-                // Z 轴复位暂时屏蔽
-                _logger?.LogInformation("复位完成");
+            });
+        }
+
+        [RelayCommand(CanExecute = nameof(CanStartReset))]
+        private Task ResetXAsync()
+        {
+            return ExecuteResetAsync("X 轴复位", token => _motionService!.HomeXAsync(true, token));
+        }
+
+        [RelayCommand(CanExecute = nameof(CanStartReset))]
+        private Task ResetYAsync()
+        {
+            return ExecuteResetAsync("Y 轴复位", token => _motionService!.HomeYAsync(true, token));
+        }
+
+        [RelayCommand(CanExecute = nameof(CanStartReset))]
+        private Task ResetZAsync()
+        {
+            return ExecuteResetAsync("Z 轴复位", token => _motionService!.HomeZAsync(true, token));
+        }
+
+        private bool CanStartReset() => !IsResetting;
+
+        private async Task ExecuteResetAsync(string resetName, Func<CancellationToken, Task> resetAction)
+        {
+            if (_motionService is null)
+            {
+                return;
+            }
+
+            _resetCancellationTokenSource = new CancellationTokenSource();
+            IsResetting = true;
+            NotifyResetCommandStateChanged();
+
+            try
+            {
+                await resetAction(_resetCancellationTokenSource.Token);
+                _logger?.LogInformation("{ResetName}完成", resetName);
             }
             catch (OperationCanceledException)
             {
-                _logger?.LogInformation("复位已取消");
+                _logger?.LogInformation("{ResetName}已取消", resetName);
             }
             catch (Exception ex)
             {
-                _logger?.LogError(ex, "复位过程中发生错误");
+                _logger?.LogError(ex, "{ResetName}过程中发生错误", resetName);
             }
             finally
             {
                 IsResetting = false;
                 _resetCancellationTokenSource?.Dispose();
                 _resetCancellationTokenSource = null;
-                ResetCommand.NotifyCanExecuteChanged();
-                CancelResetCommand.NotifyCanExecuteChanged();
+                NotifyResetCommandStateChanged();
             }
         }
 
-        private bool CanStartReset() => !IsResetting;
+        private void NotifyResetCommandStateChanged()
+        {
+            ResetCommand.NotifyCanExecuteChanged();
+            ResetXCommand.NotifyCanExecuteChanged();
+            ResetYCommand.NotifyCanExecuteChanged();
+            ResetZCommand.NotifyCanExecuteChanged();
+            CancelResetCommand.NotifyCanExecuteChanged();
+        }
 
         [RelayCommand(CanExecute = nameof(CanCancelReset))]
         private void CancelReset()

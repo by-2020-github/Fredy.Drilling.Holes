@@ -132,34 +132,6 @@
                 <Button Content="停止" Background="{StaticResource Brush.Status.Red}" Foreground="{StaticResource Brush.Foreground}" Height="50" FontSize="20" FontWeight="Bold" Margin="5" Command="{Binding StopPunchingCommand}"/>
             </StackPanel>
 
-            <Border BorderBrush="{StaticResource Brush.Border.Strong}" BorderThickness="1" Margin="5" Padding="5">
-                <StackPanel>
-                    <TextBlock Text="机台坐标" FontWeight="Bold" Margin="0,0,0,5"/>
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="20"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-                        <Grid.RowDefinitions>
-                            <RowDefinition/>
-                            <RowDefinition/>
-                            <RowDefinition/>
-                        </Grid.RowDefinitions>
-                        <TextBlock Text="X:"/>
-                        <Border Grid.Column="1" Background="{StaticResource Brush.Status.Green}" Margin="2">
-                            <TextBlock Text="{Binding Status.PosX, StringFormat=N3}" HorizontalAlignment="Right"/>
-                        </Border>
-                        <TextBlock Text="Y:" Grid.Row="1"/>
-                        <Border Grid.Column="1" Grid.Row="1" Background="{StaticResource Brush.Status.Green}" Margin="2">
-                            <TextBlock Text="{Binding Status.PosY, StringFormat=N3}" HorizontalAlignment="Right"/>
-                        </Border>
-                        <TextBlock Text="Z:" Grid.Row="2"/>
-                        <Border Grid.Column="1" Grid.Row="2" Background="{StaticResource Brush.Status.Green}" Margin="2">
-                            <TextBlock Text="{Binding Status.PosZ, StringFormat=N3}" HorizontalAlignment="Right"/>
-                        </Border>
-                    </Grid>
-                </StackPanel>
-            </Border>
         </StackPanel>
 
         <Grid Grid.Row="1" Margin="5">
@@ -210,6 +182,18 @@
             <Border Background="{Binding Status.IsMotionCardReady, Converter={StaticResource StatusColorConverter}}" Padding="5,1">
                 <TextBlock Text="未就绪"/>
             </Border>
+                        <Separator/>
+            <StatusBarItem>
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="机台坐标" FontWeight="Bold" Margin="0,0,8,0"/>
+                    <TextBlock Text="X:"/>
+                    <TextBlock Text="{Binding Status.PosX, StringFormat=N3}" Margin="4,0,12,0" FontWeight="Bold"/>
+                    <TextBlock Text="Y:"/>
+                    <TextBlock Text="{Binding Status.PosY, StringFormat=N3}" Margin="4,0,12,0" FontWeight="Bold"/>
+                    <TextBlock Text="Z:"/>
+                    <TextBlock Text="{Binding Status.PosZ, StringFormat=N3}" Margin="4,0,0,0" FontWeight="Bold"/>
+                </StackPanel>
+            </StatusBarItem>
             <Separator/>
             <TextBlock Text="相机状态"/>
             <Border Background="{Binding Status.IsCameraConnected, Converter={StaticResource StatusColorConverter}}" Padding="5,1">

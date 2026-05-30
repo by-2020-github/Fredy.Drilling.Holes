@@ -14,11 +14,16 @@
         </Grid.RowDefinitions>
 
         <Menu Grid.Row="0">
-                <MenuItem Header="复位 (X/Y)" Command="{Binding ResetCommand}"/>
-                <MenuItem Header="取消复位" Command="{Binding CancelResetCommand}"/>
-                <Separator/>
-                <MenuItem Header="急停" Command="{Binding EmergencyStopCommand}"
-                          Foreground="Red" FontWeight="Bold"/>
+            <MenuItem Header="复位">
+            <MenuItem Header="复位 (X/Y)" Command="{Binding ResetCommand}"/>
+            <MenuItem Header="只复位 X" Command="{Binding ResetXCommand}"/>
+            <MenuItem Header="只复位 Y" Command="{Binding ResetYCommand}"/>
+            <MenuItem Header="只复位 Z" Command="{Binding ResetZCommand}"/>
+            </MenuItem>
+            <MenuItem Header="取消复位" Command="{Binding CancelResetCommand}"/>
+            <Separator/>
+            <MenuItem Header="急停" Command="{Binding EmergencyStopCommand}"
+                  Foreground="Red" FontWeight="Bold"/>
         </Menu>
 
         <views:MainView Grid.Row="1"/>

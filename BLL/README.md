@@ -122,3 +122,9 @@ stateDiagram-v2
 1.  **单一职责 (SRP)**: `MotionManager` 只负责把轴移动到指定位置，不管怎么“探”或“冲”。`PunchStateMachine` 只关心工艺步骤，不管具体向右转几圈。
 2.  **依赖倒置 (DIP)**: `Adt8940Controller` 依赖于在项目启动时注入的通用 `IMotionService` 接口，解耦了对 HAL 驱动器的重复实例注册。
 3.  **响应式通信 (Reactive)**: 通过 `HardwareStateService` 与 `PunchEventArgs` 完成基于事件的状态上抛与后台监测，UI 依据推送呈现最新数据。
+
+## 5. 相关文档
+
+*   **`HardwareStateService StateChanged 调用链说明`**
+    *   **位置**: `../docs/hardware-state-service-statechanged.md`
+    *   **内容**: 记录 `StateChanged` 的触发时机、后台刷新机制、线程切换方式，以及从后台服务到 UI 的调用链。

@@ -1,3 +1,4 @@
+using BLL;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Fredy.Drilling.Holes.Models;
@@ -17,7 +18,6 @@ namespace Fredy.Drilling.Holes.UserControls
     {
         private const string MotionSimulatorType = nameof(MotionSimulator);
         private const string MotionAdt8940Type = nameof(MotionAdt8940);
-        private const int MaxLogCount = 1000;
         private static readonly TimeSpan PositionRefreshInterval = TimeSpan.FromMilliseconds(250);
 
         private CancellationTokenSource? _refreshCancellationTokenSource;
@@ -27,20 +27,34 @@ namespace Fredy.Drilling.Holes.UserControls
         private bool _refreshFailureReported;
         private long _lastNativeCallSequence;
         private readonly ConfigService? _configService;
+        private readonly IHardwareStateService? _hardwareStateService;
+        private readonly IIOCard? _ioCard;
         private readonly ILogger _logger;
 
         public MotionDebugViewModel(ILogger logger)
         {
+            _logger = logger.ForContext<MotionDebugViewModel>();
             _configService = App.ServiceProvider?.GetService<ConfigService>();
+            _hardwareStateService = App.ServiceProvider?.GetService<IHardwareStateService>();
+            _ioCard = App.ServiceProvider?.GetService<IIOCard>();
             MotionTypes = [MotionSimulatorType, MotionAdt8940Type];
+            InitializeGpioCollections(_hardwareStateService?.InputCount ?? 24, _hardwareStateService?.OutputCount ?? 9);
+            if (_hardwareStateService is not null)
+            {
+                ApplySnapshot(_hardwareStateService.CurrentState);
+                _hardwareStateService.StateChanged += HardwareStateService_StateChanged;
+                _ = _hardwareStateService.RefreshAsync();
+            }
+
             StartRefreshLoop();
-            AddLog("调试面板已就绪，请先初始化控制器。");
-            this._logger = logger;
+            LogInformation("调试面板已就绪，请先初始化控制器。");
         }
 
         public ObservableCollection<string> MotionTypes { get; }
 
-        public ObservableCollection<string> Logs { get; } = new();
+        public ObservableCollection<GpioItem> GpioIn { get; } = new();
+
+        public ObservableCollection<GpioItem> GpioOut { get; } = new();
 
         public IMoton? CurrentMotion => _motion;
 
@@ -57,7 +71,6 @@ namespace Fredy.Drilling.Holes.UserControls
         private double _absolutePosition;
         private double _relativeDistance = 10d;
         private bool _waitForCompletion = true;
-        private bool _autoRefreshPosition = true;
         private bool _isInitialized;
         private double _currentPosition;
         private string _statusMessage = "请选择控制器并执行初始化。";
@@ -115,7 +128,7 @@ namespace Fredy.Drilling.Holes.UserControls
             get => _axisNo;
             set
             {
-                if (SetProperty(ref _axisNo, value) && AutoRefreshPosition && IsInitialized)
+                if (SetProperty(ref _axisNo, value) && IsInitialized)
                 {
                     _ = RefreshPositionCoreAsync(CancellationToken.None);
                 }
@@ -138,18 +151,6 @@ namespace Fredy.Drilling.Holes.UserControls
         {
             get => _waitForCompletion;
             set => SetProperty(ref _waitForCompletion, value);
-        }
-
-        public bool AutoRefreshPosition
-        {
-            get => _autoRefreshPosition;
-            set
-            {
-                if (SetProperty(ref _autoRefreshPosition, value) && value && IsInitialized)
-                {
-                    _ = RefreshPositionCoreAsync(CancellationToken.None);
-                }
-            }
         }
 
         public bool IsInitialized
@@ -203,8 +204,7 @@ namespace Fredy.Drilling.Holes.UserControls
             _lastNativeCallSequence = 0;
             IsInitialized = false;
             CurrentPosition = 0;
-            StatusMessage = "控制器已释放。";
-            AddLog(StatusMessage);
+            SetStatus("控制器已释放。");
         }
 
         [RelayCommand(AllowConcurrentExecutions = false)]
@@ -283,12 +283,26 @@ namespace Fredy.Drilling.Holes.UserControls
                 $"急停轴 {AxisNo}");
         }
 
-        [RelayCommand]
-        private void ClearLog()
+        [RelayCommand(AllowConcurrentExecutions = false)]
+        private async Task ToggleOutputAsync(int portNo)
         {
-            Logs.Clear();
-            MarkCurrentNativeLogsAsConsumed();
-            AddLog("日志已清空。");
+            if (_ioCard is null || _hardwareStateService is null)
+            {
+                SetStatus("IO 服务未初始化，无法切换输出。");
+                return;
+            }
+
+            try
+            {
+                var currentValue = _hardwareStateService.CurrentState.Outputs.TryGetValue(portNo, out var value) && value;
+                await _ioCard.WriteOutputAsync(portNo, !currentValue).ConfigureAwait(true);
+                await _hardwareStateService.RefreshAsync().ConfigureAwait(true);
+                _logger.Information("GPIO 输出切换: Port={PortNo}, Value={Value}", portNo, !currentValue);
+            }
+            catch (Exception ex)
+            {
+                SetError($"GPIO 输出 {portNo} 切换", ex);
+            }
         }
 
         public void Dispose()
@@ -296,6 +310,11 @@ namespace Fredy.Drilling.Holes.UserControls
             if (_disposed)
             {
                 return;
+            }
+
+            if (_hardwareStateService is not null)
+            {
+                _hardwareStateService.StateChanged -= HardwareStateService_StateChanged;
             }
 
             _refreshCancellationTokenSource?.Cancel();
@@ -377,8 +396,7 @@ namespace Fredy.Drilling.Holes.UserControls
         {
             if (_motion is null || !IsInitialized)
             {
-                StatusMessage = "请先初始化控制器。";
-                AddLog(StatusMessage);
+                SetStatus("请先初始化控制器。");
                 return;
             }
 
@@ -441,20 +459,69 @@ namespace Fredy.Drilling.Holes.UserControls
                 }
 
                 _lastNativeCallSequence = record.SequenceId;
-                AddLogEntry($"[{record.Timestamp:HH:mm:ss.fff}] [ADT8940] {(record.IsSuccess ? "OK" : "FAIL")} | {record.Operation} | Code={record.ResultCode?.ToString() ?? "N/A"} | {record.Message}");
+                if (record.IsSuccess)
+                {
+                    _logger.Debug(
+                        "ADT8940 {Operation} 成功，Code={ResultCode}，Message={Message}",
+                        record.Operation,
+                        record.ResultCode?.ToString() ?? "N/A",
+                        record.Message);
+                }
+                else
+                {
+                    _logger.Warning(
+                        "ADT8940 {Operation} 失败，Code={ResultCode}，Message={Message}",
+                        record.Operation,
+                        record.ResultCode?.ToString() ?? "N/A",
+                        record.Message);
+                }
             }
         }
 
-        private void MarkCurrentNativeLogsAsConsumed()
+        private void InitializeGpioCollections(int inputCount, int outputCount)
         {
-            if (_motion is not MotionAdt8940 motionAdt8940)
+            GpioIn.Clear();
+            GpioOut.Clear();
+
+            for (int i = 0; i < inputCount; i++)
             {
-                _lastNativeCallSequence = 0;
+                GpioIn.Add(new GpioItem { Id = i });
+            }
+
+            for (int i = 0; i < outputCount; i++)
+            {
+                GpioOut.Add(new GpioItem { Id = i });
+            }
+        }
+
+        private void ApplySnapshot(HardwareStateSnapshot state)
+        {
+            foreach (var item in GpioIn)
+            {
+                item.IsActive = state.Inputs.TryGetValue(item.Id, out var value) && value;
+            }
+
+            foreach (var item in GpioOut)
+            {
+                item.IsActive = state.Outputs.TryGetValue(item.Id, out var value) && value;
+            }
+        }
+
+        private void HardwareStateService_StateChanged(object? sender, HardwareStateChangedEventArgs e)
+        {
+            if (_disposed)
+            {
                 return;
             }
 
-            var records = motionAdt8940.NativeCallRecords;
-            _lastNativeCallSequence = records.Length > 0 ? records[^1].SequenceId : 0;
+            var dispatcher = Application.Current?.Dispatcher;
+            if (dispatcher is null || dispatcher.CheckAccess())
+            {
+                ApplySnapshot(e.State);
+                return;
+            }
+
+            _ = dispatcher.InvokeAsync(() => ApplySnapshot(e.State));
         }
 
         private void StartRefreshLoop()
@@ -473,7 +540,7 @@ namespace Fredy.Drilling.Holes.UserControls
             {
                 while (await timer.WaitForNextTickAsync(cancellationToken).ConfigureAwait(false))
                 {
-                    if (!AutoRefreshPosition || _motion is null || !IsInitialized)
+                    if (_motion is null || !IsInitialized)
                     {
                         continue;
                     }
@@ -498,8 +565,8 @@ namespace Fredy.Drilling.Holes.UserControls
                         await UpdateOnUiThreadAsync(() =>
                         {
                             StatusMessage = $"后台位置刷新失败: {ex.Message}";
-                            AddLog(StatusMessage);
                         }).ConfigureAwait(false);
+                        _logger.Warning(ex, "后台位置刷新失败");
                     }
                 }
             }
@@ -511,27 +578,18 @@ namespace Fredy.Drilling.Holes.UserControls
         private void SetStatus(string message)
         {
             StatusMessage = message;
-            AddLog(message);
+            LogInformation(message);
         }
 
         private void SetError(string actionName, Exception ex)
         {
             StatusMessage = $"{actionName}失败: {ex.Message}";
-            AddLog(StatusMessage);
+            _logger.Error(ex, "{ActionName}失败", actionName);
         }
 
-        private void AddLog(string message)
+        private void LogInformation(string message)
         {
-            AddLogEntry($"[{DateTime.Now:HH:mm:ss}] {message}");
-        }
-
-        private void AddLogEntry(string entry)
-        {
-            Logs.Add(entry);
-            while (Logs.Count > MaxLogCount)
-            {
-                Logs.RemoveAt(0);
-            }
+            _logger.Information("{Message}", message);
         }
 
         private static Task UpdateOnUiThreadAsync(Action action)
