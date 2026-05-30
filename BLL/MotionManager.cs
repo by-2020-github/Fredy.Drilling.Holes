@@ -11,6 +11,7 @@ namespace BLL
     {
         private readonly IMoton _motion;
         private readonly ILogger _logger;
+        private double _zHomeLiftMm;
 
         public IMoton Hardware => _motion;
 
@@ -70,6 +71,12 @@ namespace BLL
             _motion.ConfigureAxis(ZAxis);
         }
 
+        public void ConfigureZHomeLift(double liftMm)
+        {
+            _zHomeLiftMm = Math.Max(0d, liftMm);
+            _logger.Information("Z轴复位后抬升距离已更新: {ZHomeLiftMm}", _zHomeLiftMm);
+        }
+
         public void HomeAll(bool wait)
         {
             ExecuteSync(HomeAllAsync(wait));
@@ -82,9 +89,9 @@ namespace BLL
 
             if (wait)
             {
-                await HomeAxisAsync(XAxis, true, cancellationToken).ConfigureAwait(false);
-                await HomeAxisAsync(YAxis, true, cancellationToken).ConfigureAwait(false);
-                await HomeAxisAsync(ZAxis, true, cancellationToken).ConfigureAwait(false);
+                await HomeXAsync(true, cancellationToken).ConfigureAwait(false);
+                await HomeYAsync(true, cancellationToken).ConfigureAwait(false);
+                await HomeZAsync(true, cancellationToken).ConfigureAwait(false);
                 return;
             }
 
@@ -124,6 +131,7 @@ namespace BLL
         {
             await _motion.EnableAsync(ZAxis.AxisNo).ConfigureAwait(false);
             await HomeAxisAsync(ZAxis, wait, cancellationToken).ConfigureAwait(false);
+            await ExecuteZPostHomeLiftAsync(wait, cancellationToken).ConfigureAwait(false);
         }
 
         public void MoveX(double position, double velocity, bool wait = true)
@@ -231,6 +239,54 @@ namespace BLL
             await _motion.HomeAsync(axis.AxisNo, wait, cancellationToken).ConfigureAwait(false);
         }
 
+        private async Task ExecuteZPostHomeLiftAsync(bool wait, CancellationToken cancellationToken)
+        {
+            if (_zHomeLiftMm <= 0d)
+            {
+                return;
+            }
+
+            if (!wait)
+            {
+                _logger.Information("Z轴复位后抬升已配置为 {ZHomeLiftMm} mm，但当前复位未等待完成，跳过本次业务抬升。", _zHomeLiftMm);
+                return;
+            }
+
+            var liftVelocity = ZAxis.Velocity;
+            var startPosition = await _motion.GetPositionAsync(ZAxis.AxisNo, cancellationToken).ConfigureAwait(false);
+            var liftTimeoutMs = CalculateMoveTimeoutMs(startPosition, _zHomeLiftMm, liftVelocity, ZAxis.HomeTimeoutMs);
+            _logger.Information("Z轴复位完成，开始执行业务抬升: Start={StartPosition}, Target={LiftTarget}, Velocity={LiftVelocity}, TimeoutMs={LiftTimeoutMs}", startPosition, _zHomeLiftMm, liftVelocity, liftTimeoutMs);
+            await MoveAxisWithTimeoutAsync(ZAxis, _zHomeLiftMm, liftVelocity, liftTimeoutMs, cancellationToken, axis => ZAxis = axis).ConfigureAwait(false);
+            _logger.Information("Z轴复位后业务抬升完成: Target={LiftTarget}", _zHomeLiftMm);
+        }
+
+        private async Task MoveAxisWithTimeoutAsync(
+            AxisParam axis,
+            double position,
+            double velocity,
+            int timeoutMs,
+            CancellationToken cancellationToken,
+            Action<AxisParam> updateAxis)
+        {
+            _logger.Verbose("请求移动轴 {AxisNo} 到位置 {Position}，速度 {Velocity}，等待完成: True，超时: {TimeoutMs}ms", axis.AxisNo, position, velocity, timeoutMs);
+            ValidateAxisLimit(axis, position);
+            updateAxis(axis);
+            await _motion.EnableAsync(axis.AxisNo).ConfigureAwait(false);
+
+            using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeoutCts.CancelAfter(timeoutMs);
+
+            try
+            {
+                await _motion.MoveAbsoluteAsync(axis.AxisNo, position, true, velocity, timeoutCts.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && timeoutCts.IsCancellationRequested)
+            {
+                var currentPosition = await SafeGetAxisPositionAsync(axis.AxisNo).ConfigureAwait(false);
+                throw new TimeoutException($"Axis {axis.AxisNo} move to {position} timed out after {timeoutMs} ms. CurrentPosition={currentPosition:F3}, Velocity={velocity:F3}.");
+            }
+        }
+
         private async Task MoveAxisAsync(
             AxisParam axis,
             double position,
@@ -244,6 +300,28 @@ namespace BLL
             updateAxis(axis);
             await _motion.EnableAsync(axis.AxisNo).ConfigureAwait(false);
             await _motion.MoveAbsoluteAsync(axis.AxisNo, position, wait, velocity, cancellationToken).ConfigureAwait(false);
+        }
+
+        private async Task<double> SafeGetAxisPositionAsync(int axisNo)
+        {
+            try
+            {
+                return await _motion.GetPositionAsync(axisNo).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                _logger.Warning(ex, "读取轴 {AxisNo} 当前位置失败。", axisNo);
+                return double.NaN;
+            }
+        }
+
+        private static int CalculateMoveTimeoutMs(double startPosition, double targetPosition, double velocity, int fallbackTimeoutMs)
+        {
+            var effectiveVelocity = velocity > 0d ? velocity : 1d;
+            var expectedMoveMs = (int)Math.Ceiling(Math.Abs(targetPosition - startPosition) / effectiveVelocity * 1000d);
+            var bufferedTimeoutMs = expectedMoveMs + 3000;
+            var normalizedFallbackTimeoutMs = fallbackTimeoutMs > 0 ? fallbackTimeoutMs : 10000;
+            return Math.Max(bufferedTimeoutMs, normalizedFallbackTimeoutMs);
         }
 
         private void ValidateAxisLimit(AxisParam axis, double position)

@@ -153,7 +153,7 @@ namespace Fredy.Drilling.Holes
                     logFilePath,
                     retainedFileCountLimit: 14,
                     shared: true,
-                    restrictedToMinimumLevel: Serilog.Events.LogEventLevel.Debug,
+                    restrictedToMinimumLevel: Serilog.Events.LogEventLevel.Verbose,
                     outputTemplate: "[{Timestamp:yyyy-MM-dd HH:mm:ss.fff} {Level:u3}] {Message:lj}{NewLine}{Exception}")
                 .WriteTo.Sink(new SerilogObservableSink(logStore), restrictedToMinimumLevel: Serilog.Events.LogEventLevel.Verbose)
                 .CreateLogger();
@@ -329,6 +329,11 @@ namespace Fredy.Drilling.Holes
                 BuildAxisParam(config.YAxis),
                 BuildAxisParam(config.ZAxis));
 
+            if (motionService is MotionManager motionManager)
+            {
+                motionManager.ConfigureZHomeLift(config.AdtHoming?.ZHomeLiftMm ?? 0d);
+            }
+
             if (motionService.Hardware is MotionAdt8940 adt8940)
             {
                 adt8940.ConfigureHoming(BuildAdtHomingOptions(config));
@@ -368,7 +373,6 @@ namespace Fredy.Drilling.Holes
                 BuildHomingPort(homing.YGratingPort),
                 ResolveSharedHomeTimeoutMs(config),
                 homing.HomeBackoffMm,
-                homing.ZHomeLiftMm,
                 homing.ZHomeTowardPositiveDirection,
                 homing.SlowHomeStartSpeed,
                 ResolveSharedSlowHomeSearchSpeed(config),

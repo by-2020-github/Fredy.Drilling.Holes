@@ -41,7 +41,6 @@ namespace HAL
             HomingPort YGratingPort,
             int HomeTimeoutMs = 10000,
             double HomeBackoffMm = 0.2,
-            double ZHomeLiftMm = 0.0,
             bool ZHomeTowardPositiveDirection = false,
             double SlowHomeStartSpeed = 0.1,
             double SlowHomeSpeed = 0.5,
@@ -147,7 +146,6 @@ namespace HAL
                 HomeSearchSpeed = Math.Max(0.001, options.HomeSearchSpeed),
                 HomeTimeoutMs = Math.Max(100, options.HomeTimeoutMs),
                 HomeBackoffMm = Math.Max(0d, options.HomeBackoffMm),
-                ZHomeLiftMm = Math.Max(0d, options.ZHomeLiftMm),
                 SlowHomeStartSpeed = Math.Max(0.001, options.SlowHomeStartSpeed),
                 SlowHomeSpeed = Math.Max(0.001, options.SlowHomeSpeed),
                 SlowHomeAcceleration = Math.Max(0.001, options.SlowHomeAcceleration),
@@ -247,7 +245,7 @@ namespace HAL
             }
 
             ExecuteNative(() => adt8940a1.adt8940a1_pmove(_cardNo, axisNo, distance), $"Move absolute axis {axisNo}");
-            return wait ? WaitForAxisStopAsync(axisNo, cancellationToken) : Task.CompletedTask;
+            return wait ? WaitForAxisStopAsync(axisNo, targetPulse, cancellationToken) : Task.CompletedTask;
         }
 
         private async Task HomeCoreAsync(int axisNo, CancellationToken cancellationToken)
@@ -379,13 +377,6 @@ namespace HAL
 
             LogHomeDebug("Axis {AxisNo} Z homing reached sensor. Resetting position.", axisNo);
             ResetPosition(axisNo);
-
-            if (_homingOptions.ZHomeLiftMm > 0)
-            {
-                var liftPulse = ToPulse(_homingOptions.ZHomeLiftMm, axis);
-                LogHomeDebug("Axis {AxisNo} Z homing lift enabled. LiftMm={LiftMm}, LiftPulse={LiftPulse}", axisNo, _homingOptions.ZHomeLiftMm, liftPulse);
-                await MoveRelativePulseAsync(axisNo, liftPulse, cancellationToken).ConfigureAwait(false);
-            }
 
             RecordNativeCall($"Home axis {axisNo}", null, $"轴 {axisNo} Z 回零流程完成。", true);
             LogHomeDebug("Axis {AxisNo} Z homing completed.", axisNo);
@@ -593,8 +584,10 @@ namespace HAL
             }
 
             ConfigureMotion(axisNo);
+            var currentPulse = GetCommandPosition(axisNo);
+            var targetPulse = checked(currentPulse + pulseDistance);
             ExecuteNative(() => adt8940a1.adt8940a1_pmove(_cardNo, axisNo, pulseDistance), $"Move relative pulse axis {axisNo}");
-            await WaitForAxisStopAsync(axisNo, cancellationToken).ConfigureAwait(false);
+            await WaitForAxisStopAsync(axisNo, targetPulse, cancellationToken).ConfigureAwait(false);
         }
 
         private async Task<int> ReadInputLevelAsync(int portNo, CancellationToken cancellationToken)
@@ -674,14 +667,16 @@ namespace HAL
 
             ConfigureMotion(axisNo, velocity, axis);
 
+            var currentPulse = GetCommandPosition(axisNo);
             var pulseDistance = ToPulse(distance, axis);
             if (pulseDistance == 0)
             {
                 return Task.CompletedTask;
             }
 
+            var targetPulse = checked(currentPulse + pulseDistance);
             ExecuteNative(() => adt8940a1.adt8940a1_pmove(_cardNo, axisNo, pulseDistance), $"Move relative axis {axisNo}");
-            return wait ? WaitForAxisStopAsync(axisNo, cancellationToken) : Task.CompletedTask;
+            return wait ? WaitForAxisStopAsync(axisNo, targetPulse, cancellationToken) : Task.CompletedTask;
         }
 
         public Task StopAllAsync(int[] axisNos)
@@ -901,7 +896,29 @@ namespace HAL
 
         private async Task WaitForAxisStopAsync(int axisNo, CancellationToken cancellationToken)
         {
+            await WaitForAxisStopInternalAsync(axisNo, expectedTargetPulse: null, timeoutMs: null, cancellationToken).ConfigureAwait(false);
+        }
+
+        private async Task WaitForAxisStopAsync(int axisNo, int expectedTargetPulse, CancellationToken cancellationToken)
+        {
+            await WaitForAxisStopInternalAsync(axisNo, expectedTargetPulse, timeoutMs: null, cancellationToken).ConfigureAwait(false);
+        }
+
+        private async Task WaitForAxisStopAsync(int axisNo, int? timeoutMs, CancellationToken cancellationToken)
+        {
+            await WaitForAxisStopInternalAsync(axisNo, expectedTargetPulse: null, timeoutMs, cancellationToken).ConfigureAwait(false);
+        }
+
+        private async Task WaitForAxisStopInternalAsync(int axisNo, int? expectedTargetPulse, int? timeoutMs, CancellationToken cancellationToken)
+        {
             var axis = GetAxisParam(axisNo);
+            var startedAt = Environment.TickCount64;
+            var logCounter = 0;
+            var settledPollCount = 0;
+            var stablePositionPollCount = 0;
+            var completionTolerance = ResolveCompletionTolerance(axis);
+            var targetPosition = expectedTargetPulse.HasValue ? ToMillimeter(expectedTargetPulse.Value, axis) : (double?)null;
+            double? lastObservedPosition = null;
 
             try
             {
@@ -914,6 +931,25 @@ namespace HAL
                         $"Get status for axis {axisNo}",
                         out var motionStatus);
 
+                    var commandPosition = ToMillimeter(GetCommandPosition(axisNo), axis);
+                    var actualPosition = ToMillimeter(GetActualPosition(axisNo), axis);
+                    var currentSpeed = GetAxisSpeed(axisNo);
+                    var stopData = GetAxisStopData(axisNo);
+                    var observedPosition = axis.UseActualPositionFeedback ? actualPosition : commandPosition;
+                    var positionDelta = Math.Abs(commandPosition - actualPosition);
+                    var targetReached = !targetPosition.HasValue || Math.Abs(observedPosition - targetPosition.Value) <= completionTolerance;
+                    var positionStable =
+                        lastObservedPosition.HasValue &&
+                        Math.Abs(observedPosition - lastObservedPosition.Value) <= completionTolerance;
+
+                    lastObservedPosition = observedPosition;
+
+                    if (timeoutMs.HasValue && Environment.TickCount64 - startedAt >= timeoutMs.Value)
+                    {
+                        await StopAsync(axisNo).ConfigureAwait(false);
+                        throw new TimeoutException($"Axis {axisNo} move wait timed out after {timeoutMs.Value} ms. MotionStatus={motionStatus}, Speed={currentSpeed}, StopData={stopData}, CommandPosition={commandPosition:F3}, ActualPosition={actualPosition:F3}, ObservedPosition={observedPosition:F3}, TargetPosition={(targetPosition.HasValue ? targetPosition.Value.ToString("F3") : "N/A")}, PositionDelta={positionDelta:F3}.");
+                    }
+
                     if (motionStatus == 0)
                     {
                         if (axis.UseActualPositionFeedback || !axis.InPositionTolerance.HasValue)
@@ -921,11 +957,46 @@ namespace HAL
                             return;
                         }
 
-                        var commandPosition = ToMillimeter(GetCommandPosition(axisNo), axis);
-                        var actualPosition = ToMillimeter(GetActualPosition(axisNo), axis);
                         if (Math.Abs(commandPosition - actualPosition) <= NormalizeInPositionTolerance(axis.InPositionTolerance.Value))
                         {
                             return;
+                        }
+                    }
+
+                    if (targetPosition.HasValue && currentSpeed == 0 && targetReached)
+                    {
+                        settledPollCount++;
+                        if (settledPollCount >= 3)
+                        {
+                            LogHomeDebug("Axis {AxisNo} treating move as complete via zero-speed fallback. MotionStatus={MotionStatus}, Speed={Speed}, StopData={StopData}, CommandPosition={CommandPosition}, ActualPosition={ActualPosition}, ObservedPosition={ObservedPosition}, TargetPosition={TargetPosition}, PositionDelta={PositionDelta}, Tolerance={Tolerance}", axisNo, motionStatus, currentSpeed, stopData, commandPosition, actualPosition, observedPosition, targetPosition.Value, positionDelta, completionTolerance);
+                            return;
+                        }
+                    }
+                    else
+                    {
+                        settledPollCount = 0;
+                    }
+
+                    if (targetPosition.HasValue && targetReached && positionStable)
+                    {
+                        stablePositionPollCount++;
+                        if (stablePositionPollCount >= 5)
+                        {
+                            LogHomeDebug("Axis {AxisNo} treating move as complete via stable-target fallback. MotionStatus={MotionStatus}, Speed={Speed}, StopData={StopData}, CommandPosition={CommandPosition}, ActualPosition={ActualPosition}, ObservedPosition={ObservedPosition}, TargetPosition={TargetPosition}, PositionDelta={PositionDelta}, StablePollCount={StablePollCount}, Tolerance={Tolerance}", axisNo, motionStatus, currentSpeed, stopData, commandPosition, actualPosition, observedPosition, targetPosition.Value, positionDelta, stablePositionPollCount, completionTolerance);
+                            return;
+                        }
+                    }
+                    else
+                    {
+                        stablePositionPollCount = 0;
+                    }
+
+                    if (timeoutMs.HasValue)
+                    {
+                        logCounter++;
+                        if (logCounter % 50 == 0)
+                        {
+                            LogHomeDebug("Axis {AxisNo} waiting for stop. MotionStatus={MotionStatus}, Speed={Speed}, StopData={StopData}, CommandPosition={CommandPosition}, ActualPosition={ActualPosition}, ObservedPosition={ObservedPosition}, TargetPosition={TargetPosition}, TargetReached={TargetReached}, PositionDelta={PositionDelta}, ZeroSpeedPollCount={ZeroSpeedPollCount}, StablePositionPollCount={StablePositionPollCount}, ElapsedMs={ElapsedMs}, TimeoutMs={TimeoutMs}", axisNo, motionStatus, currentSpeed, stopData, commandPosition, actualPosition, observedPosition, targetPosition, targetReached, positionDelta, settledPollCount, stablePositionPollCount, Environment.TickCount64 - startedAt, timeoutMs.Value);
                         }
                     }
 
@@ -1067,6 +1138,26 @@ namespace HAL
             return position;
         }
 
+        private int GetAxisSpeed(int axisNo)
+        {
+            ExecuteNative(
+                (out int speed) => adt8940a1.adt8940a1_get_speed(_cardNo, axisNo, out speed),
+                $"Get speed for axis {axisNo}",
+                out var speed);
+
+            return speed;
+        }
+
+        private int GetAxisStopData(int axisNo)
+        {
+            ExecuteNative(
+                (out int stopData) => adt8940a1.adt8940a1_get_stopdata(_cardNo, axisNo, out stopData),
+                $"Get stop data for axis {axisNo}",
+                out var stopData);
+
+            return stopData;
+        }
+
         private int GetLockPositionPulse(int axisNo)
         {
             ExecuteNative(
@@ -1180,6 +1271,16 @@ namespace HAL
         private static double NormalizeInPositionTolerance(double tolerance)
         {
             return tolerance >= 0d ? tolerance : 0d;
+        }
+
+        private static double ResolveCompletionTolerance(AxisParam axis)
+        {
+            if (axis.InPositionTolerance.HasValue)
+            {
+                return NormalizeInPositionTolerance(axis.InPositionTolerance.Value);
+            }
+
+            return Math.Max(0.001d, 1d / NormalizePulseEquivalent(axis.PulsesPerMillimeter));
         }
 
         private static double NormalizePulseEquivalent(double pulseEquivalent)

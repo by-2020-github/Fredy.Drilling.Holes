@@ -340,6 +340,11 @@ namespace Fredy.Drilling.Holes.ViewModels
                 BuildAxisParam(config.YAxis),
                 BuildAxisParam(config.ZAxis));
 
+            if (_motionService is MotionManager motionManager)
+            {
+                motionManager.ConfigureZHomeLift(config.AdtHoming?.ZHomeLiftMm ?? 0d);
+            }
+
             if (_motionService.Hardware is HAL.MotionAdt8940 adt8940)
             {
                 adt8940.ConfigureHoming(BuildAdtHomingOptions(config));
@@ -379,7 +384,6 @@ namespace Fredy.Drilling.Holes.ViewModels
                 BuildHomingPort(homing.YGratingPort),
                 AxisHomingDefaults.ResolveSharedHomeTimeoutMs(config),
                 homing.HomeBackoffMm,
-                homing.ZHomeLiftMm,
                 homing.ZHomeTowardPositiveDirection,
                 homing.SlowHomeStartSpeed,
                 AxisHomingDefaults.ResolveSharedSlowHomeSearchSpeed(config),

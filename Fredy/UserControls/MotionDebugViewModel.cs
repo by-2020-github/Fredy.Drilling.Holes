@@ -408,7 +408,6 @@ namespace Fredy.Drilling.Holes.UserControls
                 BuildHomingPort(homing.YGratingPort),
                 AxisHomingDefaults.ResolveSharedHomeTimeoutMs(config),
                 homing.HomeBackoffMm,
-                homing.ZHomeLiftMm,
                 homing.ZHomeTowardPositiveDirection,
                 homing.SlowHomeStartSpeed,
                 AxisHomingDefaults.ResolveSharedSlowHomeSearchSpeed(config),
