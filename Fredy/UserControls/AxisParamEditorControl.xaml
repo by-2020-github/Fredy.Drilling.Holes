@@ -6,7 +6,7 @@
              xmlns:hc="clr-namespace:HandyControl.Controls;assembly=HandyControl"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d"
-             d:DesignHeight="230"
+             d:DesignHeight="320"
              d:DesignWidth="450">
     <GroupBox Header="{Binding Header, RelativeSource={RelativeSource AncestorType=UserControl}}"
               Padding="10"
@@ -19,6 +19,9 @@
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
             <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
@@ -69,6 +72,43 @@
                     </Style>
                 </hc:NumericUpDown.Style>
             </hc:NumericUpDown>
+
+            <TextBlock Grid.Row="6" Text="快速寻零(mm/s)" VerticalAlignment="Center" Margin="0,8,8,0"/>
+            <hc:NumericUpDown Grid.Row="6"
+                              Grid.Column="1"
+                              Minimum="0"
+                              Value="{Binding AxisConfig.FastHomeSearchSpeed, RelativeSource={RelativeSource AncestorType=UserControl}, UpdateSourceTrigger=PropertyChanged}"
+                              Style="{StaticResource NumericDoubleUpDownStyle}"
+                              Margin="0,8,12,0"/>
+            <TextBlock Grid.Row="6" Grid.Column="2" Text="慢速寻零(mm/s)" VerticalAlignment="Center" Margin="0,8,8,0"/>
+            <hc:NumericUpDown Grid.Row="6"
+                              Grid.Column="3"
+                              Minimum="0"
+                              Value="{Binding AxisConfig.SlowHomeSearchSpeed, RelativeSource={RelativeSource AncestorType=UserControl}, UpdateSourceTrigger=PropertyChanged}"
+                              Style="{StaticResource NumericDoubleUpDownStyle}"
+                              Margin="0,8,0,0"/>
+
+            <TextBlock Grid.Row="7" Text="回零超时(ms)" VerticalAlignment="Center" Margin="0,8,8,0"/>
+            <hc:NumericUpDown Grid.Row="7"
+                              Grid.Column="1"
+                              Minimum="0"
+                              Value="{Binding AxisConfig.HomeTimeoutMs, RelativeSource={RelativeSource AncestorType=UserControl}, UpdateSourceTrigger=PropertyChanged}"
+                              Style="{StaticResource NumericIntUpDownStyle}"
+                              Margin="0,8,12,0"/>
+            <TextBlock Grid.Row="7" Grid.Column="2" Text="最大重试次数" VerticalAlignment="Center" Margin="0,8,8,0"/>
+            <hc:NumericUpDown Grid.Row="7"
+                              Grid.Column="3"
+                              Minimum="1"
+                              Value="{Binding AxisConfig.HomeMaxRetryCount, RelativeSource={RelativeSource AncestorType=UserControl}, UpdateSourceTrigger=PropertyChanged}"
+                              Style="{StaticResource NumericIntUpDownStyle}"
+                              Margin="0,8,0,0"/>
+
+            <TextBlock Grid.Row="8"
+                       Grid.ColumnSpan="4"
+                       Text="轴级回零参数优先生效；速度或超时设为 0 时沿用默认回零配置。"
+                       Foreground="Gray"
+                       Margin="0,8,0,0"
+                       TextWrapping="Wrap"/>
         </Grid>
     </GroupBox>
 </UserControl>

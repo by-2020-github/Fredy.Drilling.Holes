@@ -1,5 +1,6 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using System.Collections.Generic;
+using System.Text.Json.Serialization;
 
 namespace Fredy.Drilling.Holes.Models
 {
@@ -44,6 +45,10 @@ namespace Fredy.Drilling.Holes.Models
         [ObservableProperty] private double _pulsesPerMillimeter = 1d;
         [ObservableProperty] private bool _useActualPositionFeedback;
         [ObservableProperty] private double? _inPositionTolerance;
+        [ObservableProperty] private double _fastHomeSearchSpeed;
+        [ObservableProperty] private double _slowHomeSearchSpeed;
+        [ObservableProperty] private int _homeTimeoutMs;
+        [ObservableProperty] private int _homeMaxRetryCount = 3;
     }
 
     // 端口项 (编号 + 电平有效性 + 传感器安装方向)
@@ -62,7 +67,7 @@ namespace Fredy.Drilling.Holes.Models
 
         public PortItem YGratingPort { get; set; } = new() { PortIndex = -1, IsLowLevelActive = true, IsNegative = true };
 
-        private int _homeTimeoutMs = 10000;
+        private int _homeTimeoutMs = AxisHomingDefaults.DefaultHomeTimeoutMs;
 
         private double _homeBackoffMm = 0.2;
 
@@ -70,7 +75,7 @@ namespace Fredy.Drilling.Holes.Models
 
         private double _slowHomeStartSpeed = 0.1;
 
-        private double _slowHomeSpeed = 0.5;
+        private double _slowHomeSpeed = AxisHomingDefaults.DefaultSlowHomeSearchSpeed;
 
         private double _slowHomeAcceleration = 1.0;
 
@@ -82,6 +87,7 @@ namespace Fredy.Drilling.Holes.Models
 
         private bool _zHomeTowardPositiveDirection;
 
+        [JsonIgnore]
         public int HomeTimeoutMs
         {
             get => _homeTimeoutMs;
@@ -110,6 +116,7 @@ namespace Fredy.Drilling.Holes.Models
         }
 
         // 慢速回零速度 (mm/s)
+        [JsonIgnore]
         public double SlowHomeSpeed
         {
             get => _slowHomeSpeed;
@@ -182,11 +189,11 @@ namespace Fredy.Drilling.Holes.Models
 
         public MotionParams SecondPass { get; set; } = new();
 
-        public AxisParamConfig XAxis { get; set; } = new() { AxisNo = 1, PulsesPerMillimeter = 1d, UseActualPositionFeedback = false };
+        public AxisParamConfig XAxis { get; set; } = new() { AxisNo = 1, PulsesPerMillimeter = 1d, UseActualPositionFeedback = false, FastHomeSearchSpeed = AxisHomingDefaults.DefaultFastHomeSearchSpeed, SlowHomeSearchSpeed = AxisHomingDefaults.DefaultSlowHomeSearchSpeed, HomeTimeoutMs = AxisHomingDefaults.DefaultHomeTimeoutMs, HomeMaxRetryCount = AxisHomingDefaults.DefaultHomeMaxRetryCount };
 
-        public AxisParamConfig YAxis { get; set; } = new() { AxisNo = 2, PulsesPerMillimeter = 1d, UseActualPositionFeedback = false };
+        public AxisParamConfig YAxis { get; set; } = new() { AxisNo = 2, PulsesPerMillimeter = 1d, UseActualPositionFeedback = false, FastHomeSearchSpeed = AxisHomingDefaults.DefaultFastHomeSearchSpeed, SlowHomeSearchSpeed = AxisHomingDefaults.DefaultSlowHomeSearchSpeed, HomeTimeoutMs = AxisHomingDefaults.DefaultHomeTimeoutMs, HomeMaxRetryCount = AxisHomingDefaults.DefaultHomeMaxRetryCount };
 
-        public AxisParamConfig ZAxis { get; set; } = new() { AxisNo = 3, PulsesPerMillimeter = 1d, UseActualPositionFeedback = false };
+        public AxisParamConfig ZAxis { get; set; } = new() { AxisNo = 3, PulsesPerMillimeter = 1d, UseActualPositionFeedback = false, FastHomeSearchSpeed = AxisHomingDefaults.DefaultFastHomeSearchSpeed, SlowHomeSearchSpeed = AxisHomingDefaults.DefaultSlowHomeSearchSpeed, HomeTimeoutMs = AxisHomingDefaults.DefaultHomeTimeoutMs, HomeMaxRetryCount = AxisHomingDefaults.DefaultHomeMaxRetryCount };
 
         public double FastMovePos { get; set; } = -22.0;
 
@@ -199,7 +206,8 @@ namespace Fredy.Drilling.Holes.Models
         public double SlowMoveSpeed { get; set; } = 0.7;
 
         // 回零搜索速度 (mm/s)
-        public double HomeSearchSpeed { get; set; } = 3.0;
+        [JsonIgnore]
+        public double HomeSearchSpeed { get; set; } = AxisHomingDefaults.DefaultFastHomeSearchSpeed;
 
         public bool IsIoHome { get; set; }
 

@@ -386,14 +386,18 @@ namespace Fredy.Drilling.Holes.UserControls
                 axisConfig.RightLimit,
                 axisConfig.PulsesPerMillimeter > 0 ? axisConfig.PulsesPerMillimeter : 1d,
                 axisConfig.UseActualPositionFeedback,
-                axisConfig.InPositionTolerance);
+                axisConfig.InPositionTolerance,
+                axisConfig.FastHomeSearchSpeed,
+                axisConfig.SlowHomeSearchSpeed,
+                axisConfig.HomeTimeoutMs,
+                axisConfig.HomeMaxRetryCount);
         }
 
         private static MotionAdt8940.HomingOptions BuildAdtHomingOptions(AppConfig config)
         {
             var homing = config.AdtHoming ?? new AdtHomingConfig();
             return new MotionAdt8940.HomingOptions(
-                config.HomeSearchSpeed,
+                AxisHomingDefaults.ResolveSharedFastHomeSearchSpeed(config),
                 config.IsIoHome,
                 config.IsLatch,
                 config.IsGratingHome,
@@ -402,12 +406,12 @@ namespace Fredy.Drilling.Holes.UserControls
                 BuildHomingPort(homing.ZLimitPort),
                 BuildHomingPort(homing.XGratingPort),
                 BuildHomingPort(homing.YGratingPort),
-                homing.HomeTimeoutMs,
+                AxisHomingDefaults.ResolveSharedHomeTimeoutMs(config),
                 homing.HomeBackoffMm,
                 homing.ZHomeLiftMm,
                 homing.ZHomeTowardPositiveDirection,
                 homing.SlowHomeStartSpeed,
-                homing.SlowHomeSpeed,
+                AxisHomingDefaults.ResolveSharedSlowHomeSearchSpeed(config),
                 homing.SlowHomeAcceleration,
                 homing.GratingHomeStartSpeed,
                 homing.GratingHomeSpeed,

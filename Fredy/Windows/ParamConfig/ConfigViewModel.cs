@@ -76,16 +76,15 @@ namespace Fredy.Drilling.Holes.ViewModels
         [ObservableProperty] private MotionParams _zAxisBase = new();
         [ObservableProperty] private MotionParams _firstPass = new();
         [ObservableProperty] private MotionParams _secondPass = new();
-        [ObservableProperty] private AxisParamConfig _xAxis = new() { AxisNo = 1, PulsesPerMillimeter = 1d, UseActualPositionFeedback = false };
-        [ObservableProperty] private AxisParamConfig _yAxis = new() { AxisNo = 2, PulsesPerMillimeter = 1d, UseActualPositionFeedback = false };
-        [ObservableProperty] private AxisParamConfig _zAxis = new() { AxisNo = 3, PulsesPerMillimeter = 1d, UseActualPositionFeedback = false };
+        [ObservableProperty] private AxisParamConfig _xAxis = new() { AxisNo = 1, PulsesPerMillimeter = 1d, UseActualPositionFeedback = false, FastHomeSearchSpeed = AxisHomingDefaults.DefaultFastHomeSearchSpeed, SlowHomeSearchSpeed = AxisHomingDefaults.DefaultSlowHomeSearchSpeed, HomeTimeoutMs = AxisHomingDefaults.DefaultHomeTimeoutMs, HomeMaxRetryCount = AxisHomingDefaults.DefaultHomeMaxRetryCount };
+        [ObservableProperty] private AxisParamConfig _yAxis = new() { AxisNo = 2, PulsesPerMillimeter = 1d, UseActualPositionFeedback = false, FastHomeSearchSpeed = AxisHomingDefaults.DefaultFastHomeSearchSpeed, SlowHomeSearchSpeed = AxisHomingDefaults.DefaultSlowHomeSearchSpeed, HomeTimeoutMs = AxisHomingDefaults.DefaultHomeTimeoutMs, HomeMaxRetryCount = AxisHomingDefaults.DefaultHomeMaxRetryCount };
+        [ObservableProperty] private AxisParamConfig _zAxis = new() { AxisNo = 3, PulsesPerMillimeter = 1d, UseActualPositionFeedback = false, FastHomeSearchSpeed = AxisHomingDefaults.DefaultFastHomeSearchSpeed, SlowHomeSearchSpeed = AxisHomingDefaults.DefaultSlowHomeSearchSpeed, HomeTimeoutMs = AxisHomingDefaults.DefaultHomeTimeoutMs, HomeMaxRetryCount = AxisHomingDefaults.DefaultHomeMaxRetryCount };
 
         [ObservableProperty] private double _fastMovePos = -22.0;
         [ObservableProperty] private double _fastMoveSpeed = 9.0;
         [ObservableProperty] private double _slowMoveDist = -12.0;
         [ObservableProperty] private double _slowMoveSpeed = 0.7;
 
-        [ObservableProperty] private double _homeSearchSpeed = 3.0;
         [ObservableProperty] private bool _isIoHome;
         [ObservableProperty] private bool _isLatch;
         [ObservableProperty] private bool _isGratingHome;
@@ -235,7 +234,6 @@ namespace Fredy.Drilling.Holes.ViewModels
                 FastMoveSpeed = FastMoveSpeed,
                 SlowMoveDist = SlowMoveDist,
                 SlowMoveSpeed = SlowMoveSpeed,
-                HomeSearchSpeed = HomeSearchSpeed,
                 IsIoHome = IsIoHome,
                 IsLatch = IsLatch,
                 IsGratingHome = IsGratingHome,
@@ -298,7 +296,6 @@ namespace Fredy.Drilling.Holes.ViewModels
             SlowMoveDist = config.SlowMoveDist;
             SlowMoveSpeed = config.SlowMoveSpeed;
 
-            HomeSearchSpeed = config.HomeSearchSpeed;
             IsIoHome = config.IsIoHome;
             IsLatch = config.IsLatch;
             IsGratingHome = config.IsGratingHome;
@@ -360,14 +357,18 @@ namespace Fredy.Drilling.Holes.ViewModels
                 axisConfig.RightLimit,
                 axisConfig.PulsesPerMillimeter > 0 ? axisConfig.PulsesPerMillimeter : 1d,
                 axisConfig.UseActualPositionFeedback,
-                axisConfig.InPositionTolerance);
+                axisConfig.InPositionTolerance,
+                axisConfig.FastHomeSearchSpeed,
+                axisConfig.SlowHomeSearchSpeed,
+                axisConfig.HomeTimeoutMs,
+                axisConfig.HomeMaxRetryCount);
         }
 
         private static HAL.MotionAdt8940.HomingOptions BuildAdtHomingOptions(AppConfig config)
         {
             var homing = config.AdtHoming ?? new AdtHomingConfig();
             return new HAL.MotionAdt8940.HomingOptions(
-                config.HomeSearchSpeed,
+                AxisHomingDefaults.ResolveSharedFastHomeSearchSpeed(config),
                 config.IsIoHome,
                 config.IsLatch,
                 config.IsGratingHome,
@@ -376,12 +377,12 @@ namespace Fredy.Drilling.Holes.ViewModels
                 BuildHomingPort(homing.ZLimitPort),
                 BuildHomingPort(homing.XGratingPort),
                 BuildHomingPort(homing.YGratingPort),
-                homing.HomeTimeoutMs,
+                AxisHomingDefaults.ResolveSharedHomeTimeoutMs(config),
                 homing.HomeBackoffMm,
                 homing.ZHomeLiftMm,
                 homing.ZHomeTowardPositiveDirection,
                 homing.SlowHomeStartSpeed,
-                homing.SlowHomeSpeed,
+                AxisHomingDefaults.ResolveSharedSlowHomeSearchSpeed(config),
                 homing.SlowHomeAcceleration,
                 homing.GratingHomeStartSpeed,
                 homing.GratingHomeSpeed,
@@ -681,8 +682,6 @@ namespace Fredy.Drilling.Holes.ViewModels
             AddIfChanged(lines, "快速速度", _originalConfig.FastMoveSpeed, current.FastMoveSpeed);
             AddIfChanged(lines, "慢速移动距离", _originalConfig.SlowMoveDist, current.SlowMoveDist);
             AddIfChanged(lines, "慢速速度", _originalConfig.SlowMoveSpeed, current.SlowMoveSpeed);
-            AddIfChanged(lines, "搜索速度", _originalConfig.HomeSearchSpeed, current.HomeSearchSpeed);
-
             AddIfChanged(lines, "IO回零", _originalConfig.IsIoHome, current.IsIoHome);
             AddIfChanged(lines, "锁存", _originalConfig.IsLatch, current.IsLatch);
             AddIfChanged(lines, "光栅尺回零", _originalConfig.IsGratingHome, current.IsGratingHome);
@@ -702,12 +701,10 @@ namespace Fredy.Drilling.Holes.ViewModels
             AddIfChanged(lines, "Y光栅零位端口", _originalConfig.AdtHoming.YGratingPort.PortIndex, current.AdtHoming.YGratingPort.PortIndex);
             AddIfChanged(lines, "Y光栅零位低电平有效", _originalConfig.AdtHoming.YGratingPort.IsLowLevelActive, current.AdtHoming.YGratingPort.IsLowLevelActive);
             AddIfChanged(lines, "Y光栅零位安装负方向", ResolvePortIsNegative(_originalConfig.AdtHoming.YGratingPort), ResolvePortIsNegative(current.AdtHoming.YGratingPort));
-            AddIfChanged(lines, "回零超时", _originalConfig.AdtHoming.HomeTimeoutMs, current.AdtHoming.HomeTimeoutMs);
             AddIfChanged(lines, "回零脱离距离 (mm)", _originalConfig.AdtHoming.HomeBackoffMm, current.AdtHoming.HomeBackoffMm);
             AddIfChanged(lines, "Z回零抬起距离 (mm)", _originalConfig.AdtHoming.ZHomeLiftMm, current.AdtHoming.ZHomeLiftMm);
             AddIfChanged(lines, "Z机械回零朝正方向", _originalConfig.AdtHoming.ZHomeTowardPositiveDirection, current.AdtHoming.ZHomeTowardPositiveDirection);
             AddIfChanged(lines, "慢速回零初速度", _originalConfig.AdtHoming.SlowHomeStartSpeed, current.AdtHoming.SlowHomeStartSpeed);
-            AddIfChanged(lines, "慢速回零速度", _originalConfig.AdtHoming.SlowHomeSpeed, current.AdtHoming.SlowHomeSpeed);
             AddIfChanged(lines, "慢速回零加速度", _originalConfig.AdtHoming.SlowHomeAcceleration, current.AdtHoming.SlowHomeAcceleration);
             AddIfChanged(lines, "光栅回零初速度", _originalConfig.AdtHoming.GratingHomeStartSpeed, current.AdtHoming.GratingHomeStartSpeed);
             AddIfChanged(lines, "光栅回零速度", _originalConfig.AdtHoming.GratingHomeSpeed, current.AdtHoming.GratingHomeSpeed);
@@ -748,6 +745,10 @@ namespace Fredy.Drilling.Holes.ViewModels
             AddIfChanged(lines, $"{prefix}-左限位", oldValue.LeftLimit, currentValue.LeftLimit);
             AddIfChanged(lines, $"{prefix}-右限位", oldValue.RightLimit, currentValue.RightLimit);
             AddIfChanged(lines, $"{prefix}-每mm脉冲数", oldValue.PulsesPerMillimeter, currentValue.PulsesPerMillimeter);
+            AddIfChanged(lines, $"{prefix}-快速寻零速度", oldValue.FastHomeSearchSpeed, currentValue.FastHomeSearchSpeed);
+            AddIfChanged(lines, $"{prefix}-慢速寻零速度", oldValue.SlowHomeSearchSpeed, currentValue.SlowHomeSearchSpeed);
+            AddIfChanged(lines, $"{prefix}-回零超时", oldValue.HomeTimeoutMs, currentValue.HomeTimeoutMs);
+            AddIfChanged(lines, $"{prefix}-回零最大重试次数", oldValue.HomeMaxRetryCount, currentValue.HomeMaxRetryCount);
         }
 
         private static void AddDetectionListDiff(ICollection<string> lines, string prefix, IReadOnlyList<DetectionRingItem> oldValues, IReadOnlyList<DetectionRingItem> currentValues)
@@ -851,7 +852,11 @@ namespace Fredy.Drilling.Holes.ViewModels
                 RightLimit = source.RightLimit,
                 PulsesPerMillimeter = source.PulsesPerMillimeter,
                 UseActualPositionFeedback = source.UseActualPositionFeedback,
-                InPositionTolerance = source.InPositionTolerance
+                InPositionTolerance = source.InPositionTolerance,
+                FastHomeSearchSpeed = source.FastHomeSearchSpeed,
+                SlowHomeSearchSpeed = source.SlowHomeSearchSpeed,
+                HomeTimeoutMs = source.HomeTimeoutMs,
+                HomeMaxRetryCount = source.HomeMaxRetryCount
             };
         }
 

@@ -85,7 +85,14 @@ namespace HAL
         public void ConfigureAxis(AxisParam axis)
         {
             ValidateAxisNo(axis.AxisNo);
-            _axisParams[axis.AxisNo] = axis with { PulsesPerMillimeter = NormalizePulseEquivalent(axis.PulsesPerMillimeter) };
+            _axisParams[axis.AxisNo] = axis with
+            {
+                PulsesPerMillimeter = NormalizePulseEquivalent(axis.PulsesPerMillimeter),
+                FastHomeSearchSpeed = NormalizeOptionalNonNegative(axis.FastHomeSearchSpeed),
+                SlowHomeSearchSpeed = NormalizeOptionalNonNegative(axis.SlowHomeSearchSpeed),
+                HomeTimeoutMs = NormalizeOptionalNonNegative(axis.HomeTimeoutMs),
+                HomeMaxRetryCount = NormalizeHomeMaxRetryCount(axis.HomeMaxRetryCount)
+            };
         }
 
         public void ConfigureAxes(params AxisParam[] axes)
@@ -245,61 +252,41 @@ namespace HAL
 
         private async Task HomeCoreAsync(int axisNo, CancellationToken cancellationToken)
         {
+            var axis = GetAxisParam(axisNo);
+            var maxRetryCount = ResolveHomeMaxRetryCount(axis);
+            Exception? lastException = null;
+            LogEffectiveHomeParameters(axis);
+
             LogHomeDebug("HomeCoreAsync started for axis {AxisNo}. IsZAxis={IsZAxis}", axisNo, axisNo == 3);
             RecordNativeCall($"Home axis {axisNo}", null, "开始执行旧 ProcessManager 风格回零流程。", true);
 
-            if (axisNo == 3)
-            {
-                LogHomeDebug("Axis {AxisNo} entering Z-axis homing flow.", axisNo);
-                await HomeZAxisAsync(axisNo, cancellationToken).ConfigureAwait(false);
-                LogHomeDebug("Axis {AxisNo} finished Z-axis homing flow.", axisNo);
-                return;
-            }
-
-            LogHomeDebug("Axis {AxisNo} entering XY-axis homing flow.", axisNo);
-            await HomeXYAxisAsync(axisNo, cancellationToken).ConfigureAwait(false);
-            LogHomeDebug("Axis {AxisNo} finished XY-axis homing flow.", axisNo);
-        }
-
-        private async Task HomeXYAxisAsync(int axisNo, CancellationToken cancellationToken)
-        {
-            Exception? lastException = null;
-
-            for (var retry = 0; retry < 3; retry++)
+            for (var retry = 0; retry < maxRetryCount; retry++)
             {
                 try
                 {
-                    LogHomeDebug("Axis {AxisNo} home attempt {Attempt}/3 started.", axisNo, retry + 1);
+                    LogHomeDebug("Axis {AxisNo} home attempt {Attempt}/{MaxRetryCount} started.", axisNo, retry + 1, maxRetryCount);
                     cancellationToken.ThrowIfCancellationRequested();
-                    await HomeXYMechanicalAsync(axisNo, cancellationToken).ConfigureAwait(false);
-                    LogHomeDebug("Axis {AxisNo} mechanical homing completed on attempt {Attempt}/3.", axisNo, retry + 1);
 
-                    if (_homingOptions.IsGratingHome)
+                    if (axisNo == 3)
                     {
-                        LogHomeDebug("Axis {AxisNo} grating homing enabled. IsLatch={IsLatch}, IsIoHome={IsIoHome}", axisNo, _homingOptions.IsLatch, _homingOptions.IsIoHome);
-                        if (_homingOptions.IsLatch)
-                        {
-                            LogHomeDebug("Axis {AxisNo} entering latch homing step.", axisNo);
-                            await HomeXYByLatchAsync(axisNo, cancellationToken).ConfigureAwait(false);
-                            LogHomeDebug("Axis {AxisNo} latch homing step completed.", axisNo);
-                        }
-                        else if (_homingOptions.IsIoHome)
-                        {
-                            LogHomeDebug("Axis {AxisNo} entering grating IO homing step.", axisNo);
-                            await HomeXYByGratingIoAsync(axisNo, cancellationToken).ConfigureAwait(false);
-                            LogHomeDebug("Axis {AxisNo} grating IO homing step completed.", axisNo);
-                        }
+                        LogHomeDebug("Axis {AxisNo} entering Z-axis homing flow.", axisNo);
+                        await HomeZAxisAsync(axis, cancellationToken).ConfigureAwait(false);
+                        LogHomeDebug("Axis {AxisNo} finished Z-axis homing flow.", axisNo);
+                    }
+                    else
+                    {
+                        LogHomeDebug("Axis {AxisNo} entering XY-axis homing flow.", axisNo);
+                        await HomeXYAxisAsync(axis, cancellationToken).ConfigureAwait(false);
+                        LogHomeDebug("Axis {AxisNo} finished XY-axis homing flow.", axisNo);
                     }
 
-                    LogHomeDebug("Axis {AxisNo} resetting position after homing.", axisNo);
-                    ResetPosition(axisNo);
                     RecordNativeCall($"Home axis {axisNo}", null, $"轴 {axisNo} 回零完成。", true);
-                    LogHomeDebug("Axis {AxisNo} home attempt {Attempt}/3 succeeded.", axisNo, retry + 1);
+                    LogHomeDebug("Axis {AxisNo} home attempt {Attempt}/{MaxRetryCount} succeeded.", axisNo, retry + 1, maxRetryCount);
                     return;
                 }
                 catch (OperationCanceledException)
                 {
-                    LogHomeDebug("Axis {AxisNo} homing canceled on attempt {Attempt}/3. Triggering emergency stop on all axes.", axisNo, retry + 1);
+                    LogHomeDebug("Axis {AxisNo} homing canceled on attempt {Attempt}/{MaxRetryCount}. Triggering emergency stop on all axes.", axisNo, retry + 1, maxRetryCount);
                     // 流程图：紧急停止统一处理 - 立即停止所有轴运动
                     await EmergencyStopAllEnabledAxesAsync().ConfigureAwait(false);
                     throw;
@@ -307,7 +294,7 @@ namespace HAL
                 catch (Exception ex)
                 {
                     lastException = ex;
-                    LogHomeDebug(ex, "Axis {AxisNo} home attempt {Attempt}/3 failed.", axisNo, retry + 1);
+                    LogHomeDebug(ex, "Axis {AxisNo} home attempt {Attempt}/{MaxRetryCount} failed.", axisNo, retry + 1, maxRetryCount);
                     RecordNativeCall($"Home axis {axisNo}", null, $"轴 {axisNo} 回零失败，准备重试：{ex.Message}", false);
                     await StopAsync(axisNo).ConfigureAwait(false);
                 }
@@ -319,17 +306,46 @@ namespace HAL
             throw new InvalidOperationException($"Home axis {axisNo} failed after maximum retries.", lastException);
         }
 
-        private async Task HomeZAxisAsync(int axisNo, CancellationToken cancellationToken)
+        private async Task HomeXYAxisAsync(AxisParam axis, CancellationToken cancellationToken)
         {
+            var axisNo = axis.AxisNo;
+            await HomeXYMechanicalAsync(axis, cancellationToken).ConfigureAwait(false);
+            LogHomeDebug("Axis {AxisNo} mechanical homing completed.", axisNo);
+
+            if (_homingOptions.IsGratingHome)
+            {
+                LogHomeDebug("Axis {AxisNo} grating homing enabled. IsLatch={IsLatch}, IsIoHome={IsIoHome}", axisNo, _homingOptions.IsLatch, _homingOptions.IsIoHome);
+                if (_homingOptions.IsLatch)
+                {
+                    LogHomeDebug("Axis {AxisNo} entering latch homing step.", axisNo);
+                    await HomeXYByLatchAsync(axis, cancellationToken).ConfigureAwait(false);
+                    LogHomeDebug("Axis {AxisNo} latch homing step completed.", axisNo);
+                }
+                else if (_homingOptions.IsIoHome)
+                {
+                    LogHomeDebug("Axis {AxisNo} entering grating IO homing step.", axisNo);
+                    await HomeXYByGratingIoAsync(axis, cancellationToken).ConfigureAwait(false);
+                    LogHomeDebug("Axis {AxisNo} grating IO homing step completed.", axisNo);
+                }
+            }
+
+            LogHomeDebug("Axis {AxisNo} resetting position after homing.", axisNo);
+            ResetPosition(axisNo);
+        }
+
+        private async Task HomeZAxisAsync(AxisParam axis, CancellationToken cancellationToken)
+        {
+            var axisNo = axis.AxisNo;
             var port = GetMechanicalPort(axisNo);
             var towardHomeDirection = GetTowardHomeDirection(port);
             var awayFromHomeDirection = GetOppositeDirection(towardHomeDirection);
             var currentLevel = NormalizeSignalLevel(await ReadInputLevelAsync(port.PortIndex, cancellationToken).ConfigureAwait(false));
             var activeLevel = GetPortActiveSignalLevel(port);
             var inactiveLevel = GetPortInactiveSignalLevel(port);
-            var axis = GetAxisParam(axisNo);
-            var startSpeedPulse = ToSpeedPulse(_startSpeed, axis);
-            var searchSpeedPulse = ToSpeedPulse(_homingOptions.HomeSearchSpeed, axis);
+            var homeTimeoutMs = ResolveHomeTimeoutMs(axis);
+            var fastHomeSearchSpeed = ResolveFastHomeSearchSpeed(axis);
+            var startSpeedPulse = ToSpeedPulse(ResolveSearchStartSpeed(fastHomeSearchSpeed), axis);
+            var searchSpeedPulse = ToSpeedPulse(fastHomeSearchSpeed, axis);
             var accelPulse = ToAccelerationPulse(_acceleration, axis);
 
             LogHomeDebug("Axis {AxisNo} Z homing start. Port={PortIndex}, CurrentLevel={CurrentLevel}, ActiveLevel={ActiveLevel}, IsNegative={IsNegative}, IsLowLevelActive={IsLowLevelActive}, TowardDirection={TowardDirection}, AwayDirection={AwayDirection}", axisNo, port.PortIndex, currentLevel, activeLevel, port.IsNegative, port.IsLowLevelActive, towardHomeDirection, awayFromHomeDirection);
@@ -345,7 +361,7 @@ namespace HAL
                     startSpeedPulse,
                     searchSpeedPulse,
                     accelPulse,
-                    _homingOptions.HomeTimeoutMs,
+                    homeTimeoutMs,
                     cancellationToken).ConfigureAwait(false);
             }
 
@@ -358,7 +374,7 @@ namespace HAL
                 startSpeedPulse,
                 searchSpeedPulse,
                 accelPulse,
-                _homingOptions.HomeTimeoutMs,
+                homeTimeoutMs,
                 cancellationToken).ConfigureAwait(false);
 
             LogHomeDebug("Axis {AxisNo} Z homing reached sensor. Resetting position.", axisNo);
@@ -375,25 +391,26 @@ namespace HAL
             LogHomeDebug("Axis {AxisNo} Z homing completed.", axisNo);
         }
 
-        private async Task HomeXYMechanicalAsync(int axisNo, CancellationToken cancellationToken)
+        private async Task HomeXYMechanicalAsync(AxisParam axis, CancellationToken cancellationToken)
         {
+            var axisNo = axis.AxisNo;
             var port = GetMechanicalPort(axisNo);
             var currentLevel = NormalizeSignalLevel(await ReadInputLevelAsync(port.PortIndex, cancellationToken).ConfigureAwait(false));
-            var axis = GetAxisParam(axisNo);
-            var startSpeedPulse = ToSpeedPulse(_startSpeed, axis);
-            var searchSpeedPulse = ToSpeedPulse(_homingOptions.HomeSearchSpeed, axis);
+            var homeTimeoutMs = ResolveHomeTimeoutMs(axis);
+            var fastHomeSearchSpeed = ResolveFastHomeSearchSpeed(axis);
+            var slowHomeSearchSpeed = ResolveSlowHomeSearchSpeed(axis, fastHomeSearchSpeed);
+            var startSpeedPulse = ToSpeedPulse(ResolveSearchStartSpeed(fastHomeSearchSpeed), axis);
+            var searchSpeedPulse = ToSpeedPulse(fastHomeSearchSpeed, axis);
             var accelPulse = ToAccelerationPulse(_acceleration, axis);
             var currentActiveState = GetPortActiveState(port, currentLevel);
             var firstTargetLevel = currentLevel == 0 ? 1 : 0;
             var firstDirection = GetDirectionToFlipHomeInput(port, currentActiveState);
             var slowDirection = GetOppositeDirection(firstDirection);
             var slowTargetLevel = currentLevel;
-
-
-            var slowK = 2;
-            var slowStartPulse = Math.Max(1, startSpeedPulse / slowK);
-            var slowSpeedPulse = Math.Max(1, searchSpeedPulse / slowK);
-            var slowAccelPulse = Math.Max(1, accelPulse / slowK);
+            var slowStartPulse = ToSpeedPulse(ResolveSearchStartSpeed(slowHomeSearchSpeed), axis);
+            var slowSpeedPulse = ToSpeedPulse(slowHomeSearchSpeed, axis);
+            var slowAccelPulse = accelPulse;
+            var slowTimeoutMs = ScaleSlowHomeTimeout(homeTimeoutMs, fastHomeSearchSpeed, slowHomeSearchSpeed);
 
             LogHomeDebug(
                 "Axis {AxisNo} mechanical homing start. Port={PortIndex}, IsNegative={IsNegative}, IsLowLevelActive={IsLowLevelActive}, CurrentLevel={CurrentLevel}, CurrentActiveState={CurrentActiveState}, FirstDirection={FirstDirection}, FirstTargetLevel={FirstTargetLevel}, SlowDirection={SlowDirection}, SlowTargetLevel={SlowTargetLevel}",
@@ -417,7 +434,7 @@ namespace HAL
                 startSpeedPulse,
                 searchSpeedPulse,
                 accelPulse,
-                _homingOptions.HomeTimeoutMs,
+                homeTimeoutMs,
                 cancellationToken).ConfigureAwait(false);
 
             // 第二段：速度降为第一段的slowK分之一，反方向慢速运动，直到传感器再次取反，认为到达零点边沿。
@@ -430,16 +447,16 @@ namespace HAL
                 slowStartPulse,
                 slowSpeedPulse,
                 slowAccelPulse,
-                _homingOptions.HomeTimeoutMs * slowK,
+                slowTimeoutMs,
                 cancellationToken).ConfigureAwait(false);
             LogHomeDebug("Axis {AxisNo} mechanical homing completed.", axisNo);
         }
 
-        private async Task HomeXYByGratingIoAsync(int axisNo, CancellationToken cancellationToken)
+        private async Task HomeXYByGratingIoAsync(AxisParam axis, CancellationToken cancellationToken)
         {
+            var axisNo = axis.AxisNo;
             var port = GetGratingPort(axisNo);
             ValidatePort(port, $"Axis {axisNo} grating");
-            var axis = GetAxisParam(axisNo);
             var towardHomeDirection = GetTowardHomeDirection(port);
             var activeLevel = GetPortActiveSignalLevel(port);
 
@@ -453,13 +470,14 @@ namespace HAL
                 ToSpeedPulse(_homingOptions.GratingHomeStartSpeed, axis),
                 ToSpeedPulse(_homingOptions.GratingHomeSpeed, axis),
                 ToAccelerationPulse(_homingOptions.GratingHomeAcceleration, axis),
-                _homingOptions.HomeTimeoutMs,
+                ResolveHomeTimeoutMs(axis),
                 cancellationToken).ConfigureAwait(false);
             LogHomeDebug("Axis {AxisNo} grating IO homing completed.", axisNo);
         }
 
-        private async Task HomeXYByLatchAsync(int axisNo, CancellationToken cancellationToken)
+        private async Task HomeXYByLatchAsync(AxisParam axis, CancellationToken cancellationToken)
         {
+            var axisNo = axis.AxisNo;
             var port = GetGratingPort(axisNo);
             ValidatePort(port, $"Axis {axisNo} grating");
             var towardHomeDirection = GetTowardHomeDirection(port);
@@ -474,7 +492,7 @@ namespace HAL
                 ConfigureMotion(axisNo, _homingOptions.GratingHomeStartSpeed, _homingOptions.GratingHomeSpeed, _homingOptions.GratingHomeAcceleration);
                 ExecuteNative(() => adt8940a1.adt8940a1_continue_move(_cardNo, axisNo, towardHomeDirection), $"Start latch home move for axis {axisNo}");
 
-                await WaitForLockStatusAsync(axisNo, cancellationToken).ConfigureAwait(false);
+                await WaitForLockStatusAsync(axisNo, ResolveHomeTimeoutMs(axis), cancellationToken).ConfigureAwait(false);
                 LogHomeDebug("Axis {AxisNo} latch signal detected. Stopping axis.", axisNo);
                 await StopAsync(axisNo).ConfigureAwait(false);
 
@@ -623,9 +641,9 @@ namespace HAL
             }
         }
 
-        private async Task WaitForLockStatusAsync(int axisNo, CancellationToken cancellationToken)
+        private async Task WaitForLockStatusAsync(int axisNo, int timeoutMs, CancellationToken cancellationToken)
         {
-            LogHomeDebug("Axis {AxisNo} waiting for latch signal. TimeoutMs={TimeoutMs}", axisNo, _homingOptions.HomeTimeoutMs);
+            LogHomeDebug("Axis {AxisNo} waiting for latch signal. TimeoutMs={TimeoutMs}", axisNo, timeoutMs);
             var startedAt = Environment.TickCount64;
             while (true)
             {
@@ -637,7 +655,7 @@ namespace HAL
                     return;
                 }
 
-                if (Environment.TickCount64 - startedAt >= _homingOptions.HomeTimeoutMs)
+                if (Environment.TickCount64 - startedAt >= timeoutMs)
                 {
                     LogHomeDebug("Axis {AxisNo} latch wait timed out.", axisNo);
                     throw new TimeoutException($"Axis {axisNo} latch home timed out.");
@@ -1209,6 +1227,113 @@ namespace HAL
         {
             double mmPerSec2 = axis.Acceleration > 0 ? axis.Acceleration : _acceleration;
             return ToAccelerationPulse(mmPerSec2, axis);
+        }
+
+        private static double NormalizeOptionalNonNegative(double value)
+        {
+            return value > 0d ? value : 0d;
+        }
+
+        private static int NormalizeOptionalNonNegative(int value)
+        {
+            return value > 0 ? value : 0;
+        }
+
+        private static int NormalizeHomeMaxRetryCount(int value)
+        {
+            return value > 0 ? value : 3;
+        }
+
+        private int ResolveHomeTimeoutMs(AxisParam axis)
+        {
+            return axis.HomeTimeoutMs > 0 ? axis.HomeTimeoutMs : _homingOptions.HomeTimeoutMs;
+        }
+
+        private static int ResolveHomeMaxRetryCount(AxisParam axis)
+        {
+            return axis.HomeMaxRetryCount > 0 ? axis.HomeMaxRetryCount : 3;
+        }
+
+        private void LogEffectiveHomeParameters(AxisParam axis)
+        {
+            var fastHomeSearchSpeed = ResolveFastHomeSearchSpeed(axis);
+            var slowHomeSearchSpeed = ResolveSlowHomeSearchSpeed(axis, fastHomeSearchSpeed);
+            var homeTimeoutMs = ResolveHomeTimeoutMs(axis);
+            var homeMaxRetryCount = ResolveHomeMaxRetryCount(axis);
+            var fastSource = axis.FastHomeSearchSpeed > 0d ? nameof(AxisParam.FastHomeSearchSpeed) : nameof(HomingOptions.HomeSearchSpeed);
+            var slowSource = axis.SlowHomeSearchSpeed > 0d ? nameof(AxisParam.SlowHomeSearchSpeed) : nameof(HomingOptions.SlowHomeSpeed);
+            var timeoutSource = axis.HomeTimeoutMs > 0 ? nameof(AxisParam.HomeTimeoutMs) : nameof(HomingOptions.HomeTimeoutMs);
+            var retrySource = axis.HomeMaxRetryCount > 0 ? nameof(AxisParam.HomeMaxRetryCount) : "Default(3)";
+
+            LogHomeDebug(
+                "Axis {AxisNo} effective home parameters. FastHomeSearchSpeed={FastHomeSearchSpeed}, SlowHomeSearchSpeed={SlowHomeSearchSpeed}, HomeTimeoutMs={HomeTimeoutMs}, HomeMaxRetryCount={HomeMaxRetryCount}, FastSource={FastSource}, SlowSource={SlowSource}, TimeoutSource={TimeoutSource}, RetrySource={RetrySource}",
+                axis.AxisNo,
+                fastHomeSearchSpeed,
+                slowHomeSearchSpeed,
+                homeTimeoutMs,
+                homeMaxRetryCount,
+                fastSource,
+                slowSource,
+                timeoutSource,
+                retrySource);
+
+            RecordNativeCall(
+                $"Home axis {axis.AxisNo}",
+                null,
+                $"轴 {axis.AxisNo} 生效回零参数: 快速寻零={fastHomeSearchSpeed:F3}mm/s, 慢速寻零={slowHomeSearchSpeed:F3}mm/s, 超时={homeTimeoutMs}ms, 最大重试={homeMaxRetryCount}。",
+                true);
+        }
+
+        private double ResolveFastHomeSearchSpeed(AxisParam axis)
+        {
+            if (axis.FastHomeSearchSpeed > 0d)
+            {
+                return axis.FastHomeSearchSpeed;
+            }
+
+            if (_homingOptions.HomeSearchSpeed > 0d)
+            {
+                return _homingOptions.HomeSearchSpeed;
+            }
+
+            return Math.Max(0.001d, _homeSearchSpeed);
+        }
+
+        private double ResolveSlowHomeSearchSpeed(AxisParam axis, double fastHomeSearchSpeed)
+        {
+            if (axis.SlowHomeSearchSpeed > 0d)
+            {
+                return axis.SlowHomeSearchSpeed;
+            }
+
+            if (_homingOptions.SlowHomeSpeed > 0d)
+            {
+                return _homingOptions.SlowHomeSpeed;
+            }
+
+            return Math.Max(0.001d, fastHomeSearchSpeed / 2d);
+        }
+
+        private double ResolveSearchStartSpeed(double driveSpeedMmPerSec)
+        {
+            return Math.Max(0.001d, Math.Min(Math.Max(0.001d, _startSpeed), driveSpeedMmPerSec));
+        }
+
+        private static int ScaleSlowHomeTimeout(int baseTimeoutMs, double fastHomeSearchSpeed, double slowHomeSearchSpeed)
+        {
+            if (baseTimeoutMs <= 0)
+            {
+                return 100;
+            }
+
+            if (fastHomeSearchSpeed <= 0d || slowHomeSearchSpeed <= 0d)
+            {
+                return baseTimeoutMs;
+            }
+
+            var ratio = Math.Max(1d, fastHomeSearchSpeed / slowHomeSearchSpeed);
+            var scaledTimeout = (long)Math.Ceiling(baseTimeoutMs * ratio);
+            return scaledTimeout >= int.MaxValue ? int.MaxValue : (int)scaledTimeout;
         }
 
         private static void ValidateAxisNo(int axisNo)

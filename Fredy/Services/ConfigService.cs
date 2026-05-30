@@ -63,7 +63,7 @@ namespace Fredy.Drilling.Holes.Services
 
                 }
 
-                var normalized = Clone(config);
+                var normalized = Normalize(Clone(config));
                 var json = JsonSerializer.Serialize(normalized, JsonOptions);
                 File.WriteAllText(configFilePath, json);
                 _currentConfig = normalized;
@@ -83,7 +83,7 @@ namespace Fredy.Drilling.Holes.Services
 
             if (!File.Exists(configFilePath))
             {
-                var defaultConfig = new AppConfig();
+                var defaultConfig = Normalize(new AppConfig());
                 var json = JsonSerializer.Serialize(defaultConfig, JsonOptions);
                 File.WriteAllText(configFilePath, json);
                 return defaultConfig;
@@ -92,12 +92,94 @@ namespace Fredy.Drilling.Holes.Services
             try
             {
                 var json = File.ReadAllText(configFilePath);
-                return JsonSerializer.Deserialize<AppConfig>(json, JsonOptions) ?? new AppConfig();
+                var config = JsonSerializer.Deserialize<AppConfig>(json, JsonOptions) ?? new AppConfig();
+                var normalized = Normalize(config, json);
+                var normalizedJson = JsonSerializer.Serialize(normalized, JsonOptions);
+                if (!string.Equals(json, normalizedJson, StringComparison.Ordinal))
+                {
+                    File.WriteAllText(configFilePath, normalizedJson);
+                }
+
+                return normalized;
             }
             catch
             {
-                return new AppConfig();
+                return Normalize(new AppConfig());
             }
+        }
+
+        private static AppConfig Normalize(AppConfig config, string? originalJson = null)
+        {
+            ArgumentNullException.ThrowIfNull(config);
+
+            var legacyFastHomeSearchSpeed = 0d;
+            var legacySlowHomeSearchSpeed = 0d;
+            var legacyHomeTimeoutMs = 0;
+
+            if (!string.IsNullOrWhiteSpace(originalJson))
+            {
+                using var document = JsonDocument.Parse(originalJson);
+                var root = document.RootElement;
+
+                if (TryGetPositiveDouble(root, nameof(AppConfig.HomeSearchSpeed), out var homeSearchSpeed))
+                {
+                    legacyFastHomeSearchSpeed = homeSearchSpeed;
+                }
+
+                if (root.TryGetProperty(nameof(AppConfig.AdtHoming), out var adtHoming))
+                {
+                    if (TryGetPositiveInt(adtHoming, nameof(AdtHomingConfig.HomeTimeoutMs), out var homeTimeoutMs))
+                    {
+                        legacyHomeTimeoutMs = homeTimeoutMs;
+                    }
+
+                    if (TryGetPositiveDouble(adtHoming, nameof(AdtHomingConfig.SlowHomeSpeed), out var slowHomeSearchSpeed))
+                    {
+                        legacySlowHomeSearchSpeed = slowHomeSearchSpeed;
+                    }
+                }
+            }
+
+            AxisHomingDefaults.ApplyDefaults(config, legacyFastHomeSearchSpeed, legacySlowHomeSearchSpeed, legacyHomeTimeoutMs);
+            config.HomeSearchSpeed = 0d;
+            config.AdtHoming ??= new AdtHomingConfig();
+            config.AdtHoming.HomeTimeoutMs = 0;
+            config.AdtHoming.SlowHomeSpeed = 0d;
+            return config;
+        }
+
+        private static bool TryGetPositiveDouble(JsonElement element, string propertyName, out double value)
+        {
+            value = 0d;
+            if (!element.TryGetProperty(propertyName, out var property))
+            {
+                return false;
+            }
+
+            if (property.ValueKind == JsonValueKind.Number && property.TryGetDouble(out var number) && number > 0d)
+            {
+                value = number;
+                return true;
+            }
+
+            return false;
+        }
+
+        private static bool TryGetPositiveInt(JsonElement element, string propertyName, out int value)
+        {
+            value = 0;
+            if (!element.TryGetProperty(propertyName, out var property))
+            {
+                return false;
+            }
+
+            if (property.ValueKind == JsonValueKind.Number && property.TryGetInt32(out var number) && number > 0)
+            {
+                value = number;
+                return true;
+            }
+
+            return false;
         }
 
         private static string GetConfigFilePath()

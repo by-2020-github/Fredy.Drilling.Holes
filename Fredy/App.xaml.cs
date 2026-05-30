@@ -344,14 +344,20 @@ namespace Fredy.Drilling.Holes
                 axisConfig.Deceleration,
                 axisConfig.LeftLimit,
                 axisConfig.RightLimit,
-                axisConfig.PulsesPerMillimeter > 0 ? axisConfig.PulsesPerMillimeter : 1d);
+                axisConfig.PulsesPerMillimeter > 0 ? axisConfig.PulsesPerMillimeter : 1d,
+                axisConfig.UseActualPositionFeedback,
+                axisConfig.InPositionTolerance,
+                axisConfig.FastHomeSearchSpeed,
+                axisConfig.SlowHomeSearchSpeed,
+                axisConfig.HomeTimeoutMs,
+                axisConfig.HomeMaxRetryCount);
         }
 
         private static MotionAdt8940.HomingOptions BuildAdtHomingOptions(Models.AppConfig config)
         {
             var homing = config.AdtHoming ?? new Models.AdtHomingConfig();
             return new MotionAdt8940.HomingOptions(
-                config.HomeSearchSpeed,
+                ResolveSharedFastHomeSearchSpeed(config),
                 config.IsIoHome,
                 config.IsLatch,
                 config.IsGratingHome,
@@ -360,16 +366,83 @@ namespace Fredy.Drilling.Holes
                 BuildHomingPort(homing.ZLimitPort),
                 BuildHomingPort(homing.XGratingPort),
                 BuildHomingPort(homing.YGratingPort),
-                homing.HomeTimeoutMs,
+                ResolveSharedHomeTimeoutMs(config),
                 homing.HomeBackoffMm,
                 homing.ZHomeLiftMm,
                 homing.ZHomeTowardPositiveDirection,
                 homing.SlowHomeStartSpeed,
-                homing.SlowHomeSpeed,
+                ResolveSharedSlowHomeSearchSpeed(config),
                 homing.SlowHomeAcceleration,
                 homing.GratingHomeStartSpeed,
                 homing.GratingHomeSpeed,
                 homing.GratingHomeAcceleration);
+        }
+
+        private static double ResolveSharedFastHomeSearchSpeed(Models.AppConfig config)
+        {
+            return ResolveFirstPositive(
+                config.XAxis?.FastHomeSearchSpeed ?? 0d,
+                config.YAxis?.FastHomeSearchSpeed ?? 0d,
+                config.ZAxis?.FastHomeSearchSpeed ?? 0d,
+                3.0d);
+        }
+
+        private static double ResolveSharedSlowHomeSearchSpeed(Models.AppConfig config)
+        {
+            return ResolveFirstPositive(
+                config.XAxis?.SlowHomeSearchSpeed ?? 0d,
+                config.YAxis?.SlowHomeSearchSpeed ?? 0d,
+                config.ZAxis?.SlowHomeSearchSpeed ?? 0d,
+                0.5d);
+        }
+
+            private static int ResolveSharedHomeTimeoutMs(Models.AppConfig config)
+            {
+                return ResolveFirstPositive(
+                config.XAxis?.HomeTimeoutMs ?? 0,
+                config.YAxis?.HomeTimeoutMs ?? 0,
+                config.ZAxis?.HomeTimeoutMs ?? 0,
+                10000);
+            }
+
+        private static double ResolveFirstPositive(double first, double second, double third, double fallback)
+        {
+            if (first > 0d)
+            {
+                return first;
+            }
+
+            if (second > 0d)
+            {
+                return second;
+            }
+
+            if (third > 0d)
+            {
+                return third;
+            }
+
+            return fallback;
+        }
+
+        private static int ResolveFirstPositive(int first, int second, int third, int fallback)
+        {
+            if (first > 0)
+            {
+                return first;
+            }
+
+            if (second > 0)
+            {
+                return second;
+            }
+
+            if (third > 0)
+            {
+                return third;
+            }
+
+            return fallback;
         }
 
         private static MotionAdt8940.HomingPort BuildHomingPort(Models.PortItem port)

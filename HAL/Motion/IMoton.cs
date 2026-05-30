@@ -14,7 +14,11 @@ namespace HAL
         double? RightLimit = null,
         double PulsesPerMillimeter = 1d,
         bool UseActualPositionFeedback = false,
-        double? InPositionTolerance = null);
+        double? InPositionTolerance = null,
+        double FastHomeSearchSpeed = 0d,
+        double SlowHomeSearchSpeed = 0d,
+        int HomeTimeoutMs = 0,
+        int HomeMaxRetryCount = 3);
 
     public interface IMoton
     {
