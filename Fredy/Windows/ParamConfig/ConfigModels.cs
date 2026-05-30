@@ -175,6 +175,29 @@ namespace Fredy.Drilling.Holes.Models
         [ObservableProperty] private string _saveDirectory = string.Empty;
     }
 
+    public class CameraPunchOffsetCalibrationTestPunchConfig
+    {
+        public double TargetX { get; set; }
+
+        public double TargetY { get; set; }
+
+        public double SafeZ { get; set; } = 8500d;
+
+        public bool SurfaceDetectInputLowActive { get; set; } = true;
+
+        public double PreparationZ { get; set; } = -12d;
+
+        public double SurfaceSearchDistance { get; set; } = -12d;
+
+        public double FastApproachSpeed { get; set; } = 9d;
+
+        public double SlowSearchSpeed { get; set; } = 0.7d;
+
+        public double SlowSearchStep { get; set; } = 0.02d;
+
+        public int SurfaceDetectInputPort { get; set; }
+    }
+
     public class AppConfig
     {
         public MotionControllerConfig MotionController { get; set; } = new();
@@ -268,6 +291,8 @@ namespace Fredy.Drilling.Holes.Models
         public int CenterRoiCircleRadius { get; set; } = 30;
 
         public CoordinateCalibrationData CoordinateCalibration { get; set; } = new();
+
+        public CameraPunchOffsetCalibrationTestPunchConfig CameraPunchOffsetCalibrationTestPunch { get; set; } = new();
 
         private static List<DetectionRingItem> CreateDefaultDetectionRingItems()
         {

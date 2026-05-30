@@ -145,6 +145,7 @@ namespace Fredy.Drilling.Holes.Services
             config.AdtHoming ??= new AdtHomingConfig();
             config.AdtHoming.HomeTimeoutMs = 0;
             config.AdtHoming.SlowHomeSpeed = 0d;
+            config.CameraPunchOffsetCalibrationTestPunch ??= new CameraPunchOffsetCalibrationTestPunchConfig();
             return config;
         }
 

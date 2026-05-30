@@ -211,6 +211,19 @@ namespace HAL
             return Task.FromResult(ToMillimeter(position, axis));
         }
 
+        public Task<int> GetStatusAsync(int axisNo, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            EnsureAxisReady(axisNo);
+
+            ExecuteNative(
+                (out int status) => adt8940a1.adt8940a1_get_status(_cardNo, axisNo, out status),
+                $"Get status for axis {axisNo}",
+                out var motionStatus);
+
+            return Task.FromResult(motionStatus);
+        }
+
         public Task HomeAsync(int axisNo, bool wait, CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();

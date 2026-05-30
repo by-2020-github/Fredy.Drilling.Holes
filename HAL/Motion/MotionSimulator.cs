@@ -114,6 +114,20 @@ namespace HAL
             return Task.FromResult(position);
         }
 
+        public Task<int> GetStatusAsync(int axisNo, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var axisState = GetAxisState(axisNo);
+            int status;
+            lock (axisState.SyncRoot)
+            {
+                status = axisState.MotionCts is null ? 0 : 1;
+            }
+
+            return Task.FromResult(status);
+        }
+
         public async Task HomeAsync(int axisNo, bool wait, CancellationToken cancellationToken = default)
         {
             var delayMs = _random.Next(1000, 3001);

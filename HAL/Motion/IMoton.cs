@@ -49,5 +49,7 @@ namespace HAL
         Task DisableAllAsync(int[] axisNos);
 
         Task<double> GetPositionAsync(int axisNo, CancellationToken cancellationToken = default);
+
+        Task<int> GetStatusAsync(int axisNo, CancellationToken cancellationToken = default);
     }
 }
