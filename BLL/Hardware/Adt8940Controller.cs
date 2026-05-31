@@ -9,6 +9,7 @@ namespace BLL
     {
         private readonly IMotionService _motionManager;
         private readonly HAL.IIOCard _ioCard;
+        private readonly SurfaceDetectionService _surfaceDetectionService;
         private readonly ILogger _logger;
         private HAL.MotionAdt8940 AdtMotion => _motionManager.Hardware as HAL.MotionAdt8940 ?? 
             throw new InvalidOperationException("底层硬件不是 MotionAdt8940 实现，无法使用 ADT8940Controller 特定功能。");
@@ -17,6 +18,7 @@ namespace BLL
         {
             _motionManager = motionManager ?? throw new ArgumentNullException(nameof(motionManager));
             _ioCard = ioCard ?? throw new ArgumentNullException(nameof(ioCard));
+            _surfaceDetectionService = new SurfaceDetectionService(_motionManager, _ioCard);
             _logger = (logger ?? Log.Logger).ForContext<Adt8940Controller>();
         }
 
@@ -78,39 +80,13 @@ namespace BLL
         public SurfaceDetectionResult ProbeSurface(double fastDistance, double fastSpeed, double slowDistance, double slowSpeed, SurfaceDetectionOptions options)
         {
             ArgumentNullException.ThrowIfNull(options);
-
-            PrepareSurfaceDetection(options);
-            FastMoveZ(fastDistance, fastSpeed);
-            if (TryReadSurfaceDetection(options, out var earlySurfaceZ))
+            var result = _surfaceDetectionService.ProbeSurface(fastDistance, fastSpeed, slowDistance, slowSpeed, options);
+            if (result.Detected)
             {
-                throw new InvalidOperationException($"快速接近阶段已触发表面检测信号，Z={earlySurfaceZ:F4}，请检查针尖高度或工件状态。");
+                _logger.Information("探面完成: Mode={Mode}, SurfaceZ={SurfaceZ:F4}", options.Mode, result.SurfaceZ);
             }
 
-            PrepareSurfaceDetection(options);
-            double targetZ = _motionManager.GetZPosition() + slowDistance;
-            double moveSpeed = slowSpeed > 0d ? slowSpeed : 0.5d;
-            _motionManager.MoveZAsync(targetZ, moveSpeed, false).Wait();
-
-            while (IsZAxisMoving())
-            {
-                if (TryReadSurfaceDetection(options, out var surfaceZ))
-                {
-                    StopZ();
-                    WaitForZStop();
-                    _logger.Information("探面完成: Mode={Mode}, SurfaceZ={SurfaceZ:F4}", options.Mode, surfaceZ);
-                    return new SurfaceDetectionResult(true, surfaceZ);
-                }
-
-                Thread.Sleep(ResolvePollInterval(options));
-            }
-
-            if (TryReadSurfaceDetection(options, out var finalSurfaceZ))
-            {
-                _logger.Information("探面完成: Mode={Mode}, SurfaceZ={SurfaceZ:F4}", options.Mode, finalSurfaceZ);
-                return new SurfaceDetectionResult(true, finalSurfaceZ);
-            }
-
-            return new SurfaceDetectionResult(false, 0d);
+            return result;
         }
 
         public SurfaceDetectionResult PunchDown(double commandValue = 0.0, bool isAbsoluteTarget = false, bool detectSurface = false, SurfaceDetectionOptions? detectionOptions = null, double speed = 0.0)
@@ -127,20 +103,20 @@ namespace BLL
                     throw new ArgumentNullException(nameof(detectionOptions));
                 }
 
-                PrepareSurfaceDetection(detectionOptions);
+                _surfaceDetectionService.PrepareSurfaceDetection(detectionOptions);
                 _motionManager.MoveZAsync(targetZ, moveSpeed, false).Wait();
 
-                while (IsZAxisMoving())
+                while (_surfaceDetectionService.IsZAxisMoving())
                 {
-                    if (!detectionResult.Detected && TryReadSurfaceDetection(detectionOptions, out var surfaceZ))
+                    if (!detectionResult.Detected && _surfaceDetectionService.TryReadSurfaceDetection(detectionOptions, out var surfaceZ))
                     {
                         detectionResult = new SurfaceDetectionResult(true, surfaceZ);
                     }
 
-                    Thread.Sleep(ResolvePollInterval(detectionOptions));
+                    Thread.Sleep(SurfaceDetectionService.ResolvePollInterval(detectionOptions));
                 }
 
-                if (!detectionResult.Detected && TryReadSurfaceDetection(detectionOptions, out var finalSurfaceZ))
+                if (!detectionResult.Detected && _surfaceDetectionService.TryReadSurfaceDetection(detectionOptions, out var finalSurfaceZ))
                 {
                     detectionResult = new SurfaceDetectionResult(true, finalSurfaceZ);
                 }
@@ -161,7 +137,7 @@ namespace BLL
 
         public void WaitForZStop()
         {
-            while (IsZAxisMoving())
+            while (_surfaceDetectionService.IsZAxisMoving())
             {
                 Thread.Sleep(10);
             }
@@ -182,53 +158,6 @@ namespace BLL
         public double ReadRecordedSurfaceZ()
         {
             return AdtMotion.GetLockPositionAsync(_motionManager.ZAxis.AxisNo).GetAwaiter().GetResult();
-        }
-
-        private void PrepareSurfaceDetection(SurfaceDetectionOptions options)
-        {
-            if (options.Mode != SurfaceDetectionMode.Latch)
-            {
-                return;
-            }
-
-            int axisZ = _motionManager.ZAxis.AxisNo;
-            AdtMotion.ClearLockStatusAsync(axisZ).Wait();
-            AdtMotion.SetLockPositionModeAsync(axisZ, 1, 1, 1).Wait();
-        }
-
-        private bool TryReadSurfaceDetection(SurfaceDetectionOptions options, out double surfaceZ)
-        {
-            surfaceZ = 0d;
-            if (options.Mode == SurfaceDetectionMode.Latch)
-            {
-                if (!AdtMotion.GetLockStatusAsync(_motionManager.ZAxis.AxisNo).GetAwaiter().GetResult())
-                {
-                    return false;
-                }
-
-                surfaceZ = AdtMotion.GetLockPositionAsync(_motionManager.ZAxis.AxisNo).GetAwaiter().GetResult();
-                return true;
-            }
-
-            var rawValue = _ioCard.ReadInputAsync(options.InputPort).GetAwaiter().GetResult();
-            var isActive = options.InputLowActive ? !rawValue : rawValue;
-            if (!isActive)
-            {
-                return false;
-            }
-
-            surfaceZ = _motionManager.GetZPosition();
-            return true;
-        }
-
-        private bool IsZAxisMoving()
-        {
-            return _motionManager.Hardware.GetStatusAsync(_motionManager.ZAxis.AxisNo).GetAwaiter().GetResult() != 0;
-        }
-
-        private static int ResolvePollInterval(SurfaceDetectionOptions options)
-        {
-            return Math.Max(1, options.PollIntervalMs);
         }
 
         public void Close()

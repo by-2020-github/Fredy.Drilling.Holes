@@ -230,6 +230,7 @@
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
 
                                 <TextBlock Grid.Row="0" Grid.Column="0" Text="测试 X" VerticalAlignment="Center" Margin="0,0,8,8"/>
@@ -247,40 +248,40 @@
                                     Value="{Binding TestPunchPreparationZ, UpdateSourceTrigger=PropertyChanged}"
                                     Style="{StaticResource NumericDoubleUpDownStyle}"/>
 
-                                <TextBlock Grid.Row="1" Grid.Column="2" Text="安全 Z" VerticalAlignment="Center" Margin="0,0,8,8"/>
+                                <TextBlock Grid.Row="1" Grid.Column="2" Text="探测后抬起高度" VerticalAlignment="Center" Margin="0,0,8,8"/>
                                 <hc:NumericUpDown Grid.Row="1" Grid.Column="3" Margin="0,0,0,8"
                                     Value="{Binding TestPunchSafeZ, UpdateSourceTrigger=PropertyChanged}"
                                     Style="{StaticResource NumericDoubleUpDownStyle}"/>
 
-                                <TextBlock Grid.Row="2" Grid.Column="0" Text="检测 IO" VerticalAlignment="Center" Margin="0,0,8,8"/>
-                                <hc:NumericUpDown Grid.Row="2" Grid.Column="1" Margin="0,0,12,8" Minimum="0"
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="探测方式" VerticalAlignment="Center" Margin="0,0,8,8"/>
+                                <ComboBox Grid.Row="2" Grid.Column="1" Margin="0,0,12,8"
+                                          ItemsSource="{Binding SurfaceDetectionModes}"
+                                          SelectedItem="{Binding TestPunchSurfaceDetectionMode, UpdateSourceTrigger=PropertyChanged}"/>
+
+                                <TextBlock Grid.Row="2" Grid.Column="2" Text="检测 IO" VerticalAlignment="Center" Margin="0,0,8,8"/>
+                                <hc:NumericUpDown Grid.Row="2" Grid.Column="3" Margin="0,0,0,8" Minimum="0"
                                     Value="{Binding TestPunchSurfaceInputPort, UpdateSourceTrigger=PropertyChanged}"
                                     Style="{StaticResource NumericIntUpDownStyle}"/>
 
-                                <CheckBox Grid.Row="2" Grid.Column="2" Grid.ColumnSpan="2"
+                                <CheckBox Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="2"
                             Content="低电平有效"
                             VerticalAlignment="Center"
                             IsChecked="{Binding TestPunchSurfaceInputLowActive, UpdateSourceTrigger=PropertyChanged}"/>
 
-                                <TextBlock Grid.Row="3" Grid.Column="0" Text="当前输入" VerticalAlignment="Center" Margin="0,0,8,8"/>
-                                <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding TestPunchSurfaceInputRawText}" VerticalAlignment="Center" Margin="0,0,12,8"/>
+                                <TextBlock Grid.Row="3" Grid.Column="2" Text="轮询间隔(ms)" VerticalAlignment="Center" Margin="0,0,8,8"/>
+                                <hc:NumericUpDown Grid.Row="3" Grid.Column="3" Margin="0,0,0,8" Minimum="1"
+                                    Value="{Binding TestPunchSurfaceDetectPollIntervalMs, UpdateSourceTrigger=PropertyChanged}"
+                                    Style="{StaticResource NumericIntUpDownStyle}"/>
 
-                                <TextBlock Grid.Row="3" Grid.Column="2" Text="接触状态" VerticalAlignment="Center" Margin="0,0,8,8"/>
-                                <TextBlock Grid.Row="3" Grid.Column="3" Text="{Binding TestPunchSurfaceSignalStateText}" VerticalAlignment="Center" Margin="0,0,0,8"/>
+                                <TextBlock Grid.Row="4" Grid.Column="0" Text="当前输入" VerticalAlignment="Center" Margin="0,0,8,8"/>
+                                <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding TestPunchSurfaceInputRawText}" VerticalAlignment="Center" Margin="0,0,12,8"/>
 
-                                <TextBlock Grid.Row="4" Grid.Column="0" Text="搜索距离" VerticalAlignment="Center" Margin="0,0,8,8"/>
-                                <hc:NumericUpDown Grid.Row="4" Grid.Column="1" Margin="0,0,12,8"
+                                <TextBlock Grid.Row="4" Grid.Column="2" Text="接触状态" VerticalAlignment="Center" Margin="0,0,8,8"/>
+                                <TextBlock Grid.Row="4" Grid.Column="3" Text="{Binding TestPunchSurfaceSignalStateText}" VerticalAlignment="Center" Margin="0,0,0,8"/>
+
+                                <TextBlock Grid.Row="5" Grid.Column="0" Text="搜索距离" VerticalAlignment="Center" Margin="0,0,8,8"/>
+                                <hc:NumericUpDown Grid.Row="5" Grid.Column="1" Margin="0,0,12,8"
                                     Value="{Binding TestPunchSurfaceSearchDistance, UpdateSourceTrigger=PropertyChanged}"
-                                    Style="{StaticResource NumericDoubleUpDownStyle}"/>
-
-                                <TextBlock Grid.Row="4" Grid.Column="2" Text="慢探步长" VerticalAlignment="Center" Margin="0,0,8,8"/>
-                                <hc:NumericUpDown Grid.Row="4" Grid.Column="3" Margin="0,0,0,8" Minimum="0.001" Maximum="19.999"
-                                    Value="{Binding TestPunchSlowSearchStep, UpdateSourceTrigger=PropertyChanged}"
-                                    Style="{StaticResource NumericDoubleUpDownStyle}"/>
-
-                                <TextBlock Grid.Row="5" Grid.Column="0" Text="快速速度" VerticalAlignment="Center" Margin="0,0,8,8"/>
-                                <hc:NumericUpDown Grid.Row="5" Grid.Column="1" Margin="0,0,12,8" Minimum="0.001"
-                                    Value="{Binding TestPunchFastApproachSpeed, UpdateSourceTrigger=PropertyChanged}"
                                     Style="{StaticResource NumericDoubleUpDownStyle}"/>
 
                                 <TextBlock Grid.Row="5" Grid.Column="2" Text="慢探速度" VerticalAlignment="Center" Margin="0,0,8,8"/>
@@ -288,7 +289,12 @@
                                     Value="{Binding TestPunchSlowSearchSpeed, UpdateSourceTrigger=PropertyChanged}"
                                     Style="{StaticResource NumericDoubleUpDownStyle}"/>
 
-                                <Button Grid.Row="6" Grid.Column="3" Content="保存参数" Height="30" Width="92"
+                                <TextBlock Grid.Row="6" Grid.Column="0" Text="快速速度" VerticalAlignment="Center" Margin="0,0,8,8"/>
+                                <hc:NumericUpDown Grid.Row="6" Grid.Column="1" Margin="0,0,12,8" Minimum="0.001"
+                                    Value="{Binding TestPunchFastApproachSpeed, UpdateSourceTrigger=PropertyChanged}"
+                                    Style="{StaticResource NumericDoubleUpDownStyle}"/>
+
+                                <Button Grid.Row="7" Grid.Column="3" Content="保存参数" Height="30" Width="92"
                           HorizontalAlignment="Right"
                           Command="{Binding SaveTestPunchSettingsCommand}"/>
                             </Grid>

@@ -100,6 +100,7 @@
   - `SlowMoveZ(distance, speed)`
 - `IHardwareController` 新增了表面探测方法：
   - `ProbeSurface(...)`：开工前测试点探面，检测到后立即停止 Z。
+- `SurfaceDetectionService` 统一承接锁存与 IO 轮询探测逻辑，自动冲孔硬件层与相机冲孔偏移校准页共用该实现。
 - `PunchDown(commandValue, isAbsoluteTarget, speed)` 现支持两种模式：
   - `isAbsoluteTarget = true`：按绝对目标 Z 执行
   - `isAbsoluteTarget = false`：按相对位移执行兜底逻辑

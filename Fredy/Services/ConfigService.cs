@@ -174,6 +174,16 @@ namespace Fredy.Drilling.Holes.Services
                 config.SurfaceDetectPollIntervalMs = 10;
             }
 
+            if (string.IsNullOrWhiteSpace(config.CameraPunchOffsetCalibrationTestPunch.SurfaceDetectionMode))
+            {
+                config.CameraPunchOffsetCalibrationTestPunch.SurfaceDetectionMode = config.SurfaceDetectionMode;
+            }
+
+            if (config.CameraPunchOffsetCalibrationTestPunch.SurfaceDetectPollIntervalMs <= 0)
+            {
+                config.CameraPunchOffsetCalibrationTestPunch.SurfaceDetectPollIntervalMs = config.SurfaceDetectPollIntervalMs;
+            }
+
             return config;
         }
 

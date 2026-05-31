@@ -9,6 +9,7 @@ using HAL;
 using Microsoft.Extensions.Logging;
 using OpenCvSharp;
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Threading;
 using System.Threading.Tasks;
@@ -38,6 +39,7 @@ namespace Fredy.Drilling.Holes.ViewModels
         private bool _disposed;
         private const double DefaultSlowSearchStep = 0.02d;
         private const double MaxSlowSearchStep = 19.999d;
+        private const int DefaultSurfaceDetectPollIntervalMs = 10;
         private const double SurfaceMonitorDirectionTolerance = 0.001d;
         private static readonly TimeSpan SurfaceSignalRefreshInterval = TimeSpan.FromMilliseconds(50);
 
@@ -55,12 +57,14 @@ namespace Fredy.Drilling.Holes.ViewModels
         [ObservableProperty] private double _testPunchReferenceZ;
         [ObservableProperty] private string _testPunchReferenceZText = "参考 Z: 未设置";
         [ObservableProperty] private double _testPunchSafeZ = 8500d;
+        [ObservableProperty] private string _testPunchSurfaceDetectionMode = "IoPolling";
         [ObservableProperty] private bool _testPunchSurfaceInputLowActive = true;
         [ObservableProperty] private double _testPunchPreparationZ = -12d;
         [ObservableProperty] private double _testPunchSurfaceSearchDistance = -12d;
         [ObservableProperty] private double _testPunchFastApproachSpeed = 9d;
         [ObservableProperty] private double _testPunchSlowSearchSpeed = 0.7d;
         [ObservableProperty] private double _testPunchSlowSearchStep = DefaultSlowSearchStep;
+        [ObservableProperty] private int _testPunchSurfaceDetectPollIntervalMs = DefaultSurfaceDetectPollIntervalMs;
         [ObservableProperty] private int _testPunchSurfaceInputPort;
         [ObservableProperty] private bool _testPunchSurfaceInputRawValue;
         [ObservableProperty] private bool _testPunchSurfaceSignalActive;
@@ -71,6 +75,7 @@ namespace Fredy.Drilling.Holes.ViewModels
         private bool _isTestPunchInProgress;
 
         public ObservableCollection<double> JogStepOptions { get; } = new() { 0.01, 0.1, 1, 5, 10, 50, 100, 1000 };
+        public IReadOnlyList<string> SurfaceDetectionModes { get; } = new[] { "Latch", "IoPolling" };
         public ObservableCollection<CalibrationJogAxisItem> AxisItems { get; } = new();
         public ObservableCollection<GpioItem> GpioIn { get; } = new();
         public ObservableCollection<GpioItem> GpioOut { get; } = new();
@@ -96,7 +101,7 @@ namespace Fredy.Drilling.Holes.ViewModels
             var config = configService.CurrentConfig;
             OffsetX = coordinateService.Calibration.CameraToPunchOffsetX;
             OffsetY = coordinateService.Calibration.CameraToPunchOffsetY;
-            LoadTestPunchSettings(config.CameraPunchOffsetCalibrationTestPunch);
+            LoadTestPunchSettings(config.CameraPunchOffsetCalibrationTestPunch, config);
             TestPunchSafeZ = config.PunchSafeZ;
             SetTestPunchReference(config.WorkpieceReferenceZ, config.HasWorkpieceReferenceZ);
 
@@ -268,34 +273,29 @@ namespace Fredy.Drilling.Holes.ViewModels
             try
             {
                 _logger?.LogInformation(
-                    "开始执行测试冲孔: X={TargetX:F3}, Y={TargetY:F3}, SafeZ={SafeZ:F3}, Z1={PreparationZ:F3}, SearchDistance={SearchDistance:F3}, Step={Step:F3}, InputPort={InputPort}",
+                    "开始执行测试冲孔: X={TargetX:F3}, Y={TargetY:F3}, SafeZ={SafeZ:F3}, Z1={PreparationZ:F3}, SearchDistance={SearchDistance:F3}, Mode={Mode}, InputPort={InputPort}",
                     TestPunchTargetX,
                     TestPunchTargetY,
                     TestPunchSafeZ,
                     TestPunchPreparationZ,
                     TestPunchSurfaceSearchDistance,
-                    NormalizeSlowSearchStep(TestPunchSlowSearchStep),
+                    TestPunchSurfaceDetectionMode,
                     TestPunchSurfaceInputPort);
 
                 await MoveToPunchTargetAsync().ConfigureAwait(true);
                 await MoveToPreparationZAsync().ConfigureAwait(true);
 
-                if (await ReadSurfaceInputAsync().ConfigureAwait(true))
-                {
-                    throw new InvalidOperationException($"检测 IO[{TestPunchSurfaceInputPort}] 在慢探前已经触发，请检查针尖高度或工件状态。");
-                }
-
-                var surfaceDetected = await SearchSurfaceAsync().ConfigureAwait(true);
-                if (!surfaceDetected)
+                var detectionResult = await SearchSurfaceAsync().ConfigureAwait(true);
+                if (!detectionResult.Detected)
                 {
                     var currentZ = await _motionService.GetZPositionAsync().ConfigureAwait(true);
-                    var message = $"在设定搜索距离内未检测到 IO[{TestPunchSurfaceInputPort}] 触发，当前 Z={currentZ:F3} mm。";
+                    var message = $"在设定搜索距离内未检测到表面信号，Mode={TestPunchSurfaceDetectionMode}，当前 Z={currentZ:F3} mm。";
                     _logger?.LogWarning(message);
                     MessageBox.Show(message, "测试冲孔", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
 
-                var detectedZ = await _motionService.GetZPositionAsync().ConfigureAwait(true);
+                var detectedZ = detectionResult.SurfaceZ;
                 SetTestPunchReference(detectedZ, hasReference: true);
                 PersistTestPunchReferenceZ(detectedZ);
                 await MoveToSafeZAsync().ConfigureAwait(true);
@@ -336,8 +336,10 @@ namespace Fredy.Drilling.Holes.ViewModels
             {
                 var config = _configService.CurrentConfig;
                 config.PunchSafeZ = TestPunchSafeZ;
+                config.SurfaceDetectionMode = TestPunchSurfaceDetectionMode;
                 config.SurfaceDetectInputPort = TestPunchSurfaceInputPort;
                 config.SurfaceDetectInputLowActive = TestPunchSurfaceInputLowActive;
+                config.SurfaceDetectPollIntervalMs = TestPunchSurfaceDetectPollIntervalMs;
                 config.CameraPunchOffsetCalibrationTestPunch = BuildTestPunchConfig();
                 _configService.SaveWithArchive(config);
                 _logger?.LogInformation("测试冲孔参数已保存");
@@ -436,17 +438,21 @@ namespace Fredy.Drilling.Holes.ViewModels
             return !IsTestPunchInProgress && _motionService is not null && _ioCard is not null && _hardwareStateService is not null;
         }
 
-        private void LoadTestPunchSettings(CameraPunchOffsetCalibrationTestPunchConfig settings)
+        private void LoadTestPunchSettings(CameraPunchOffsetCalibrationTestPunchConfig settings, AppConfig? appConfig = null)
         {
             TestPunchTargetX = settings.TargetX;
             TestPunchTargetY = settings.TargetY;
             TestPunchSafeZ = settings.SafeZ;
+            TestPunchSurfaceDetectionMode = ResolveSurfaceDetectionMode(settings.SurfaceDetectionMode, appConfig?.SurfaceDetectionMode);
             TestPunchSurfaceInputLowActive = settings.SurfaceDetectInputLowActive;
             TestPunchPreparationZ = settings.PreparationZ;
             TestPunchSurfaceSearchDistance = settings.SurfaceSearchDistance;
             TestPunchFastApproachSpeed = settings.FastApproachSpeed > 0d ? settings.FastApproachSpeed : 9d;
             TestPunchSlowSearchSpeed = settings.SlowSearchSpeed > 0d ? settings.SlowSearchSpeed : 0.7d;
             TestPunchSlowSearchStep = NormalizeSlowSearchStep(settings.SlowSearchStep);
+            TestPunchSurfaceDetectPollIntervalMs = settings.SurfaceDetectPollIntervalMs > 0
+                ? settings.SurfaceDetectPollIntervalMs
+                : appConfig?.SurfaceDetectPollIntervalMs > 0 ? appConfig.SurfaceDetectPollIntervalMs : DefaultSurfaceDetectPollIntervalMs;
             TestPunchSurfaceInputPort = settings.SurfaceDetectInputPort;
         }
 
@@ -457,12 +463,14 @@ namespace Fredy.Drilling.Holes.ViewModels
                 TargetX = TestPunchTargetX,
                 TargetY = TestPunchTargetY,
                 SafeZ = TestPunchSafeZ,
+                SurfaceDetectionMode = TestPunchSurfaceDetectionMode,
                 SurfaceDetectInputLowActive = TestPunchSurfaceInputLowActive,
                 PreparationZ = TestPunchPreparationZ,
                 SurfaceSearchDistance = TestPunchSurfaceSearchDistance,
                 FastApproachSpeed = TestPunchFastApproachSpeed,
                 SlowSearchSpeed = TestPunchSlowSearchSpeed,
                 SlowSearchStep = NormalizeSlowSearchStep(TestPunchSlowSearchStep),
+                SurfaceDetectPollIntervalMs = TestPunchSurfaceDetectPollIntervalMs,
                 SurfaceDetectInputPort = TestPunchSurfaceInputPort,
             };
         }
@@ -487,8 +495,10 @@ namespace Fredy.Drilling.Holes.ViewModels
             {
                 var config = _configService.CurrentConfig;
                 config.PunchSafeZ = TestPunchSafeZ;
+                config.SurfaceDetectionMode = TestPunchSurfaceDetectionMode;
                 config.SurfaceDetectInputPort = TestPunchSurfaceInputPort;
                 config.SurfaceDetectInputLowActive = TestPunchSurfaceInputLowActive;
+                config.SurfaceDetectPollIntervalMs = TestPunchSurfaceDetectPollIntervalMs;
                 config.WorkpieceReferenceZ = referenceZ;
                 config.HasWorkpieceReferenceZ = true;
                 config.CameraPunchOffsetCalibrationTestPunch = BuildTestPunchConfig();
@@ -523,22 +533,27 @@ namespace Fredy.Drilling.Holes.ViewModels
                 return "慢速探测速度必须大于 0。";
             }
 
+            if (!Enum.TryParse<SurfaceDetectionMode>(TestPunchSurfaceDetectionMode, ignoreCase: true, out var detectionMode))
+            {
+                return "表面探测方式无效。";
+            }
+
+            if (detectionMode == SurfaceDetectionMode.Latch && _motionService?.Hardware is not HAL.MotionAdt8940)
+            {
+                return "当前运动控制器不支持锁存探测，请切换为 IO 轮询模式。";
+            }
+
             if (Math.Abs(TestPunchSurfaceSearchDistance) <= 0d)
             {
                 return "表面搜索距离不能为 0。";
             }
 
-            if (TestPunchSlowSearchStep <= 0d)
+            if (TestPunchSurfaceDetectPollIntervalMs <= 0)
             {
-                return "慢探步长必须大于 0。";
+                return "表面探测轮询间隔必须大于 0。";
             }
 
-            if (TestPunchSlowSearchStep >= 20d)
-            {
-                return "慢探步长必须小于 20。";
-            }
-
-            if (TestPunchSurfaceInputPort < 0 || TestPunchSurfaceInputPort >= _ioCard.InputCount)
+            if (detectionMode == SurfaceDetectionMode.IoPolling && (TestPunchSurfaceInputPort < 0 || TestPunchSurfaceInputPort >= _ioCard.InputCount))
             {
                 return $"检测 IO 端口必须在 0 到 {_ioCard.InputCount - 1} 之间。";
             }
@@ -583,37 +598,57 @@ namespace Fredy.Drilling.Holes.ViewModels
             await SafeRefreshHardwareStateAsync().ConfigureAwait(true);
         }
 
-        private async Task<bool> SearchSurfaceAsync()
+        private async Task<SurfaceDetectionResult> SearchSurfaceAsync()
         {
-            if (_motionService is null)
+            if (_motionService is null || _ioCard is null)
             {
-                return false;
+                return default;
             }
 
-            var remainingDistance = Math.Abs(TestPunchSurfaceSearchDistance);
-            var direction = Math.Sign(TestPunchSurfaceSearchDistance);
-            var stepLength = NormalizeSlowSearchStep(TestPunchSlowSearchStep);
+            var detector = new SurfaceDetectionService(_motionService, _ioCard);
+            var result = await detector.ProbeSurfaceAsync(
+                fastDistance: 0d,
+                fastSpeed: TestPunchFastApproachSpeed,
+                slowDistance: TestPunchSurfaceSearchDistance,
+                slowSpeed: TestPunchSlowSearchSpeed,
+                options: BuildSurfaceDetectionOptions())
+                .ConfigureAwait(true);
 
-            while (remainingDistance > 1e-6)
+            await SafeRefreshHardwareStateAsync().ConfigureAwait(true);
+            if (result.Detected)
             {
-                var currentZ = await _motionService.GetZPositionAsync().ConfigureAwait(true);
-                var actualStep = Math.Min(remainingDistance, stepLength);
-                var nextZ = currentZ + direction * actualStep;
-
-                await _motionService.MoveZAsync(nextZ, TestPunchSlowSearchSpeed).ConfigureAwait(true);
-
-                var isTriggered = await ReadSurfaceInputAsync().ConfigureAwait(true);
-                await SafeRefreshHardwareStateAsync().ConfigureAwait(true);
-                if (isTriggered)
-                {
-                    _logger?.LogInformation("测试冲孔慢探检测到表面: Port={InputPort}, Z={CurrentZ:F3}", TestPunchSurfaceInputPort, nextZ);
-                    return true;
-                }
-
-                remainingDistance -= actualStep;
+                _logger?.LogInformation("测试冲孔慢探检测到表面: Mode={Mode}, Port={InputPort}, Z={CurrentZ:F3}", TestPunchSurfaceDetectionMode, TestPunchSurfaceInputPort, result.SurfaceZ);
             }
 
-            return false;
+            return result;
+        }
+
+        private SurfaceDetectionOptions BuildSurfaceDetectionOptions()
+        {
+            return new SurfaceDetectionOptions
+            {
+                Mode = Enum.TryParse<SurfaceDetectionMode>(TestPunchSurfaceDetectionMode, ignoreCase: true, out var mode)
+                    ? mode
+                    : SurfaceDetectionMode.IoPolling,
+                InputPort = TestPunchSurfaceInputPort,
+                InputLowActive = TestPunchSurfaceInputLowActive,
+                PollIntervalMs = TestPunchSurfaceDetectPollIntervalMs
+            };
+        }
+
+        private static string ResolveSurfaceDetectionMode(string? preferredMode, string? fallbackMode = null)
+        {
+            if (Enum.TryParse<SurfaceDetectionMode>(preferredMode, ignoreCase: true, out var preferred))
+            {
+                return preferred.ToString();
+            }
+
+            if (Enum.TryParse<SurfaceDetectionMode>(fallbackMode, ignoreCase: true, out var fallback))
+            {
+                return fallback.ToString();
+            }
+
+            return SurfaceDetectionMode.IoPolling.ToString();
         }
 
         private async Task<bool> ReadSurfaceInputAsync()
@@ -753,6 +788,12 @@ namespace Fredy.Drilling.Holes.ViewModels
         private async Task TryStopZAxisOnSurfaceSignalAsync(bool isSignalActive, int zMotionDirection, CancellationToken cancellationToken)
         {
             if (_motionService is null)
+            {
+                return;
+            }
+
+            if (!Enum.TryParse<SurfaceDetectionMode>(TestPunchSurfaceDetectionMode, ignoreCase: true, out var detectionMode)
+                || detectionMode != SurfaceDetectionMode.IoPolling)
             {
                 return;
             }

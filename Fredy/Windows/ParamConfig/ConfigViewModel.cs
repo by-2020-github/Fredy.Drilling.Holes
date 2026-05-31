@@ -262,8 +262,10 @@ namespace Fredy.Drilling.Holes.ViewModels
             config.SurfaceDetectPollIntervalMs = SurfaceDetectPollIntervalMs;
             config.CameraPunchOffsetCalibrationTestPunch ??= new CameraPunchOffsetCalibrationTestPunchConfig();
             config.CameraPunchOffsetCalibrationTestPunch.SafeZ = PunchSafeZ;
+            config.CameraPunchOffsetCalibrationTestPunch.SurfaceDetectionMode = config.SurfaceDetectionMode;
             config.CameraPunchOffsetCalibrationTestPunch.SurfaceDetectInputPort = SurfaceDetectInputPort;
             config.CameraPunchOffsetCalibrationTestPunch.SurfaceDetectInputLowActive = SurfaceDetectInputLowActive;
+            config.CameraPunchOffsetCalibrationTestPunch.SurfaceDetectPollIntervalMs = SurfaceDetectPollIntervalMs;
             config.IsIoHome = IsIoHome;
             config.IsLatch = IsLatch;
             config.IsGratingHome = IsGratingHome;

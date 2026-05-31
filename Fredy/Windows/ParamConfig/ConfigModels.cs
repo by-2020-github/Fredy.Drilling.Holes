@@ -183,6 +183,8 @@ namespace Fredy.Drilling.Holes.Models
 
         public double SafeZ { get; set; } = 8500d;
 
+        public string SurfaceDetectionMode { get; set; } = "IoPolling";
+
         public bool SurfaceDetectInputLowActive { get; set; } = true;
 
         public double PreparationZ { get; set; } = -12d;
@@ -194,6 +196,8 @@ namespace Fredy.Drilling.Holes.Models
         public double SlowSearchSpeed { get; set; } = 0.7d;
 
         public double SlowSearchStep { get; set; } = 0.02d;
+
+        public int SurfaceDetectPollIntervalMs { get; set; } = 10;
 
         public int SurfaceDetectInputPort { get; set; }
     }
