@@ -299,9 +299,10 @@ namespace Fredy.Drilling.Holes.Tools
                 double uiX = offsetX + circle.Center.X * uniformScale;
                 double uiY = offsetY + circle.Center.Y * uniformScale;
                 double uiRadius = circle.Radius * uniformScale;
+                double crossStrokeThickness = Math.Clamp((uiRadius * 2.0) / 10.0, 1.0, 3.0);
 
-                // 绘制外围矩形框（不能填充）
-                var rect = new System.Windows.Shapes.Rectangle
+                // 按检测结果绘制圆边缘轮廓，不再绘制外接矩形。
+                var ellipse = new System.Windows.Shapes.Ellipse
                 {
                     Stroke = Brushes.LimeGreen,
                     StrokeThickness = 1.5,
@@ -309,9 +310,9 @@ namespace Fredy.Drilling.Holes.Tools
                     Height = uiRadius * 2,
                     Fill = Brushes.Transparent
                 };
-                Canvas.SetLeft(rect, uiX - uiRadius);
-                Canvas.SetTop(rect, uiY - uiRadius);
-                overlayCanvas.Children.Add(rect);
+                Canvas.SetLeft(ellipse, uiX - uiRadius);
+                Canvas.SetTop(ellipse, uiY - uiRadius);
+                overlayCanvas.Children.Add(ellipse);
 
                 // 绘制圆心十字
                 double crossSize = 5;
@@ -319,13 +320,13 @@ namespace Fredy.Drilling.Holes.Tools
                 {
                     X1 = uiX - crossSize, Y1 = uiY,
                     X2 = uiX + crossSize, Y2 = uiY,
-                    Stroke = Brushes.Red, StrokeThickness = 1.5
+                    Stroke = Brushes.Red, StrokeThickness = crossStrokeThickness
                 };
                 var vLine = new System.Windows.Shapes.Line
                 {
                     X1 = uiX, Y1 = uiY - crossSize,
                     X2 = uiX, Y2 = uiY + crossSize,
-                    Stroke = Brushes.Red, StrokeThickness = 1.5
+                    Stroke = Brushes.Red, StrokeThickness = crossStrokeThickness
                 };
                 overlayCanvas.Children.Add(hLine);
                 overlayCanvas.Children.Add(vLine);
