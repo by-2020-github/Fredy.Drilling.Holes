@@ -280,6 +280,10 @@ namespace Fredy.Drilling.Holes.Models
 
         public bool CircleIsDarkTarget { get; set; } = true;
 
+        public bool HasWorkpieceReferenceZ { get; set; }
+
+        public double WorkpieceReferenceZ { get; set; }
+
         public int CenterRoiWidth { get; set; } = 100;
 
         public int CenterRoiHeight { get; set; } = 100;

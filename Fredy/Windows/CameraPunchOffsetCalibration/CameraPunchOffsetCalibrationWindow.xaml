@@ -306,6 +306,7 @@
                         <StackPanel Grid.Row="1" Grid.Column="2" VerticalAlignment="Center" Margin="8,0,0,0">
                             <TextBlock Text="{Binding TestPunchTargetX, StringFormat=X: {0:F3}}" FontSize="12"/>
                             <TextBlock Text="{Binding TestPunchTargetY, StringFormat=Y: {0:F3}}" FontSize="12"/>
+                            <TextBlock Text="{Binding TestPunchReferenceZText}" FontSize="12"/>
                         </StackPanel>
 
                         <Button Grid.Row="2" Grid.Column="0" Content="2. 记录相机" FontSize="14" Margin="3" Command="{Binding MarkCameraPositionCommand}"/>

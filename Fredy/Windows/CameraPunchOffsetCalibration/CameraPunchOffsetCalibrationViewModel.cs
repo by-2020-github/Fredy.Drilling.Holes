@@ -52,6 +52,8 @@ namespace Fredy.Drilling.Holes.ViewModels
         [ObservableProperty] private bool _enableVisionAssist;
         [ObservableProperty] private double _testPunchTargetX;
         [ObservableProperty] private double _testPunchTargetY;
+        [ObservableProperty] private double _testPunchReferenceZ;
+        [ObservableProperty] private string _testPunchReferenceZText = "参考 Z: 未设置";
         [ObservableProperty] private double _testPunchSafeZ = 8500d;
         [ObservableProperty] private bool _testPunchSurfaceInputLowActive = true;
         [ObservableProperty] private double _testPunchPreparationZ = -12d;
@@ -91,9 +93,11 @@ namespace Fredy.Drilling.Holes.ViewModels
             _configService = configService;
 
             // 从已持久化的校准数据初始化 UI 显示值
+            var config = configService.CurrentConfig;
             OffsetX = coordinateService.Calibration.CameraToPunchOffsetX;
             OffsetY = coordinateService.Calibration.CameraToPunchOffsetY;
-            LoadTestPunchSettings(configService.CurrentConfig.CameraPunchOffsetCalibrationTestPunch);
+            LoadTestPunchSettings(config.CameraPunchOffsetCalibrationTestPunch);
+            SetTestPunchReference(config.WorkpieceReferenceZ, config.HasWorkpieceReferenceZ);
 
             InitializeCollections(hardwareStateService.InputCount, hardwareStateService.OutputCount);
             ApplySnapshot(hardwareStateService.CurrentState);
@@ -291,10 +295,12 @@ namespace Fredy.Drilling.Holes.ViewModels
                 }
 
                 var detectedZ = await _motionService.GetZPositionAsync().ConfigureAwait(true);
+                SetTestPunchReference(detectedZ, hasReference: true);
+                PersistTestPunchReferenceZ(detectedZ);
                 await MoveToSafeZAsync().ConfigureAwait(true);
 
-                _logger?.LogInformation("测试冲孔完成，已检测到表面，触发 Z={DetectedZ:F3}，已抬回安全 Z={SafeZ:F3}", detectedZ, TestPunchSafeZ);
-                MessageBox.Show($"测试冲孔完成，已检测到表面。\n触发 Z: {detectedZ:F3} mm\n安全 Z: {TestPunchSafeZ:F3} mm", "测试冲孔", MessageBoxButton.OK, MessageBoxImage.Information);
+                _logger?.LogInformation("测试冲孔完成，已检测到表面，触发 Z={DetectedZ:F3}，已保存为全局参考 Z，已抬回安全 Z={SafeZ:F3}", detectedZ, TestPunchSafeZ);
+                MessageBox.Show($"测试冲孔完成，已检测到表面。\n触发 Z: {detectedZ:F3} mm\n已保存参考 Z: {TestPunchReferenceZ:F3} mm\n安全 Z: {TestPunchSafeZ:F3} mm", "测试冲孔", MessageBoxButton.OK, MessageBoxImage.Information);
             }
             catch (Exception ex)
             {
@@ -455,6 +461,37 @@ namespace Fredy.Drilling.Holes.ViewModels
                 SlowSearchStep = NormalizeSlowSearchStep(TestPunchSlowSearchStep),
                 SurfaceDetectInputPort = TestPunchSurfaceInputPort,
             };
+        }
+
+        private void SetTestPunchReference(double referenceZ, bool hasReference)
+        {
+            TestPunchReferenceZ = hasReference ? referenceZ : 0d;
+            TestPunchReferenceZText = hasReference
+                ? $"参考 Z: {referenceZ:F3}"
+                : "参考 Z: 未设置";
+        }
+
+        private void PersistTestPunchReferenceZ(double referenceZ)
+        {
+            if (_configService is null)
+            {
+                _logger?.LogWarning("ConfigService 未初始化，无法保存工件参考 Z");
+                return;
+            }
+
+            try
+            {
+                var config = _configService.CurrentConfig;
+                config.WorkpieceReferenceZ = referenceZ;
+                config.HasWorkpieceReferenceZ = true;
+                config.CameraPunchOffsetCalibrationTestPunch = BuildTestPunchConfig();
+                _configService.SaveWithArchive(config);
+                _logger?.LogInformation("工件参考 Z 已保存到全局配置: ReferenceZ={ReferenceZ:F3}", referenceZ);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "保存工件参考 Z 失败");
+            }
         }
 
         private string? ValidateTestPunchParameters()

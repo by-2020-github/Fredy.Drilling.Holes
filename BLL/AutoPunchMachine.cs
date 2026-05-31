@@ -98,6 +98,10 @@ namespace BLL
         public double FastApproachDistance { get; set; } = 0.0;
         public double SlowDetectDistance { get; set; } = 0.0;
 
+        public bool HasInitialSurfaceReference { get; set; }
+
+        public double InitialSurfaceReferenceZ { get; set; }
+
         /// <summary>
         /// 启动冲孔流程
         /// </summary>
@@ -109,14 +113,18 @@ namespace BLL
             _stateBeforePause = PunchState.Finished;
             CompletionStatus = PunchCompletionStatus.None;
             _firstHoleSurfaceDetected = false;
-            _hasSurfaceReference = false;
-            _referenceSurfaceZ = 0.0;
-            _latestSurfaceZ = 0.0;
+            _hasSurfaceReference = HasInitialSurfaceReference;
+            _referenceSurfaceZ = HasInitialSurfaceReference ? InitialSurfaceReferenceZ : 0.0;
+            _latestSurfaceZ = HasInitialSurfaceReference ? InitialSurfaceReferenceZ : 0.0;
             _surfaceSamples.Clear();
             _currentTargetX = 0.0;
             _currentTargetY = 0.0;
             _rawTargetX = 0.0;
             _rawTargetY = 0.0;
+            if (HasInitialSurfaceReference)
+            {
+                Log($"[系统] 已加载表面参考 Z={InitialSurfaceReferenceZ:F4} 作为冲孔补偿基准。");
+            }
             Log($"[系统] 配方[{CurrentRecipe.RecipeName}]开始{(type == PunchProcessType.FirstPass ? "头道" : "二道")}冲孔流程...");
             CurrentState = PunchState.ReadCoordinate;
         }
@@ -279,7 +287,14 @@ namespace BLL
 
                     double diff = Hardware.CalculateDifference();
                     double detectedSurfaceZ = Hardware.ReadRecordedSurfaceZ();
-                    UpdateSurfaceReference(detectedSurfaceZ);
+                    if (_hasSurfaceReference)
+                    {
+                        UpdateLatestSurface(detectedSurfaceZ);
+                    }
+                    else
+                    {
+                        UpdateSurfaceReference(detectedSurfaceZ);
+                    }
                     AddSurfaceSample(_currentTargetX, _currentTargetY, detectedSurfaceZ);
                     _firstHoleSurfaceDetected = true;
 

@@ -37,6 +37,7 @@ namespace Fredy.Drilling.Holes.ViewModels
         private readonly ISecondPassAlignmentContext? _secondPassAlignmentContext;
         private readonly IMotionService? _motionService;
         private readonly CoordinateService? _coordinateService;
+        private readonly ConfigService? _configService;
         private CancellationTokenSource? _cameraPreviewCancellationTokenSource;
         private Task? _cameraPreviewTask;
         private PunchStateMachine? _punchStateMachine;
@@ -122,7 +123,8 @@ namespace Fredy.Drilling.Holes.ViewModels
             IHardwareStateService hardwareStateService,
             ISecondPassAlignmentContext secondPassAlignmentContext,
             IMotionService motionService,
-            CoordinateService coordinateService)
+            CoordinateService coordinateService,
+            ConfigService configService)
         {
             CustomPunchingCommand = new AsyncRelayCommand(CustomPunchingAsync, CanCustomPunching);
             _logStore = logStore;
@@ -136,6 +138,7 @@ namespace Fredy.Drilling.Holes.ViewModels
             _secondPassAlignmentContext = secondPassAlignmentContext;
             _motionService = motionService;
             _coordinateService = coordinateService;
+            _configService = configService;
             Logs = logStore.Entries;
             FilteredLogs = CollectionViewSource.GetDefaultView(Logs);
             FilteredLogs.Filter = FilterLogEntry;
@@ -689,7 +692,13 @@ namespace Fredy.Drilling.Holes.ViewModels
                 ? new MockHardwareController(_serilogLogger ?? Log.Logger)
                 : _hardwareController ?? throw new InvalidOperationException("未注入实际硬件控制器。");
 
-            return new PunchStateMachine(hardwareController, _serilogLogger ?? Log.Logger);
+            var stateMachine = new PunchStateMachine(hardwareController, _serilogLogger ?? Log.Logger);
+            var config = _configService?.CurrentConfig;
+            stateMachine.HasInitialSurfaceReference = config?.HasWorkpieceReferenceZ == true;
+            stateMachine.InitialSurfaceReferenceZ = stateMachine.HasInitialSurfaceReference
+                ? config!.WorkpieceReferenceZ
+                : 0d;
+            return stateMachine;
         }
 
         private async Task RunPunchingProcessAsync(RecipeViewModel recipeViewModel, PunchStateMachine punchStateMachine, PunchProcessType processType, IReadOnlyList<int> activePunchPointIndices, CancellationToken cancellationToken)
