@@ -31,9 +31,12 @@ namespace Fredy.Drilling.Holes.ViewModels
         private readonly ConfigService? _configService;
         private CancellationTokenSource? _cameraPreviewCancellationTokenSource;
         private Task? _cameraPreviewTask;
+        private CancellationTokenSource? _testPunchCancellationTokenSource;
         private CancellationTokenSource? _surfaceSignalRefreshCancellationTokenSource;
         private Task? _surfaceSignalRefreshTask;
         private bool _surfaceSignalStopIssued;
+        private bool _testPunchEmergencyStopRequested;
+        private bool _hasRecordedTestPunchActualPosition;
         private double _lastObservedSurfaceMonitorZ;
         private bool _hasLastObservedSurfaceMonitorZ;
         private bool _disposed;
@@ -54,8 +57,12 @@ namespace Fredy.Drilling.Holes.ViewModels
         [ObservableProperty] private bool _enableVisionAssist;
         [ObservableProperty] private double _testPunchTargetX;
         [ObservableProperty] private double _testPunchTargetY;
+        [ObservableProperty] private double _testPunchActualX;
+        [ObservableProperty] private double _testPunchActualY;
         [ObservableProperty] private double _testPunchReferenceZ;
         [ObservableProperty] private string _testPunchReferenceZText = "参考 Z: 未设置";
+        [ObservableProperty] private string _testPunchActualXText = "冲针记录 X: 未记录";
+        [ObservableProperty] private string _testPunchActualYText = "冲针记录 Y: 未记录";
         [ObservableProperty] private double _testPunchSafeZ = 8500d;
         [ObservableProperty] private string _testPunchSurfaceDetectionMode = "IoPolling";
         [ObservableProperty] private bool _testPunchSurfaceInputLowActive = true;
@@ -72,6 +79,7 @@ namespace Fredy.Drilling.Holes.ViewModels
         [ObservableProperty] private string _testPunchSurfaceSignalStateText = "未触发";
         [ObservableProperty]
         [NotifyCanExecuteChangedFor(nameof(TestPunchCommand))]
+        [NotifyCanExecuteChangedFor(nameof(EmergencyStopTestPunchCommand))]
         private bool _isTestPunchInProgress;
 
         public ObservableCollection<double> JogStepOptions { get; } = new() { 0.01, 0.1, 1, 5, 10, 50, 100, 1000 };
@@ -102,7 +110,6 @@ namespace Fredy.Drilling.Holes.ViewModels
             OffsetX = coordinateService.Calibration.CameraToPunchOffsetX;
             OffsetY = coordinateService.Calibration.CameraToPunchOffsetY;
             LoadTestPunchSettings(config.CameraPunchOffsetCalibrationTestPunch, config);
-            TestPunchSafeZ = config.PunchSafeZ;
             SetTestPunchReference(config.WorkpieceReferenceZ, config.HasWorkpieceReferenceZ);
 
             InitializeCollections(hardwareStateService.InputCount, hardwareStateService.OutputCount);
@@ -269,11 +276,17 @@ namespace Fredy.Drilling.Holes.ViewModels
             }
 
             IsTestPunchInProgress = true;
+            _testPunchEmergencyStopRequested = false;
+            ClearRecordedTestPunchActualPosition();
+            _testPunchCancellationTokenSource?.Cancel();
+            _testPunchCancellationTokenSource?.Dispose();
+            _testPunchCancellationTokenSource = new CancellationTokenSource();
+            var cancellationToken = _testPunchCancellationTokenSource.Token;
 
             try
             {
                 _logger?.LogInformation(
-                    "开始执行测试冲孔: X={TargetX:F3}, Y={TargetY:F3}, SafeZ={SafeZ:F3}, Z1={PreparationZ:F3}, SearchDistance={SearchDistance:F3}, Mode={Mode}, InputPort={InputPort}",
+                    "开始执行测试冲孔，XY 采用绝对坐标: X={TargetX:F3}, Y={TargetY:F3}, SafeZ={SafeZ:F3}, Z1={PreparationZ:F3}, SearchDistance={SearchDistance:F3}, Mode={Mode}, InputPort={InputPort}",
                     TestPunchTargetX,
                     TestPunchTargetY,
                     TestPunchSafeZ,
@@ -282,13 +295,13 @@ namespace Fredy.Drilling.Holes.ViewModels
                     TestPunchSurfaceDetectionMode,
                     TestPunchSurfaceInputPort);
 
-                await MoveToPunchTargetAsync().ConfigureAwait(true);
-                await MoveToPreparationZAsync().ConfigureAwait(true);
+                await MoveToPunchTargetAsync(cancellationToken).ConfigureAwait(true);
+                await MoveToPreparationZAsync(cancellationToken).ConfigureAwait(true);
 
-                var detectionResult = await SearchSurfaceAsync().ConfigureAwait(true);
+                var detectionResult = await SearchSurfaceAsync(cancellationToken).ConfigureAwait(true);
                 if (!detectionResult.Detected)
                 {
-                    var currentZ = await _motionService.GetZPositionAsync().ConfigureAwait(true);
+                    var currentZ = await _motionService.GetZPositionAsync(cancellationToken).ConfigureAwait(true);
                     var message = $"在设定搜索距离内未检测到表面信号，Mode={TestPunchSurfaceDetectionMode}，当前 Z={currentZ:F3} mm。";
                     _logger?.LogWarning(message);
                     MessageBox.Show(message, "测试冲孔", MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -298,10 +311,19 @@ namespace Fredy.Drilling.Holes.ViewModels
                 var detectedZ = detectionResult.SurfaceZ;
                 SetTestPunchReference(detectedZ, hasReference: true);
                 PersistTestPunchReferenceZ(detectedZ);
-                await MoveToSafeZAsync().ConfigureAwait(true);
+                await MoveToSafeZAsync(cancellationToken).ConfigureAwait(true);
+                await RecordCurrentTestPunchAbsolutePositionAsync(cancellationToken).ConfigureAwait(true);
 
-                _logger?.LogInformation("测试冲孔完成，已检测到表面，触发 Z={DetectedZ:F3}，已保存为全局参考 Z，已抬回安全 Z={SafeZ:F3}", detectedZ, TestPunchSafeZ);
-                MessageBox.Show($"测试冲孔完成，已检测到表面。\n触发 Z: {detectedZ:F3} mm\n已保存参考 Z: {TestPunchReferenceZ:F3} mm\n安全 Z: {TestPunchSafeZ:F3} mm", "测试冲孔", MessageBoxButton.OK, MessageBoxImage.Information);
+                _logger?.LogInformation("测试冲孔完成，记录绝对位置 X={ActualX:F3}, Y={ActualY:F3}，触发 Z={DetectedZ:F3}，已保存为全局参考 Z，已抬回安全 Z={SafeZ:F3}", TestPunchActualX, TestPunchActualY, detectedZ, TestPunchSafeZ);
+                MessageBox.Show($"测试冲孔完成，已检测到表面。\n记录绝对 X: {TestPunchActualX:F3} mm\n记录绝对 Y: {TestPunchActualY:F3} mm\n触发 Z: {detectedZ:F3} mm\n已保存参考 Z: {TestPunchReferenceZ:F3} mm\n安全 Z: {TestPunchSafeZ:F3} mm", "测试冲孔", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (OperationCanceledException) when (_testPunchEmergencyStopRequested)
+            {
+                _logger?.LogWarning("测试冲孔已被人工急停取消");
+            }
+            catch (Exception ex) when (_testPunchEmergencyStopRequested)
+            {
+                _logger?.LogWarning(ex, "测试冲孔在急停后结束");
             }
             catch (Exception ex)
             {
@@ -311,8 +333,34 @@ namespace Fredy.Drilling.Holes.ViewModels
             }
             finally
             {
+                _testPunchCancellationTokenSource?.Dispose();
+                _testPunchCancellationTokenSource = null;
                 await SafeRefreshHardwareStateAsync().ConfigureAwait(true);
                 IsTestPunchInProgress = false;
+            }
+        }
+
+        [RelayCommand(CanExecute = nameof(CanEmergencyStopTestPunch))]
+        private async Task EmergencyStopTestPunch()
+        {
+            if (_motionService is null)
+            {
+                _logger?.LogWarning("测试冲孔急停失败，运动服务未初始化");
+                return;
+            }
+
+            try
+            {
+                _testPunchEmergencyStopRequested = true;
+                _testPunchCancellationTokenSource?.Cancel();
+                await _motionService.EmergencyStopAllAsync().ConfigureAwait(true);
+                _surfaceSignalStopIssued = false;
+                await SafeRefreshHardwareStateAsync().ConfigureAwait(true);
+                _logger?.LogWarning("已执行测试冲孔急停命令");
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "执行测试冲孔急停命令失败");
             }
         }
 
@@ -335,7 +383,6 @@ namespace Fredy.Drilling.Holes.ViewModels
             try
             {
                 var config = _configService.CurrentConfig;
-                config.PunchSafeZ = TestPunchSafeZ;
                 config.SurfaceDetectionMode = TestPunchSurfaceDetectionMode;
                 config.SurfaceDetectInputPort = TestPunchSurfaceInputPort;
                 config.SurfaceDetectInputLowActive = TestPunchSurfaceInputLowActive;
@@ -377,17 +424,20 @@ namespace Fredy.Drilling.Holes.ViewModels
                 return;
             }
 
+            var punchX = GetRecordedPunchXOrTarget();
+            var punchY = GetRecordedPunchYOrTarget();
+
             var offset = _coordinateService.CalibrateCameraToPunchOffset(
-                new Point2D(TestPunchTargetX, TestPunchTargetY),
+                new Point2D(punchX, punchY),
                 new Point2D(CameraX, CameraY));
 
             OffsetX = offset.X;
             OffsetY = offset.Y;
 
             _logger?.LogInformation(
-                "按测试冲孔参数计算并保存 Offset: PunchX={PunchX:F3}, PunchY={PunchY:F3}, CameraX={CameraX:F3}, CameraY={CameraY:F3}, OffsetX={OffsetX:F3}, OffsetY={OffsetY:F3}",
-                TestPunchTargetX,
-                TestPunchTargetY,
+                "按测试冲孔绝对坐标计算并保存 Offset: PunchX={PunchX:F3}, PunchY={PunchY:F3}, CameraX={CameraX:F3}, CameraY={CameraY:F3}, OffsetX={OffsetX:F3}, OffsetY={OffsetY:F3}",
+                punchX,
+                punchY,
                 CameraX,
                 CameraY,
                 OffsetX,
@@ -420,6 +470,10 @@ namespace Fredy.Drilling.Holes.ViewModels
             _cameraPreviewCancellationTokenSource = null;
             _cameraPreviewTask = null;
 
+            _testPunchCancellationTokenSource?.Cancel();
+            _testPunchCancellationTokenSource?.Dispose();
+            _testPunchCancellationTokenSource = null;
+
             _surfaceSignalRefreshCancellationTokenSource?.Cancel();
             _surfaceSignalRefreshCancellationTokenSource = null;
             _surfaceSignalRefreshTask = null;
@@ -438,10 +492,16 @@ namespace Fredy.Drilling.Holes.ViewModels
             return !IsTestPunchInProgress && _motionService is not null && _ioCard is not null && _hardwareStateService is not null;
         }
 
+        private bool CanEmergencyStopTestPunch()
+        {
+            return IsTestPunchInProgress && _motionService is not null;
+        }
+
         private void LoadTestPunchSettings(CameraPunchOffsetCalibrationTestPunchConfig settings, AppConfig? appConfig = null)
         {
             TestPunchTargetX = settings.TargetX;
             TestPunchTargetY = settings.TargetY;
+            ClearRecordedTestPunchActualPosition();
             TestPunchSafeZ = settings.SafeZ;
             TestPunchSurfaceDetectionMode = ResolveSurfaceDetectionMode(settings.SurfaceDetectionMode, appConfig?.SurfaceDetectionMode);
             TestPunchSurfaceInputLowActive = settings.SurfaceDetectInputLowActive;
@@ -483,6 +543,15 @@ namespace Fredy.Drilling.Holes.ViewModels
                 : "参考 Z: 未设置";
         }
 
+        private void ClearRecordedTestPunchActualPosition()
+        {
+            TestPunchActualX = 0d;
+            TestPunchActualY = 0d;
+            TestPunchActualXText = "冲针记录 X: 未记录";
+            TestPunchActualYText = "冲针记录 Y: 未记录";
+            _hasRecordedTestPunchActualPosition = false;
+        }
+
         private void PersistTestPunchReferenceZ(double referenceZ)
         {
             if (_configService is null)
@@ -494,7 +563,6 @@ namespace Fredy.Drilling.Holes.ViewModels
             try
             {
                 var config = _configService.CurrentConfig;
-                config.PunchSafeZ = TestPunchSafeZ;
                 config.SurfaceDetectionMode = TestPunchSurfaceDetectionMode;
                 config.SurfaceDetectInputPort = TestPunchSurfaceInputPort;
                 config.SurfaceDetectInputLowActive = TestPunchSurfaceInputLowActive;
@@ -561,57 +629,62 @@ namespace Fredy.Drilling.Holes.ViewModels
             return null;
         }
 
-        private async Task MoveToPunchTargetAsync()
+        private async Task MoveToPunchTargetAsync(CancellationToken cancellationToken)
         {
             if (_motionService is null)
             {
                 return;
             }
 
+            var currentX = await _motionService.GetXPositionAsync(cancellationToken).ConfigureAwait(true);
+            var currentY = await _motionService.GetYPositionAsync(cancellationToken).ConfigureAwait(true);
+            _logger?.LogInformation("测试冲孔 XY 绝对移动开始: CurrentX={CurrentX:F3}, CurrentY={CurrentY:F3}, TargetX={TargetX:F3}, TargetY={TargetY:F3}", currentX, currentY, TestPunchTargetX, TestPunchTargetY);
+
             await Task.WhenAll(
-                _motionService.MoveXAsync(TestPunchTargetX, GetVelocity(_motionService.XAxis)),
-                _motionService.MoveYAsync(TestPunchTargetY, GetVelocity(_motionService.YAxis)))
+                _motionService.MoveXAsync(TestPunchTargetX, GetVelocity(_motionService.XAxis), true, cancellationToken),
+                _motionService.MoveYAsync(TestPunchTargetY, GetVelocity(_motionService.YAxis), true, cancellationToken))
                 .ConfigureAwait(true);
 
             await SafeRefreshHardwareStateAsync().ConfigureAwait(true);
         }
 
-        private async Task MoveToPreparationZAsync()
+        private async Task MoveToPreparationZAsync(CancellationToken cancellationToken)
         {
             if (_motionService is null)
             {
                 return;
             }
 
-            await _motionService.MoveZAsync(TestPunchPreparationZ, TestPunchFastApproachSpeed).ConfigureAwait(true);
+            await _motionService.MoveZAsync(TestPunchPreparationZ, TestPunchFastApproachSpeed, true, cancellationToken).ConfigureAwait(true);
             await SafeRefreshHardwareStateAsync().ConfigureAwait(true);
         }
 
-        private async Task MoveToSafeZAsync()
+        private async Task MoveToSafeZAsync(CancellationToken cancellationToken)
         {
             if (_motionService is null)
             {
                 return;
             }
 
-            await _motionService.MoveZAsync(TestPunchSafeZ, TestPunchFastApproachSpeed).ConfigureAwait(true);
+            await _motionService.MoveZAsync(TestPunchSafeZ, TestPunchFastApproachSpeed, true, cancellationToken).ConfigureAwait(true);
             await SafeRefreshHardwareStateAsync().ConfigureAwait(true);
         }
 
-        private async Task<SurfaceDetectionResult> SearchSurfaceAsync()
+        private async Task<SurfaceDetectionResult> SearchSurfaceAsync(CancellationToken cancellationToken)
         {
             if (_motionService is null || _ioCard is null)
             {
                 return default;
             }
 
-            var detector = new SurfaceDetectionService(_motionService, _ioCard);
+            var detector = new global::BLL.SurfaceDetectionService(_motionService, _ioCard);
             var result = await detector.ProbeSurfaceAsync(
                 fastDistance: 0d,
                 fastSpeed: TestPunchFastApproachSpeed,
                 slowDistance: TestPunchSurfaceSearchDistance,
                 slowSpeed: TestPunchSlowSearchSpeed,
-                options: BuildSurfaceDetectionOptions())
+                options: BuildSurfaceDetectionOptions(),
+                cancellationToken: cancellationToken)
                 .ConfigureAwait(true);
 
             await SafeRefreshHardwareStateAsync().ConfigureAwait(true);
@@ -621,6 +694,30 @@ namespace Fredy.Drilling.Holes.ViewModels
             }
 
             return result;
+        }
+
+        private async Task RecordCurrentTestPunchAbsolutePositionAsync(CancellationToken cancellationToken)
+        {
+            if (_motionService is null)
+            {
+                return;
+            }
+
+            TestPunchActualX = await _motionService.GetXPositionAsync(cancellationToken).ConfigureAwait(true);
+            TestPunchActualY = await _motionService.GetYPositionAsync(cancellationToken).ConfigureAwait(true);
+            TestPunchActualXText = $"冲针记录 X: {TestPunchActualX:F3}";
+            TestPunchActualYText = $"冲针记录 Y: {TestPunchActualY:F3}";
+            _hasRecordedTestPunchActualPosition = true;
+        }
+
+        private double GetRecordedPunchXOrTarget()
+        {
+            return _hasRecordedTestPunchActualPosition ? TestPunchActualX : TestPunchTargetX;
+        }
+
+        private double GetRecordedPunchYOrTarget()
+        {
+            return _hasRecordedTestPunchActualPosition ? TestPunchActualY : TestPunchTargetY;
         }
 
         private SurfaceDetectionOptions BuildSurfaceDetectionOptions()

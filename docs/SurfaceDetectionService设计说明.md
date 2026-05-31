@@ -337,7 +337,7 @@
 
 | 参数 | 主要来源 | 回退规则 | 运行时用途 |
 | --- | --- | --- | --- |
-| 安全 Z | `AppConfig.CameraPunchOffsetCalibrationTestPunch.SafeZ` | 无 | `MoveToSafeZAsync()` 回安全位 |
+| 测试冲孔 SafeZ | `AppConfig.CameraPunchOffsetCalibrationTestPunch.SafeZ` | 无 | `MoveToSafeZAsync()` 回安全位 |
 | 预备高度 | `AppConfig.CameraPunchOffsetCalibrationTestPunch.PreparationZ` | 无 | `MoveToPreparationZAsync()` 先移到探测起点 |
 | 搜索距离 | `AppConfig.CameraPunchOffsetCalibrationTestPunch.SurfaceSearchDistance` | 无 | `SearchSurfaceAsync()` 的 `slowDistance` |
 | 快速速度 | `AppConfig.CameraPunchOffsetCalibrationTestPunch.FastApproachSpeed` | 小于等于 0 时回退到 9 | 用于 `MoveToPreparationZAsync()`、`MoveToSafeZAsync()`，并作为 `ProbeSurfaceAsync()` 的 `fastSpeed` |
@@ -358,17 +358,14 @@
 
 `ConfigService` 在加载配置时，不只是反序列化，还会做一层兼容和归一化。当前与探测参数直接相关的规则如下：
 
-1. 如果 `AppConfig.PunchSafeZ == 0`，则先用 `CameraPunchOffsetCalibrationTestPunch.SafeZ` 回填。
-2. 归一化后，会再把 `CameraPunchOffsetCalibrationTestPunch.SafeZ` 同步成顶层 `PunchSafeZ`。
-3. 为兼容旧配置，顶层 `SurfaceDetectInputPort` 和 `SurfaceDetectInputLowActive` 会先从 `CameraPunchOffsetCalibrationTestPunch` 回填。
-4. 如果顶层 `SurfaceDetectionMode` 为空，则默认使用 `Latch`。
-5. 如果顶层 `SurfaceDetectPollIntervalMs <= 0`，则默认使用 `10`。
-6. 如果校准页子配置中的 `SurfaceDetectionMode` 为空，则回退到顶层 `SurfaceDetectionMode`。
-7. 如果校准页子配置中的 `SurfaceDetectPollIntervalMs <= 0`，则回退到顶层 `SurfaceDetectPollIntervalMs`。
+1. 为兼容旧配置，顶层 `SurfaceDetectInputPort` 和 `SurfaceDetectInputLowActive` 会先从 `CameraPunchOffsetCalibrationTestPunch` 回填。
+2. 如果顶层 `SurfaceDetectionMode` 为空，则默认使用 `Latch`。
+3. 如果顶层 `SurfaceDetectPollIntervalMs <= 0`，则默认使用 `10`。
+4. 如果校准页子配置中的 `SurfaceDetectionMode` 为空，则回退到顶层 `SurfaceDetectionMode`。
+5. 如果校准页子配置中的 `SurfaceDetectPollIntervalMs <= 0`，则回退到顶层 `SurfaceDetectPollIntervalMs`。
 
 另外，`ConfigViewModel.BuildConfig()` 在保存“冲孔表面探测”页时，会把以下全局字段同步写回 `CameraPunchOffsetCalibrationTestPunch`：
 
-- `SafeZ`
 - `SurfaceDetectionMode`
 - `SurfaceDetectInputPort`
 - `SurfaceDetectInputLowActive`
@@ -377,7 +374,8 @@
 这意味着当前 UI 设计下：
 
 - 自动冲孔和校准页默认共享同一套探测模式、输入口、极性和轮询间隔。
-- 即使读取的是旧配置，经过 `ConfigService` 归一化之后，两边也会尽量收敛到同一语义。
+- 自动冲孔 SafeZ 与校准测试冲孔 SafeZ 已拆分独立保存。
+- 即使读取的是旧配置，经过 `ConfigService` 归一化之后，探测模式相关字段仍会尽量收敛到同一语义。
 
 ## 13. Mermaid 流程图
 

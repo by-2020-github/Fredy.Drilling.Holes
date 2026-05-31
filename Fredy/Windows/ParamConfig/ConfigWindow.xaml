@@ -310,13 +310,13 @@
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
-                                <TextBlock Text="PunchSafeZ" VerticalAlignment="Center"/>
+                                <TextBlock Text="自动冲孔 SafeZ" VerticalAlignment="Center"/>
                                 <hc:NumericUpDown Grid.Column="1"
                                                   Value="{Binding PunchSafeZ, UpdateSourceTrigger=PropertyChanged}"
                                                   Style="{StaticResource NumericDoubleUpDownStyle}"
                                                   Margin="5,0,15,8"/>
                                 <TextBlock Grid.Column="2"
-                                           Text="冲孔流程每次下压完成后回到的全局绝对 Z 坐标。"
+                                           Text="自动冲孔流程每次下压完成后回到的全局绝对 Z 坐标，不影响校准页测试冲孔的 SafeZ。"
                                            Foreground="{StaticResource Brush.Foreground.Secondary}"
                                            TextWrapping="Wrap"
                                            VerticalAlignment="Center"
