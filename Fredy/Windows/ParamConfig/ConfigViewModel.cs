@@ -95,6 +95,8 @@ namespace Fredy.Drilling.Holes.ViewModels
         [ObservableProperty] private double _punchSafeZ = 8500d;
     [ObservableProperty] private double _fastToSafeZSpeed;
     [ObservableProperty] private double _punchDownSpeed;
+        [ObservableProperty] private bool _hasCurrentReferenceZ;
+        [ObservableProperty] private string _currentReferenceZDisplay = "未设置";
         [ObservableProperty] private string _surfaceDetectionMode = "Latch";
         [ObservableProperty] private double _surfaceProbeOffsetX = -1d;
         [ObservableProperty] private double _surfaceProbeOffsetY;
@@ -328,6 +330,10 @@ namespace Fredy.Drilling.Holes.ViewModels
             SlowMoveDist = config.SlowMoveDist;
             SlowMoveSpeed = config.SlowMoveSpeed;
 
+            HasCurrentReferenceZ = config.HasWorkpieceReferenceZ;
+            CurrentReferenceZDisplay = config.HasWorkpieceReferenceZ
+                ? config.WorkpieceReferenceZ.ToString("F3")
+                : "未设置";
             PunchSafeZ = config.PunchSafeZ;
             FastToSafeZSpeed = config.FastToSafeZSpeed;
             PunchDownSpeed = config.PunchDownSpeed;

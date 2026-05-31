@@ -43,6 +43,8 @@ namespace Fredy.Drilling.Holes.ViewModels
         private PunchStateMachine? _punchStateMachine;
         private CancellationTokenSource? _punchingCancellationTokenSource;
         private Task? _punchingTask;
+        private CancellationTokenSource? _temporaryPunchTestCancellationTokenSource;
+        private Task? _temporaryPunchTestTask;
         private CancellationTokenSource? _resetCancellationTokenSource;
         private bool _disposed;
         private bool _isCameraPreviewSuspended;
@@ -65,6 +67,16 @@ namespace Fredy.Drilling.Holes.ViewModels
         [ObservableProperty] private bool _showError = true;
         [ObservableProperty] private bool _showFatal = true;
         [ObservableProperty] private bool _isResetting;
+        [ObservableProperty] private double _temporaryTestStartX;
+        [ObservableProperty] private double _temporaryTestStartY;
+        [ObservableProperty] private double _temporaryTestPunchX;
+        [ObservableProperty] private double _temporaryTestPunchY;
+        [ObservableProperty] private double _temporaryTestPunchStepDepth = 50d;
+        [ObservableProperty] private string _temporaryPunchTestStatus = "待机";
+        [ObservableProperty]
+        [NotifyCanExecuteChangedFor(nameof(StartTemporaryPunchTestCommand))]
+        [NotifyCanExecuteChangedFor(nameof(StopTemporaryPunchTestCommand))]
+        private bool _isTemporaryPunchTestRunning;
 
         private ImageSource? _currentCameraImage;
         private RecipeViewModel? _currentRecipeViewModel;
@@ -97,7 +109,7 @@ namespace Fredy.Drilling.Holes.ViewModels
             }
         }
 
-        public bool CanUseCustomAction => !IsPunchingActive;
+        public bool CanUseCustomAction => !IsPunchingActive && !IsTemporaryPunchTestRunning;
 
         public bool ShowPausePunchingButton => !IsPunchingPaused;
 
@@ -204,7 +216,7 @@ namespace Fredy.Drilling.Holes.ViewModels
             return ExecuteResetAsync("Z 轴复位", token => _motionService!.HomeZAsync(true, token));
         }
 
-        private bool CanStartReset() => !IsResetting;
+        private bool CanStartReset() => !IsResetting && !IsPunchingActive && !IsTemporaryPunchTestRunning;
 
         private async Task ExecuteResetAsync(string resetName, Func<CancellationToken, Task> resetAction)
         {
@@ -435,6 +447,78 @@ namespace Fredy.Drilling.Holes.ViewModels
             _punchStateMachine?.CancelProcess();
             NotifyProcessCommandStateChanged();
             _logger?.LogWarning("收到停止冲孔命令");
+        }
+
+        [RelayCommand(CanExecute = nameof(CanStartTemporaryPunchTest))]
+        private async Task StartTemporaryPunchTestAsync()
+        {
+            if (_motionService is null || _hardwareController is null || _configService is null)
+            {
+                _logger?.LogWarning("临时双点冲孔测试无法启动，运动、硬件控制器或配置服务未初始化");
+                return;
+            }
+
+            var validationError = ValidateTemporaryPunchTestParameters();
+            if (validationError is not null)
+            {
+                MessageBox.Show(validationError, "临时双点冲孔测试", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            _temporaryPunchTestCancellationTokenSource?.Cancel();
+            _temporaryPunchTestCancellationTokenSource?.Dispose();
+            _temporaryPunchTestCancellationTokenSource = new CancellationTokenSource();
+            IsTemporaryPunchTestRunning = true;
+            TemporaryPunchTestStatus = "准备开始";
+            NotifyProcessCommandStateChanged();
+
+            try
+            {
+                _temporaryPunchTestTask = RunTemporaryPunchTestAsync(_temporaryPunchTestCancellationTokenSource.Token);
+                await _temporaryPunchTestTask;
+                TemporaryPunchTestStatus = "临时双点冲孔测试完成";
+            }
+            catch (OperationCanceledException)
+            {
+                TemporaryPunchTestStatus = "临时双点冲孔测试已停止";
+                _logger?.LogWarning("临时双点冲孔测试已取消");
+            }
+            catch (Exception ex)
+            {
+                TemporaryPunchTestStatus = "临时双点冲孔测试失败";
+                _logger?.LogError(ex, "临时双点冲孔测试过程中发生错误");
+                MessageBox.Show(ex.Message, "临时双点冲孔测试", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                _temporaryPunchTestCancellationTokenSource?.Dispose();
+                _temporaryPunchTestCancellationTokenSource = null;
+                _temporaryPunchTestTask = null;
+                IsTemporaryPunchTestRunning = false;
+                NotifyProcessCommandStateChanged();
+            }
+        }
+
+        [RelayCommand(CanExecute = nameof(CanStopTemporaryPunchTest))]
+        private async Task StopTemporaryPunchTestAsync()
+        {
+            if (_motionService is null)
+            {
+                return;
+            }
+
+            _temporaryPunchTestCancellationTokenSource?.Cancel();
+            TemporaryPunchTestStatus = "正在停止临时双点冲孔测试";
+
+            try
+            {
+                await _motionService.EmergencyStopAllAsync().ConfigureAwait(false);
+                _logger?.LogWarning("已触发临时双点冲孔测试急停");
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "停止临时双点冲孔测试时发生错误");
+            }
         }
 
         [RelayCommand(CanExecute = nameof(CanPausePunching))]
@@ -961,7 +1045,8 @@ namespace Fredy.Drilling.Holes.ViewModels
         private bool CanStartPunching()
         {
             return CurrentRecipeViewModel?.PunchPoints.Count > 0
-                && !IsPunchingActive;
+                && !IsPunchingActive
+                && !IsTemporaryPunchTestRunning;
         }
 
         private bool CanCustomPunching()
@@ -987,7 +1072,22 @@ namespace Fredy.Drilling.Holes.ViewModels
 
         private bool CanResetMachine()
         {
-            return !IsPunchingActive;
+            return !IsPunchingActive && !IsTemporaryPunchTestRunning;
+        }
+
+        private bool CanStartTemporaryPunchTest()
+        {
+            return !IsPunchingActive
+                && !IsTemporaryPunchTestRunning
+                && !IsResetting
+                && _motionService is not null
+                && _hardwareController is not null
+                && _configService is not null;
+        }
+
+        private bool CanStopTemporaryPunchTest()
+        {
+            return IsTemporaryPunchTestRunning && _motionService is not null;
         }
 
         private bool IsPunchingActive => _punchingTask is { IsCompleted: false };
@@ -1001,10 +1101,126 @@ namespace Fredy.Drilling.Holes.ViewModels
             OnPropertyChanged(nameof(ShowContinuePunchingButton));
             StartPunchingCommand.NotifyCanExecuteChanged();
             CustomPunchingCommand.NotifyCanExecuteChanged();
+            StartTemporaryPunchTestCommand.NotifyCanExecuteChanged();
+            StopTemporaryPunchTestCommand.NotifyCanExecuteChanged();
             PausePunchingCommand.NotifyCanExecuteChanged();
             ContinuePunchingCommand.NotifyCanExecuteChanged();
             StopPunchingCommand.NotifyCanExecuteChanged();
             ResetMachineCommand.NotifyCanExecuteChanged();
+            NotifyResetCommandStateChanged();
+        }
+
+        private string? ValidateTemporaryPunchTestParameters()
+        {
+            if (_motionService is null || _hardwareController is null || _configService is null)
+            {
+                return "运动服务、硬件控制器或配置服务未初始化。";
+            }
+
+            if (double.IsNaN(TemporaryTestStartX) || double.IsInfinity(TemporaryTestStartX)
+                || double.IsNaN(TemporaryTestStartY) || double.IsInfinity(TemporaryTestStartY)
+                || double.IsNaN(TemporaryTestPunchX) || double.IsInfinity(TemporaryTestPunchX)
+                || double.IsNaN(TemporaryTestPunchY) || double.IsInfinity(TemporaryTestPunchY))
+            {
+                return "临时测试点位必须是有效数值。";
+            }
+
+            if (TemporaryTestPunchStepDepth <= 0d || double.IsNaN(TemporaryTestPunchStepDepth) || double.IsInfinity(TemporaryTestPunchStepDepth))
+            {
+                return "单次下探高度必须大于 0。";
+            }
+
+            return null;
+        }
+
+        private async Task RunTemporaryPunchTestAsync(CancellationToken cancellationToken)
+        {
+            var config = _configService!.CurrentConfig;
+            double safeZ = config.PunchSafeZ;
+            double safeZSpeed = config.FastToSafeZSpeed;
+            double punchDownSpeed = config.PunchDownSpeed;
+            double singlePunchDepth = Math.Abs(TemporaryTestPunchStepDepth);
+            double fastApproachDistance = config.FastMovePos;
+            double fastApproachSpeed = config.FastMoveSpeed;
+            double slowDetectDistance = config.SlowMoveDist;
+            double slowDetectSpeed = config.SlowMoveSpeed;
+            var detectionOptions = new SurfaceDetectionOptions
+            {
+                Mode = ResolveSurfaceDetectionMode(config.SurfaceDetectionMode),
+                InputPort = config.SurfaceDetectInputPort,
+                InputLowActive = config.SurfaceDetectInputLowActive,
+                PollIntervalMs = config.SurfaceDetectPollIntervalMs
+            };
+
+            var points = new (string Name, double X, double Y)[]
+            {
+                ("第1点", TemporaryTestStartX, TemporaryTestStartY),
+                ("第2点", TemporaryTestPunchX, TemporaryTestPunchY)
+            };
+
+            TemporaryPunchTestStatus = $"抬到全局 SafeZ={safeZ:F3}";
+            await Task.Run(() => _hardwareController!.LiftZ(safeZ, safeZSpeed), cancellationToken);
+
+            foreach (var point in points)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                TemporaryPunchTestStatus = $"移动到{point.Name}: X={point.X:F3}, Y={point.Y:F3}";
+                _logger?.LogInformation("临时双点冲孔测试移动到 {PointName}: X={X:F3}, Y={Y:F3}", point.Name, point.X, point.Y);
+
+                await Task.WhenAll(
+                    _motionService!.MoveXAsync(point.X, ResolveAxisVelocity(_motionService.XAxis), true, cancellationToken),
+                    _motionService.MoveYAsync(point.Y, ResolveAxisVelocity(_motionService.YAxis), true, cancellationToken));
+
+                cancellationToken.ThrowIfCancellationRequested();
+                TemporaryPunchTestStatus = $"{point.Name} 执行表面探测";
+                _logger?.LogInformation("临时双点冲孔测试 {PointName} 开始表面探测: FastDistance={FastDistance:F3}, FastSpeed={FastSpeed:F3}, SlowDistance={SlowDistance:F3}, SlowSpeed={SlowSpeed:F3}, Mode={Mode}",
+                    point.Name,
+                    fastApproachDistance,
+                    fastApproachSpeed,
+                    slowDetectDistance,
+                    slowDetectSpeed,
+                    detectionOptions.Mode);
+
+                var probeResult = await Task.Run(
+                    () => _hardwareController!.ProbeSurface(fastApproachDistance, fastApproachSpeed, slowDetectDistance, slowDetectSpeed, detectionOptions),
+                    cancellationToken);
+
+                if (!probeResult.Detected)
+                {
+                    throw new InvalidOperationException($"{point.Name} 在设定搜索距离内未检测到表面信号。");
+                }
+
+                double surfaceZ = probeResult.SurfaceZ;
+                _logger?.LogInformation("临时双点冲孔测试 {PointName} 表面探测完成: SurfaceZ={SurfaceZ:F3}", point.Name, surfaceZ);
+
+                cancellationToken.ThrowIfCancellationRequested();
+                await Task.Run(() => _hardwareController!.LiftZ(safeZ, safeZSpeed), cancellationToken);
+
+                for (int punchIndex = 1; punchIndex <= 3; punchIndex++)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    double absoluteTargetZ = surfaceZ - singlePunchDepth * punchIndex;
+                    TemporaryPunchTestStatus = $"{point.Name} 第{punchIndex}/3次下探，SurfaceZ={surfaceZ:F3}，TargetZ={absoluteTargetZ:F3}";
+                    _logger?.LogInformation("临时双点冲孔测试 {PointName} 第{PunchIndex}/3次下探: SurfaceZ={SurfaceZ:F3}, StepDepth={StepDepth:F3}, TargetZ={TargetZ:F3}, SafeZ={SafeZ:F3}",
+                        point.Name,
+                        punchIndex,
+                        surfaceZ,
+                        singlePunchDepth,
+                        absoluteTargetZ,
+                        safeZ);
+
+                    await Task.Run(() => _hardwareController!.PunchDown(absoluteTargetZ, isAbsoluteTarget: true, detectSurface: false, detectionOptions: null, speed: punchDownSpeed), cancellationToken);
+                    await Task.Run(() => _hardwareController!.WaitForZStop(), cancellationToken);
+
+                    cancellationToken.ThrowIfCancellationRequested();
+                    await Task.Run(() => _hardwareController!.LiftZ(safeZ, safeZSpeed), cancellationToken);
+                }
+            }
+        }
+
+        private static double ResolveAxisVelocity(AxisParam axis)
+        {
+            return axis.Velocity > 0d ? axis.Velocity : 1d;
         }
 
         private static List<int> BuildPunchPointIndices(int totalCount, int? startIndex = null, int? endIndex = null)
@@ -1065,6 +1281,9 @@ namespace Fredy.Drilling.Holes.ViewModels
             }
 
             _cameraPreviewCancellationTokenSource?.Cancel();
+            _temporaryPunchTestCancellationTokenSource?.Cancel();
+            _temporaryPunchTestCancellationTokenSource?.Dispose();
+            _temporaryPunchTestCancellationTokenSource = null;
             if (_punchAuditWindow is { IsLoaded: true })
             {
                 _punchAuditWindow.Close();

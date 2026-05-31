@@ -102,17 +102,10 @@
                                                     <hc:NumericUpDown Value="{Binding SecondPass.Delay}" Style="{StaticResource NumericIntUpDownStyle}" Margin="0,2,0,5"/>
                                                 </StackPanel>
                                             </GroupBox>
-                                            <GroupBox Header="探测参数"  Grid.Column="2" Margin="2">
-                                                <StackPanel Margin="5">
-                                                    <TextBlock Text="快速移动位置 (mm)"/>
-                                                    <hc:NumericUpDown Value="{Binding FastMovePos}" Style="{StaticResource NumericDoubleUpDownStyle}" Margin="0,2,0,5"/>
-                                                    <TextBlock Text="快速速度 (mm/s)"/>
-                                                    <hc:NumericUpDown Value="{Binding FastMoveSpeed}" Style="{StaticResource NumericDoubleUpDownStyle}" Margin="0,2,0,5"/>
-                                                    <TextBlock Text="慢速移动距离 (mm)"/>
-                                                    <hc:NumericUpDown Value="{Binding SlowMoveDist}" Style="{StaticResource NumericDoubleUpDownStyle}" Margin="0,2,0,5"/>
-                                                    <TextBlock Text="慢速速度 (mm/s)"/>
-                                                    <hc:NumericUpDown Value="{Binding SlowMoveSpeed}" Style="{StaticResource NumericDoubleUpDownStyle}" Margin="0,2,0,5"/>
-                                                </StackPanel>
+                                            <GroupBox Header="探测参数入口"  Grid.Column="2" Margin="2">
+                                                <TextBlock Margin="8"
+                                                           Text="表面探测相关的全局参数已统一移动到“冲孔表面探测”页签，包含快速段、慢速搜索段、安全位和探测方式。"
+                                                           TextWrapping="Wrap"/>
                                             </GroupBox>
                                         </Grid>
                                     </GroupBox>
@@ -309,40 +302,103 @@
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
-                                <TextBlock Text="自动冲孔 SafeZ" VerticalAlignment="Center"/>
-                                <hc:NumericUpDown Grid.Column="1"
+                                <TextBlock Text="当前参考 Z" VerticalAlignment="Center"/>
+                                <TextBox Grid.Column="1"
+                                         Text="{Binding CurrentReferenceZDisplay}"
+                                         IsReadOnly="True"
+                                         IsReadOnlyCaretVisible="False"
+                                         Margin="5,0,15,8"/>
+                                <TextBlock Grid.Column="2"
+                                           Text="由校准页测试冲孔检测到表面后自动写回的全局参考 Z。仅显示，不在此页直接编辑；若为“未设置”，自动冲孔将缺少初始参考值。"
+                                           Foreground="{StaticResource Brush.Foreground.Secondary}"
+                                           TextWrapping="Wrap"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,0,8"/>
+
+                                <TextBlock Grid.Row="1" Text="自动冲孔 SafeZ" VerticalAlignment="Center"/>
+                                <hc:NumericUpDown Grid.Row="1" Grid.Column="1"
                                                   Value="{Binding PunchSafeZ, UpdateSourceTrigger=PropertyChanged}"
                                                   Style="{StaticResource NumericDoubleUpDownStyle}"
                                                   Margin="5,0,15,8"/>
-                                <TextBlock Grid.Column="2"
+                                <TextBlock Grid.Row="1" Grid.Column="2"
                                            Text="自动冲孔流程每次下压完成后回到的全局绝对 Z 坐标，不影响校准页测试冲孔的 SafeZ。"
                                            Foreground="{StaticResource Brush.Foreground.Secondary}"
                                            TextWrapping="Wrap"
                                            VerticalAlignment="Center"
                                            Margin="0,0,0,8"/>
 
-                                <TextBlock Grid.Row="1" Text="FastToSafeZSpeed" VerticalAlignment="Center"/>
-                                <hc:NumericUpDown Grid.Row="1" Grid.Column="1"
+                                <TextBlock Grid.Row="2" Text="FastToSafeZSpeed" VerticalAlignment="Center"/>
+                                <hc:NumericUpDown Grid.Row="2" Grid.Column="1"
                                                   Value="{Binding FastToSafeZSpeed, UpdateSourceTrigger=PropertyChanged}"
                                                   Minimum="0"
                                                   Style="{StaticResource NumericDoubleUpDownStyle}"
                                                   Margin="5,0,15,8"/>
-                                <TextBlock Grid.Row="1" Grid.Column="2"
+                                <TextBlock Grid.Row="2" Grid.Column="2"
                                            Text="快速回 SafeZ 的速度，0 表示沿用 Z 轴参数中的速度。"
                                            Foreground="{StaticResource Brush.Foreground.Secondary}"
                                            TextWrapping="Wrap"
                                            VerticalAlignment="Center"
                                            Margin="0,0,0,8"/>
 
-                                <TextBlock Grid.Row="2" Text="PunchDownSpeed" VerticalAlignment="Center"/>
-                                <hc:NumericUpDown Grid.Row="2" Grid.Column="1"
+                                <TextBlock Grid.Row="3" Text="PunchDownSpeed" VerticalAlignment="Center"/>
+                                <hc:NumericUpDown Grid.Row="3" Grid.Column="1"
                                                   Value="{Binding PunchDownSpeed, UpdateSourceTrigger=PropertyChanged}"
                                                   Minimum="0"
                                                   Style="{StaticResource NumericDoubleUpDownStyle}"
                                                   Margin="5,0,15,0"/>
-                                <TextBlock Grid.Row="2" Grid.Column="2"
+                                <TextBlock Grid.Row="3" Grid.Column="2"
                                            Text="正式冲孔下压速度，头道和二道均采用此参数；0 表示沿用 Z 轴参数中的速度。"
+                                           Foreground="{StaticResource Brush.Foreground.Secondary}"
+                                           TextWrapping="Wrap"
+                                           VerticalAlignment="Center"/>
+                            </Grid>
+                        </GroupBox>
+
+                        <GroupBox Header="快速段与慢速搜索段" Background="{StaticResource Brush.Status.Blue.Subtle}" Padding="10" Margin="0,0,0,10">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="180"/>
+                                    <ColumnDefinition Width="240"/>
+                                    <ColumnDefinition Width="180"/>
+                                    <ColumnDefinition Width="240"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <TextBlock ToolTip="从当前 SafeZ 先快速下探的相对距离和速度。负值表示向下；这段应尽量接近表面但不要提前撞到表面。" Text="快速接近距离" VerticalAlignment="Center" Margin="0,0,0,8"/>
+                                <hc:NumericUpDown Grid.Column="1"
+                                                  Value="{Binding FastMovePos, UpdateSourceTrigger=PropertyChanged}"
+                                                  Style="{StaticResource NumericDoubleUpDownStyle}"
+                                                  Margin="5,0,15,8"/>
+                                <TextBlock Grid.Column="2" Text="快速接近速度" VerticalAlignment="Center" Margin="0,0,0,8"/>
+                                <hc:NumericUpDown Grid.Column="3"
+                                                  Value="{Binding FastMoveSpeed, UpdateSourceTrigger=PropertyChanged}"
+                                                  Style="{StaticResource NumericDoubleUpDownStyle}"
+                                                  Margin="5,0,15,8"/>
+                                <TextBlock Grid.Column="4"
+                                           Text=""
+                                           Foreground="{StaticResource Brush.Foreground.Secondary}"
+                                           TextWrapping="Wrap"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,0,8"/>
+
+                                <TextBlock Grid.Row="1" ToolTip="慢速段结束后继续慢速下探的相对距离和速度。慢速段必须覆盖真实表面所在 Z，否则会出现“在设定搜索距离内未检测到表面信号”。" Text="慢速搜索距离" VerticalAlignment="Center"/>
+                                <hc:NumericUpDown Grid.Row="1" Grid.Column="1"
+                                                  Value="{Binding SlowMoveDist, UpdateSourceTrigger=PropertyChanged}"
+                                                  Style="{StaticResource NumericDoubleUpDownStyle}"
+                                                  Margin="5,0,15,0"/>
+                                <TextBlock Grid.Row="1" Grid.Column="2" Text="慢速搜索速度" VerticalAlignment="Center"/>
+                                <hc:NumericUpDown Grid.Row="1" Grid.Column="3"
+                                                  Value="{Binding SlowMoveSpeed, UpdateSourceTrigger=PropertyChanged}"
+                                                  Style="{StaticResource NumericDoubleUpDownStyle}"
+                                                  Margin="5,0,15,0"/>
+                                <TextBlock Grid.Row="1" Grid.Column="4"
+                                           Text=""
                                            Foreground="{StaticResource Brush.Foreground.Secondary}"
                                            TextWrapping="Wrap"
                                            VerticalAlignment="Center"/>
