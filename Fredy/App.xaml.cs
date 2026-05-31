@@ -7,7 +7,9 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Serilog;
 using System;
+using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
@@ -23,9 +25,17 @@ namespace Fredy.Drilling.Holes
     {
         public static IServiceProvider ServiceProvider { get; private set; } = null!;
         private static bool _hardwareShutdown;
+        private static readonly TimeSpan ExistingInstanceCloseTimeout = TimeSpan.FromSeconds(5);
 
         protected override void OnStartup(StartupEventArgs e)
         {
+            if (!TryClosePreviousInstances())
+            {
+                MessageBox.Show("检测到已运行实例且未能自动关闭，请手动结束旧实例后重试。", "启动失败", MessageBoxButton.OK, MessageBoxImage.Warning);
+                Shutdown();
+                return;
+            }
+
             InitializePathManager();
 
             var logStore = new AppLogStore();
@@ -157,6 +167,90 @@ namespace Fredy.Drilling.Holes
                     outputTemplate: "[{Timestamp:yyyy-MM-dd HH:mm:ss.fff} {Level:u3}] {Message:lj}{NewLine}{Exception}")
                 .WriteTo.Sink(new SerilogObservableSink(logStore), restrictedToMinimumLevel: Serilog.Events.LogEventLevel.Verbose)
                 .CreateLogger();
+        }
+
+        private static bool TryClosePreviousInstances()
+        {
+            using var currentProcess = Process.GetCurrentProcess();
+            string? currentExecutablePath = TryGetProcessExecutablePath(currentProcess);
+            bool allClosed = true;
+
+            foreach (var process in Process.GetProcessesByName(currentProcess.ProcessName))
+            {
+                using (process)
+                {
+                    if (!IsSameExecutableProcess(process, currentProcess.Id, currentProcess.SessionId, currentExecutablePath))
+                    {
+                        continue;
+                    }
+
+                    if (!TryCloseExistingProcess(process))
+                    {
+                        allClosed = false;
+                    }
+                }
+            }
+
+            return allClosed;
+        }
+
+        private static bool IsSameExecutableProcess(Process process, int currentProcessId, int currentSessionId, string? currentExecutablePath)
+        {
+            if (process.Id == currentProcessId)
+            {
+                return false;
+            }
+
+            if (process.SessionId != currentSessionId)
+            {
+                return false;
+            }
+
+            string? processExecutablePath = TryGetProcessExecutablePath(process);
+            if (!string.IsNullOrWhiteSpace(currentExecutablePath) && !string.IsNullOrWhiteSpace(processExecutablePath))
+            {
+                return string.Equals(currentExecutablePath, processExecutablePath, StringComparison.OrdinalIgnoreCase);
+            }
+
+            return true;
+        }
+
+        private static bool TryCloseExistingProcess(Process process)
+        {
+            try
+            {
+                if (process.HasExited)
+                {
+                    return true;
+                }
+
+                if (process.CloseMainWindow())
+                {
+                    if (process.WaitForExit((int)ExistingInstanceCloseTimeout.TotalMilliseconds))
+                    {
+                        return true;
+                    }
+                }
+
+                process.Kill(entireProcessTree: true);
+                return process.WaitForExit((int)ExistingInstanceCloseTimeout.TotalMilliseconds);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static string? TryGetProcessExecutablePath(Process process)
+        {
+            try
+            {
+                return process.MainModule?.FileName;
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         private void ConfigureServices(

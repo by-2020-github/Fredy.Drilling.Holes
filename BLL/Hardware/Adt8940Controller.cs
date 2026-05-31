@@ -1,6 +1,7 @@
 using Serilog;
 using System;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace BLL
 {
@@ -32,19 +33,24 @@ namespace BLL
 
         public void MoveXY(double targetX, double targetY)
         {
-            // 借由 MotionManager 进行坐标与预设速度移动绑定 (底层已配置了每个轴的 AxisParam 速度等)
-            // 先发动作不阻塞，让两轴可并发齐动
-            _motionManager.MoveXAsync(targetX, _motionManager.XAxis.Velocity, false);
-            _motionManager.MoveYAsync(targetY, _motionManager.YAxis.Velocity, false);
+            // 并发启动 XY 轴，并等待两轴都到位后再返回，避免后续探测/冲孔抢在 XY 未到位时开始。
+            Task.WhenAll(
+                _motionManager.MoveXAsync(targetX, _motionManager.XAxis.Velocity, true),
+                _motionManager.MoveYAsync(targetY, _motionManager.YAxis.Velocity, true))
+                .GetAwaiter()
+                .GetResult();
         }
 
         public void MoveXYToOffset(double offsetX, double offsetY)
         {
-            // 相对移动底层不支持预设管理器配置的并发速度，我们直接调用硬件 API 或通过重新计算坐标
+            // 偏移走位同样等待两轴都到位，确保首孔左侧预探点真实落位后再继续。
             double currentX = _motionManager.GetXPosition();
             double currentY = _motionManager.GetYPosition();
-            _motionManager.MoveXAsync(currentX + offsetX, _motionManager.XAxis.Velocity, false);
-            _motionManager.MoveYAsync(currentY + offsetY, _motionManager.YAxis.Velocity, false);
+            Task.WhenAll(
+                _motionManager.MoveXAsync(currentX + offsetX, _motionManager.XAxis.Velocity, true),
+                _motionManager.MoveYAsync(currentY + offsetY, _motionManager.YAxis.Velocity, true))
+                .GetAwaiter()
+                .GetResult();
         }
 
         public void FastMoveZ(double distance = 0.0, double speed = 0.0)
@@ -77,10 +83,10 @@ namespace BLL
             _motionManager.MoveZAsync(safeZ, moveSpeed, true).Wait();
         }
 
-        public SurfaceDetectionResult ProbeSurface(double fastDistance, double fastSpeed, double slowDistance, double slowSpeed, SurfaceDetectionOptions options)
+        public SurfaceDetectionResult ProbeSurface(double safeZ, double safeZSpeed, double fastDistance, double fastSpeed, double slowDistance, double slowSpeed, SurfaceDetectionOptions options)
         {
             ArgumentNullException.ThrowIfNull(options);
-            var result = _surfaceDetectionService.ProbeSurface(fastDistance, fastSpeed, slowDistance, slowSpeed, options);
+            var result = _surfaceDetectionService.ProbeSurface(safeZ, safeZSpeed, fastDistance, fastSpeed, slowDistance, slowSpeed, options);
             if (result.Detected)
             {
                 _logger.Information("探面完成: Mode={Mode}, SurfaceZ={SurfaceZ:F4}", options.Mode, result.SurfaceZ);

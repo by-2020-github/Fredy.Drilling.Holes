@@ -50,8 +50,9 @@ namespace BLL
             _logger.Debug("Mock: Z轴抬起到安全位置 Z={SafeZ:F4}, Speed={Speed:F4}", safeZ, speed);
         }
 
-        public SurfaceDetectionResult ProbeSurface(double fastDistance, double fastSpeed, double slowDistance, double slowSpeed, SurfaceDetectionOptions options)
+        public SurfaceDetectionResult ProbeSurface(double safeZ, double safeZSpeed, double fastDistance, double fastSpeed, double slowDistance, double slowSpeed, SurfaceDetectionOptions options)
         {
+            _currentZ = safeZ;
             _currentZ += fastDistance + slowDistance * 0.5d;
             _surfaceZ = _currentZ;
             _contactSignal = true;

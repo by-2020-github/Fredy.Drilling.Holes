@@ -28,7 +28,7 @@ namespace BLL
         void FastMoveZ(double distance = 0.0, double speed = 0.0);
         void SlowMoveZ(double distance = 0.0, double speed = 0.0);
         void LiftZ(double safeZ, double speed = 0.0);
-        SurfaceDetectionResult ProbeSurface(double fastDistance, double fastSpeed, double slowDistance, double slowSpeed, SurfaceDetectionOptions options);
+        SurfaceDetectionResult ProbeSurface(double safeZ, double safeZSpeed, double fastDistance, double fastSpeed, double slowDistance, double slowSpeed, SurfaceDetectionOptions options);
         SurfaceDetectionResult PunchDown(double commandValue = 0.0, bool isAbsoluteTarget = false, bool detectSurface = false, SurfaceDetectionOptions? detectionOptions = null, double speed = 0.0);
         void StopZ();
         void WaitForZStop();

@@ -371,6 +371,7 @@ namespace Fredy.Drilling.Holes.ViewModels
 
             ResetPunchProgress(selectedPunchPointIndices);
             ShowPunchAuditWindow(selectedPunchPoints, IsSimulate, IsFirstPass, rangeDescription);
+            await Task.Yield();
 
             _punchingCancellationTokenSource?.Cancel();
             _punchingCancellationTokenSource = new CancellationTokenSource();
@@ -863,7 +864,7 @@ namespace Fredy.Drilling.Holes.ViewModels
                         continue;
                     }
 
-                    punchStateMachine.ExecuteNextStep(processType);
+                    await Task.Run(() => punchStateMachine.ExecuteNextStep(processType), cancellationToken);
                     int stepDelayMs = IsSimulate ? Random.Shared.Next(100, 200) : 50;
                     await Task.Delay(stepDelayMs, cancellationToken);
                 }
@@ -903,26 +904,21 @@ namespace Fredy.Drilling.Holes.ViewModels
 
         private void PunchStateMachine_StateChanged(object? sender, StateChangedEventArgs e)
         {
-            NotifyProcessCommandStateChanged();
-            _punchAuditViewModel?.OnStateChanged(e);
-            _logger?.LogInformation("状态切换: {OldState} -> {NewState}, 当前孔位索引: {HoleIndex}", e.OldState, e.NewState, e.CurrentHoleIndex);
+            InvokeOnUiThread(() =>
+            {
+                NotifyProcessCommandStateChanged();
+                _punchAuditViewModel?.OnStateChanged(e);
+            });
         }
 
         private void PunchStateMachine_MessageReported(object? sender, MessageEventArgs e)
         {
-            _punchAuditViewModel?.OnMessage(e);
-            if (e.IsAlarm)
-            {
-                _logger?.LogWarning("{Message}", e.Message);
-                return;
-            }
-
-            _logger?.LogInformation("{Message}", e.Message);
+            InvokeOnUiThread(() => _punchAuditViewModel?.OnMessage(e));
         }
 
         private void PunchStateMachine_CompensationSelected(object? sender, CompensationSelectedEventArgs e)
         {
-            _punchAuditViewModel?.OnCompensationSelected(e);
+            InvokeOnUiThread(() => _punchAuditViewModel?.OnCompensationSelected(e));
             _logger?.LogInformation("孔位#{HoleIndex}补偿={Compensation}, 最近邻距离={Distance}, 采样点数量={SampleCount}",
                 e.HoleIndex,
                 e.Compensation,
@@ -1110,6 +1106,18 @@ namespace Fredy.Drilling.Holes.ViewModels
             NotifyResetCommandStateChanged();
         }
 
+        private static void InvokeOnUiThread(Action action)
+        {
+            var dispatcher = Application.Current?.Dispatcher;
+            if (dispatcher is null || dispatcher.CheckAccess())
+            {
+                action();
+                return;
+            }
+
+            _ = dispatcher.InvokeAsync(action);
+        }
+
         private string? ValidateTemporaryPunchTestParameters()
         {
             if (_motionService is null || _hardwareController is null || _configService is null)
@@ -1182,7 +1190,7 @@ namespace Fredy.Drilling.Holes.ViewModels
                     detectionOptions.Mode);
 
                 var probeResult = await Task.Run(
-                    () => _hardwareController!.ProbeSurface(fastApproachDistance, fastApproachSpeed, slowDetectDistance, slowDetectSpeed, detectionOptions),
+                    () => _hardwareController!.ProbeSurface(safeZ, safeZSpeed, fastApproachDistance, fastApproachSpeed, slowDetectDistance, slowDetectSpeed, detectionOptions),
                     cancellationToken);
 
                 if (!probeResult.Detected)

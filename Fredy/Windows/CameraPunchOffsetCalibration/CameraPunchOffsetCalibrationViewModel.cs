@@ -688,6 +688,8 @@ namespace Fredy.Drilling.Holes.ViewModels
             var config = _configService.CurrentConfig;
             var detector = new global::BLL.SurfaceDetectionService(_motionService, _ioCard);
             var result = await detector.ProbeSurfaceAsync(
+                safeZ: config.PunchSafeZ,
+                safeZSpeed: GetTestPunchSafeZMoveSpeed(config),
                 fastDistance: config.FastMovePos,
                 fastSpeed: GetTestPunchFastApproachSpeed(config),
                 slowDistance: config.SlowMoveDist,

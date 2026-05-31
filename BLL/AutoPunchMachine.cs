@@ -43,6 +43,12 @@ namespace BLL
             double NearestSampleSurfaceZ,
             double NearestDistance,
             int SampleCount);
+        private readonly record struct PunchStagePlan(
+            bool HasFastApproachStage,
+            double FastApproachTargetZ,
+            double FinalTargetZ,
+            double FastApproachDistance,
+            double SlowApproachDistance);
 
         // 由外部提供孔位索引对应的目标坐标
         public Func<int, (double X, double Y)>? HoleCoordinateResolver { get; set; }
@@ -279,11 +285,11 @@ namespace BLL
                     Log($"首孔左侧预探：先移动到左侧测试点 (offsetX={ReferenceProbeOffsetX:F4}, offsetY={ReferenceProbeOffsetY:F4})...");
                     Hardware.MoveXYToOffset(ReferenceProbeOffsetX, ReferenceProbeOffsetY);
 
-                    Log($"首孔左侧预探：Mode={SurfaceDetectionOptions.Mode}, FastDistance={FastApproachDistance:F4}, SlowDistance={SlowDetectDistance:F4}...");
+                    Log($"首孔左侧预探：先移动到 SafeZ={SafeZ:F4}，再按 FastDistance={FastApproachDistance:F4}、SlowDistance={SlowDetectDistance:F4} 探测，Mode={SurfaceDetectionOptions.Mode}...");
                     SurfaceDetectionResult probeResult;
                     try
                     {
-                        probeResult = Hardware.ProbeSurface(FastApproachDistance, FastApproachSpeed, SlowDetectDistance, SlowDetectSpeed, SurfaceDetectionOptions);
+                        probeResult = Hardware.ProbeSurface(SafeZ, FastToSafeZSpeed, FastApproachDistance, FastApproachSpeed, SlowDetectDistance, SlowDetectSpeed, SurfaceDetectionOptions);
                     }
                     catch (Exception ex)
                     {
@@ -441,42 +447,32 @@ namespace BLL
             double? localSurfaceZ = TryResolvePunchSurfaceZ(compensation);
             double? absoluteTargetZ = localSurfaceZ.HasValue ? localSurfaceZ.Value - configuredDepth : null;
             double fallbackRelativeDepth = -stepDepth;
+            bool detectSurface = ShouldDetectSurfaceDuringThisPunch();
+            string punchStepTitle = BuildPunchStepTitle(punchLabel, stepIndex, totalSteps);
 
-            if (ProcessType == PunchProcessType.FirstPass)
-            {
-                if (absoluteTargetZ.HasValue)
-                {
-                    Log($"执行头道第 {stepIndex}/{totalSteps} 次冲孔{FormatPunchLabel(punchLabel)}(累计深度={configuredDepth:F4}, 本次步进={stepDepth:F4}, 补偿={compensation:F4}, 表面Z={localSurfaceZ:F4}, 目标Z={absoluteTargetZ:F4})...");
-                }
-                else
-                {
-                    Log($"执行头道第 {stepIndex}/{totalSteps} 次冲孔{FormatPunchLabel(punchLabel)}(累计深度={configuredDepth:F4}, 本次步进={stepDepth:F4}, 补偿={compensation:F4}, 未建立参考Z，按相对下压 {fallbackRelativeDepth:F4})...");
-                }
-            }
-            else
-            {
-                if (absoluteTargetZ.HasValue)
-                {
-                    Log($"执行二道冲孔(深度={configuredDepth:F4}, 补偿={compensation:F4}, 表面Z={localSurfaceZ:F4}, 目标Z={absoluteTargetZ:F4})...");
-                }
-                else
-                {
-                    Log($"执行二道冲孔(深度={configuredDepth:F4}, 补偿={compensation:F4}, 未建立参考Z，按相对下压 {fallbackRelativeDepth:F4})...");
-                }
-            }
+            double finalTargetZ = absoluteTargetZ ?? (SafeZ + fallbackRelativeDepth);
+            PunchStagePlan punchStagePlan = BuildPunchStagePlan(finalTargetZ);
+            LogPunchPreparation(
+                punchStepTitle,
+                configuredDepth,
+                stepDepth,
+                compensation,
+                localSurfaceZ,
+                absoluteTargetZ,
+                fallbackRelativeDepth,
+                finalTargetZ,
+                punchStagePlan,
+                detectSurface);
 
-            if (absoluteTargetZ.HasValue)
-            {
-                var detectSurface = ShouldDetectSurfaceDuringThisPunch();
-                var punchResult = Hardware.PunchDown(absoluteTargetZ.Value, isAbsoluteTarget: true, detectSurface: detectSurface, detectionOptions: SurfaceDetectionOptions, speed: PunchDownSpeed);
-                TryRecordPunchSurfaceSample(punchResult, detectSurface);
-            }
-            else
-            {
-                var detectSurface = ShouldDetectSurfaceDuringThisPunch();
-                var punchResult = Hardware.PunchDown(fallbackRelativeDepth, isAbsoluteTarget: false, detectSurface: detectSurface, detectionOptions: SurfaceDetectionOptions, speed: PunchDownSpeed);
-                TryRecordPunchSurfaceSample(punchResult, detectSurface);
-            }
+            SurfaceDetectionResult punchResult = ExecutePunchDownByStage(
+                punchStagePlan,
+                detectSurface,
+                punchStepTitle,
+                configuredDepth,
+                stepDepth,
+                compensation,
+                finalTargetZ);
+            TryRecordPunchSurfaceSample(punchResult, detectSurface, punchStepTitle);
             CompensationSelected?.Invoke(this, new CompensationSelectedEventArgs(
                 CurrentHoleIndex,
                 _currentTargetX,
@@ -539,19 +535,117 @@ namespace BLL
 
             Log("等待Z轴运动结束...");
             Hardware.WaitForZStop();
-            Log($"本次冲孔结束，Z轴回到全局安全位 SafeZ={SafeZ:F4}, Speed={FastToSafeZSpeed:F4}...");
+            Log($"{punchStepTitle} 结束回退: SafeZ={SafeZ:F4}, 回退速度={FastToSafeZSpeed:F4}...");
             Hardware.LiftZ(SafeZ, FastToSafeZSpeed);
 
             if (ProcessType == PunchProcessType.FirstPass)
             {
-                Log($"头道第 {stepIndex}/{totalSteps} 次冲孔完成。");
+                Log($"{punchStepTitle} 完成。");
             }
             else
             {
-                Log("二道冲孔完成。");
+                Log($"{punchStepTitle} 完成。");
             }
 
             return true;
+        }
+
+        private void LogPunchPreparation(
+            string punchStepTitle,
+            double configuredDepth,
+            double stepDepth,
+            double compensation,
+            double? localSurfaceZ,
+            double? absoluteTargetZ,
+            double fallbackRelativeDepth,
+            double finalTargetZ,
+            PunchStagePlan punchStagePlan,
+            bool detectSurface)
+        {
+            string surfaceText = localSurfaceZ.HasValue
+                ? localSurfaceZ.Value.ToString("F4")
+                : "未建立参考Z";
+
+            string targetText = absoluteTargetZ.HasValue
+                ? absoluteTargetZ.Value.ToString("F4")
+                : $"按相对下压 {fallbackRelativeDepth:F4}";
+
+            Log($"{punchStepTitle} 准备开始: 点位(X={_currentTargetX:F4}, Y={_currentTargetY:F4}), StartSafeZ={SafeZ:F4}, 本次步进深度={stepDepth:F4}, 累计下压深度={configuredDepth:F4}, 补偿值={compensation:F4}, 当前表面Z={surfaceText}, 目标Z={targetText}, FinalTargetZ={finalTargetZ:F4}, 首刀表面探测={(detectSurface ? "启用" : "关闭")}");
+
+            if (punchStagePlan.HasFastApproachStage)
+            {
+                Log($"{punchStepTitle} 快速下探计划: 起点SafeZ={SafeZ:F4}, 距离={punchStagePlan.FastApproachDistance:F4}, 速度={FastToSafeZSpeed:F4}, FastTargetZ={punchStagePlan.FastApproachTargetZ:F4}");
+            }
+            else
+            {
+                Log($"{punchStepTitle} 快速下探计划: 已跳过，直接从 SafeZ={SafeZ:F4} 进入慢速冲孔段。");
+            }
+
+            Log($"{punchStepTitle} 慢速冲孔计划: 距离={punchStagePlan.SlowApproachDistance:F4}, 速度={PunchDownSpeed:F4}, 累计下压深度={configuredDepth:F4}, 本次步进深度={stepDepth:F4}, 补偿值={compensation:F4}, FinalTargetZ={finalTargetZ:F4}");
+        }
+
+        private PunchStagePlan BuildPunchStagePlan(double finalTargetZ)
+        {
+            if (finalTargetZ >= SafeZ)
+            {
+                return new PunchStagePlan(
+                    HasFastApproachStage: false,
+                    FastApproachTargetZ: finalTargetZ,
+                    FinalTargetZ: finalTargetZ,
+                    FastApproachDistance: 0d,
+                    SlowApproachDistance: 0d);
+            }
+
+            double desiredFastTargetZ = SafeZ + FastApproachDistance;
+            double desiredSlowStageStartZ = finalTargetZ + Math.Abs(SlowDetectDistance);
+            double fastApproachTargetZ = Math.Min(desiredFastTargetZ, desiredSlowStageStartZ);
+            fastApproachTargetZ = Math.Max(finalTargetZ, Math.Min(SafeZ, fastApproachTargetZ));
+
+            bool hasFastApproachStage = fastApproachTargetZ < SafeZ && fastApproachTargetZ > finalTargetZ;
+            double fastApproachDistance = hasFastApproachStage ? fastApproachTargetZ - SafeZ : 0d;
+            double slowApproachDistance = finalTargetZ - (hasFastApproachStage ? fastApproachTargetZ : SafeZ);
+
+            return new PunchStagePlan(
+                HasFastApproachStage: hasFastApproachStage,
+                FastApproachTargetZ: fastApproachTargetZ,
+                FinalTargetZ: finalTargetZ,
+                FastApproachDistance: fastApproachDistance,
+                SlowApproachDistance: slowApproachDistance);
+        }
+
+        private SurfaceDetectionResult ExecutePunchDownByStage(
+            PunchStagePlan punchStagePlan,
+            bool detectSurface,
+            string punchStepTitle,
+            double configuredDepth,
+            double stepDepth,
+            double compensation,
+            double finalTargetZ)
+        {
+            if (punchStagePlan.HasFastApproachStage)
+            {
+                Log($"{punchStepTitle} 快速下探执行: StartSafeZ={SafeZ:F4} -> FastTargetZ={punchStagePlan.FastApproachTargetZ:F4}, 距离={punchStagePlan.FastApproachDistance:F4}, 速度={FastToSafeZSpeed:F4}");
+                Hardware.PunchDown(punchStagePlan.FastApproachTargetZ, isAbsoluteTarget: true, detectSurface: false, detectionOptions: null, speed: FastToSafeZSpeed);
+            }
+            else
+            {
+                Log($"{punchStepTitle} 快速下探执行: 已跳过，直接慢速下压到目标Z={punchStagePlan.FinalTargetZ:F4}");
+            }
+
+            Log($"{punchStepTitle} 慢速冲孔执行: Distance={punchStagePlan.SlowApproachDistance:F4}, Speed={PunchDownSpeed:F4}, 累计下压深度={configuredDepth:F4}, 本次步进深度={stepDepth:F4}, 补偿值={compensation:F4}, FinalTargetZ={finalTargetZ:F4}, 首刀表面探测={(detectSurface ? "启用" : "关闭")}");
+            return Hardware.PunchDown(
+                punchStagePlan.FinalTargetZ,
+                isAbsoluteTarget: true,
+                detectSurface: detectSurface,
+                detectionOptions: detectSurface ? SurfaceDetectionOptions : null,
+                speed: PunchDownSpeed);
+        }
+
+        private string BuildPunchStepTitle(string? punchLabel, int stepIndex, int totalSteps)
+        {
+            return ProcessType == PunchProcessType.FirstPass
+                ? $"孔#{CurrentHoleIndex} 头道第 {stepIndex}/{totalSteps} 次冲孔{FormatPunchLabel(punchLabel)}"
+                : $"孔#{CurrentHoleIndex} 二道冲孔";
         }
 
         private double? TryResolvePunchSurfaceZ(double compensation)
@@ -569,7 +663,7 @@ namespace BLL
             return CurrentHoleIndex == 1 && !_hasFirstPunchSurfaceSample && _hasBaselineSurfaceProbe;
         }
 
-        private void TryRecordPunchSurfaceSample(SurfaceDetectionResult result, bool wasDetectionRequested)
+        private void TryRecordPunchSurfaceSample(SurfaceDetectionResult result, bool wasDetectionRequested, string punchStepTitle)
         {
             if (!wasDetectionRequested)
             {
@@ -578,7 +672,7 @@ namespace BLL
 
             if (!result.Detected)
             {
-                Log("第一个正式孔首刀冲孔过程中未检测到Surface Z，继续使用首孔左侧测试点Z作为补偿参考。");
+                Log($"{punchStepTitle} 首次当前点表面探测未命中，继续沿用首孔左侧测试点 SurfaceZ 作为补偿参考。");
                 _hasFirstPunchSurfaceSample = true;
                 return;
             }
@@ -586,7 +680,7 @@ namespace BLL
             UpdateLatestSurface(result.SurfaceZ);
             AddSurfaceSample(_currentTargetX, _currentTargetY, result.SurfaceZ);
             _hasFirstPunchSurfaceSample = true;
-            Log($"第一个正式孔首刀已记录当前点Surface Z={result.SurfaceZ:F4}，后续孔位将按欧式距离寻找最近Surface Z样本进行补偿。");
+            Log($"{punchStepTitle} 首次探测到当前点表面值 SurfaceZ={result.SurfaceZ:F4}，后续同点多次冲孔继续沿用该点补偿；后续孔位按最近邻 SurfaceZ 样本补偿。");
         }
 
         private CompensationResult ResolvePunchCompensation(double targetX, double targetY)

@@ -19,15 +19,16 @@ namespace BLL
             _ioCard = ioCard ?? throw new ArgumentNullException(nameof(ioCard));
         }
 
-        public SurfaceDetectionResult ProbeSurface(double fastDistance, double fastSpeed, double slowDistance, double slowSpeed, SurfaceDetectionOptions options)
+        public SurfaceDetectionResult ProbeSurface(double safeZ, double safeZSpeed, double fastDistance, double fastSpeed, double slowDistance, double slowSpeed, SurfaceDetectionOptions options)
         {
-            return ProbeSurfaceAsync(fastDistance, fastSpeed, slowDistance, slowSpeed, options).GetAwaiter().GetResult();
+            return ProbeSurfaceAsync(safeZ, safeZSpeed, fastDistance, fastSpeed, slowDistance, slowSpeed, options).GetAwaiter().GetResult();
         }
 
-        public async Task<SurfaceDetectionResult> ProbeSurfaceAsync(double fastDistance, double fastSpeed, double slowDistance, double slowSpeed, SurfaceDetectionOptions options, CancellationToken cancellationToken = default)
+        public async Task<SurfaceDetectionResult> ProbeSurfaceAsync(double safeZ, double safeZSpeed, double fastDistance, double fastSpeed, double slowDistance, double slowSpeed, SurfaceDetectionOptions options, CancellationToken cancellationToken = default)
         {
             ArgumentNullException.ThrowIfNull(options);
 
+            await MoveZAbsoluteAsync(safeZ, ResolveSafeZSpeed(safeZSpeed), wait: true, cancellationToken).ConfigureAwait(false);
             await PrepareSurfaceDetectionAsync(options, cancellationToken).ConfigureAwait(false);
             await MoveZRelativeAsync(fastDistance, ResolveFastSpeed(fastSpeed), wait: true, cancellationToken).ConfigureAwait(false);
 
@@ -146,7 +147,17 @@ namespace BLL
             await _motionService.MoveZAsync(currentZ + distance, speed, wait, cancellationToken).ConfigureAwait(false);
         }
 
+        private async Task MoveZAbsoluteAsync(double position, double speed, bool wait, CancellationToken cancellationToken)
+        {
+            await _motionService.MoveZAsync(position, speed, wait, cancellationToken).ConfigureAwait(false);
+        }
+
         private double ResolveFastSpeed(double speed)
+        {
+            return speed > 0d ? speed : ResolveAxisSpeed();
+        }
+
+        private double ResolveSafeZSpeed(double speed)
         {
             return speed > 0d ? speed : ResolveAxisSpeed();
         }
