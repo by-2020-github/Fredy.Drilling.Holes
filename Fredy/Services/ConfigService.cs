@@ -146,8 +146,6 @@ namespace Fredy.Drilling.Holes.Services
             config.AdtHoming.HomeTimeoutMs = 0;
             config.AdtHoming.SlowHomeSpeed = 0d;
             config.CameraPunchOffsetCalibrationTestPunch ??= new CameraPunchOffsetCalibrationTestPunchConfig();
-            config.SurfaceDetectInputPort = config.CameraPunchOffsetCalibrationTestPunch.SurfaceDetectInputPort;
-            config.SurfaceDetectInputLowActive = config.CameraPunchOffsetCalibrationTestPunch.SurfaceDetectInputLowActive;
             if (config.FastToSafeZSpeed < 0d)
             {
                 config.FastToSafeZSpeed = 0d;

@@ -181,6 +181,8 @@ namespace Fredy.Drilling.Holes.Models
 
         public double TargetY { get; set; }
 
+        public double CompletionRestoreZ { get; set; } = 8500d;
+
         public double SafeZ { get; set; } = 8500d;
 
         public string SurfaceDetectionMode { get; set; } = "IoPolling";

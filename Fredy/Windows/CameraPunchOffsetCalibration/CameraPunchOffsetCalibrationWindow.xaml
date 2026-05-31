@@ -196,7 +196,7 @@
                     </ItemsControl>
                 </GroupBox>
 
-                <GroupBox Header="坐标偏差校准 (Offset)" Background="{StaticResource Brush.Background.Subtle}">
+                <GroupBox Header="冲孔坐标" Background="{StaticResource Brush.Background.Subtle}">
                     <Grid Margin="4">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="1.5*"/>
@@ -226,11 +226,6 @@
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
 
                                 <TextBlock Grid.Row="0" Grid.Column="0" Text="测试 X(绝对)" VerticalAlignment="Center" Margin="0,0,8,8"/>
@@ -243,75 +238,29 @@
                                     Value="{Binding TestPunchTargetY, UpdateSourceTrigger=PropertyChanged}"
                                     Style="{StaticResource NumericDoubleUpDownStyle}"/>
 
-                                <TextBlock Grid.Row="1" Grid.Column="0" Text="准备 Z1" VerticalAlignment="Center" Margin="0,0,8,8"/>
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="结束恢复 Z(绝对)" VerticalAlignment="Center" Margin="0,0,8,8"/>
                                 <hc:NumericUpDown Grid.Row="1" Grid.Column="1" Margin="0,0,12,8"
-                                    Value="{Binding TestPunchPreparationZ, UpdateSourceTrigger=PropertyChanged}"
+                                    Value="{Binding TestPunchCompletionRestoreZ, UpdateSourceTrigger=PropertyChanged}"
                                     Style="{StaticResource NumericDoubleUpDownStyle}"/>
 
-                                <TextBlock Grid.Row="1" Grid.Column="2" Text="测试冲孔 SafeZ" VerticalAlignment="Center" Margin="0,0,8,8"/>
-                                <hc:NumericUpDown Grid.Row="1" Grid.Column="3" Margin="0,0,0,8"
-                                    Value="{Binding TestPunchSafeZ, UpdateSourceTrigger=PropertyChanged}"
-                                    Style="{StaticResource NumericDoubleUpDownStyle}"/>
-
-                                <TextBlock Grid.Row="2" Grid.Column="0" Text="探测方式" VerticalAlignment="Center" Margin="0,0,8,8"/>
-                                <ComboBox Grid.Row="2" Grid.Column="1" Margin="0,0,12,8"
-                                          ItemsSource="{Binding SurfaceDetectionModes}"
-                                          SelectedItem="{Binding TestPunchSurfaceDetectionMode, UpdateSourceTrigger=PropertyChanged}"/>
-
-                                <TextBlock Grid.Row="2" Grid.Column="2" Text="检测 IO" VerticalAlignment="Center" Margin="0,0,8,8"/>
-                                <hc:NumericUpDown Grid.Row="2" Grid.Column="3" Margin="0,0,0,8" Minimum="0"
-                                    Value="{Binding TestPunchSurfaceInputPort, UpdateSourceTrigger=PropertyChanged}"
-                                    Style="{StaticResource NumericIntUpDownStyle}"/>
-
-                                <CheckBox Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="2"
-                            Content="低电平有效"
-                            VerticalAlignment="Center"
-                            IsChecked="{Binding TestPunchSurfaceInputLowActive, UpdateSourceTrigger=PropertyChanged}"/>
-
-                                <TextBlock Grid.Row="3" Grid.Column="2" Text="轮询间隔(ms)" VerticalAlignment="Center" Margin="0,0,8,8"/>
-                                <hc:NumericUpDown Grid.Row="3" Grid.Column="3" Margin="0,0,0,8" Minimum="1"
-                                    Value="{Binding TestPunchSurfaceDetectPollIntervalMs, UpdateSourceTrigger=PropertyChanged}"
-                                    Style="{StaticResource NumericIntUpDownStyle}"/>
-
-                                <TextBlock Grid.Row="4" Grid.Column="0" Text="当前输入" VerticalAlignment="Center" Margin="0,0,8,8"/>
-                                <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding TestPunchSurfaceInputRawText}" VerticalAlignment="Center" Margin="0,0,12,8"/>
-
-                                <TextBlock Grid.Row="4" Grid.Column="2" Text="接触状态" VerticalAlignment="Center" Margin="0,0,8,8"/>
-                                <TextBlock Grid.Row="4" Grid.Column="3" Text="{Binding TestPunchSurfaceSignalStateText}" VerticalAlignment="Center" Margin="0,0,0,8"/>
-
-                                <TextBlock Grid.Row="5" Grid.Column="0" Text="搜索距离" VerticalAlignment="Center" Margin="0,0,8,8"/>
-                                <hc:NumericUpDown Grid.Row="5" Grid.Column="1" Margin="0,0,12,8"
-                                    Value="{Binding TestPunchSurfaceSearchDistance, UpdateSourceTrigger=PropertyChanged}"
-                                    Style="{StaticResource NumericDoubleUpDownStyle}"/>
-
-                                <TextBlock Grid.Row="5" Grid.Column="2" Text="慢探速度" VerticalAlignment="Center" Margin="0,0,8,8"/>
-                                <hc:NumericUpDown Grid.Row="5" Grid.Column="3" Margin="0,0,0,8" Minimum="0.001"
-                                    Value="{Binding TestPunchSlowSearchSpeed, UpdateSourceTrigger=PropertyChanged}"
-                                    Style="{StaticResource NumericDoubleUpDownStyle}"/>
-
-                                <TextBlock Grid.Row="6" Grid.Column="0" Text="快速速度" VerticalAlignment="Center" Margin="0,0,8,8"/>
-                                <hc:NumericUpDown Grid.Row="6" Grid.Column="1" Margin="0,0,12,8" Minimum="0.001"
-                                    Value="{Binding TestPunchFastApproachSpeed, UpdateSourceTrigger=PropertyChanged}"
-                                    Style="{StaticResource NumericDoubleUpDownStyle}"/>
-
-                                <Button Grid.Row="7" Grid.Column="3" Content="保存参数" Height="30" Width="92"
+                                <Button Grid.Row="2" Grid.Column="1" Content="保存参数" Height="30" Width="92"
                           HorizontalAlignment="Right"
                           Command="{Binding SaveTestPunchSettingsCommand}"/>
+
+                                <TextBlock Grid.Row="2" Grid.Column="2" Text="接触状态" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <TextBlock Grid.Row="2" Grid.Column="3" Text="{Binding TestPunchSurfaceSignalStateText}" VerticalAlignment="Center" Margin="0,0,0,0"/>
                             </Grid>
                         </Border>
 
-                        <Border Grid.Row="1" Grid.Column="0" Margin="3" Padding="8,6"
+                        <Border Visibility="Collapsed" Grid.Row="1" Grid.Column="0" Margin="3" Padding="8,6"
                                 BorderBrush="{StaticResource Brush.Border.Strong}" BorderThickness="1"
                                 Background="{StaticResource Brush.Background}">
-                            <TextBlock Text="1. 冲针位置使用上方绝对坐标参数，测试完成后记录实际绝对坐标"
-                                       FontSize="14"
-                                       FontWeight="SemiBold"
-                                       VerticalAlignment="Center"/>
+                          
                         </Border>
-                        <StackPanel Grid.Row="1" Grid.Column="1" Margin="3">
-                            <Button Content="打孔" FontSize="14" Margin="0,0,0,6" Command="{Binding TestPunchCommand}" Background="{StaticResource Brush.Status.Red.Subtle}"/>
+                        <UniformGrid Columns="2" Grid.Row="1" Grid.Column="0"  Margin="3" Grid.ColumnSpan="2"  >
+                            <Button Content="1.打孔" FontSize="14"  Command="{Binding TestPunchCommand}" Background="{StaticResource Brush.Status.Red.Subtle}"/>
                             <Button Content="测试急停" FontSize="13" Command="{Binding EmergencyStopTestPunchCommand}" Background="{StaticResource Brush.Status.Red}" Foreground="White"/>
-                        </StackPanel>
+                        </UniformGrid>
                         <StackPanel Grid.Row="1" Grid.Column="2" VerticalAlignment="Center" Margin="8,0,0,0">
                             <TextBlock Text="{Binding TestPunchTargetX, StringFormat=目标 X: {0:F3}}" FontSize="12"/>
                             <TextBlock Text="{Binding TestPunchTargetY, StringFormat=目标 Y: {0:F3}}" FontSize="12"/>
@@ -320,7 +269,7 @@
                             <TextBlock Text="{Binding TestPunchReferenceZText}" FontSize="12"/>
                         </StackPanel>
 
-                        <Button Grid.Row="2" Grid.Column="0" Content="2. 记录相机" FontSize="14" Margin="3" Command="{Binding MarkCameraPositionCommand}"/>
+                        <Button Grid.Row="2" Grid.Column="0" Content="2. 记录相机位置" FontSize="14" Margin="3" Command="{Binding MarkCameraPositionCommand}"/>
                         <CheckBox Visibility="Collapsed" Grid.Row="2" Grid.Column="1" Content="视觉辅助" VerticalAlignment="Center" HorizontalAlignment="Center" IsChecked="{Binding EnableVisionAssist}"/>
                         <StackPanel Grid.Row="2" Grid.Column="2" VerticalAlignment="Center" Margin="8,0,0,0">
                             <TextBlock Text="{Binding CameraX, StringFormat=X: {0:F3}}" FontSize="12"/>
