@@ -228,6 +228,24 @@ namespace Fredy.Drilling.Holes.Models
         // Z轴慢速移动速度 (mm/s)
         public double SlowMoveSpeed { get; set; } = 0.7;
 
+        public double PunchSafeZ { get; set; } = 8500d;
+
+        public double FastToSafeZSpeed { get; set; }
+
+        public double PunchDownSpeed { get; set; }
+
+        public double SurfaceProbeOffsetX { get; set; } = -1d;
+
+        public double SurfaceProbeOffsetY { get; set; }
+
+        public string SurfaceDetectionMode { get; set; } = "Latch";
+
+        public int SurfaceDetectInputPort { get; set; }
+
+        public bool SurfaceDetectInputLowActive { get; set; } = true;
+
+        public int SurfaceDetectPollIntervalMs { get; set; } = 10;
+
         // 回零搜索速度 (mm/s)
         [JsonIgnore]
         public double HomeSearchSpeed { get; set; } = AxisHomingDefaults.DefaultFastHomeSearchSpeed;

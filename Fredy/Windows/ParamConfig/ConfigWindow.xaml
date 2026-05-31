@@ -289,6 +289,147 @@
 
 
 
+            <TabItem Header="冲孔表面探测">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="10">
+                        <TextBlock Text="用于自动冲孔前的表面预探、首点首刀 SurfaceZ 记录以及后续孔位补偿。"
+                                   Foreground="{StaticResource Brush.Foreground.Secondary}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,12"
+                                   FontSize="14"/>
+
+                        <GroupBox Header="全局安全位与冲孔速度" Background="{StaticResource Brush.Status.Blue.Subtle}" Padding="10" Margin="0,0,0,10">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="180"/>
+                                    <ColumnDefinition Width="240"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <TextBlock Text="PunchSafeZ" VerticalAlignment="Center"/>
+                                <hc:NumericUpDown Grid.Column="1"
+                                                  Value="{Binding PunchSafeZ, UpdateSourceTrigger=PropertyChanged}"
+                                                  Style="{StaticResource NumericDoubleUpDownStyle}"
+                                                  Margin="5,0,15,8"/>
+                                <TextBlock Grid.Column="2"
+                                           Text="冲孔流程每次下压完成后回到的全局绝对 Z 坐标。"
+                                           Foreground="{StaticResource Brush.Foreground.Secondary}"
+                                           TextWrapping="Wrap"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,0,8"/>
+
+                                <TextBlock Grid.Row="1" Text="FastToSafeZSpeed" VerticalAlignment="Center"/>
+                                <hc:NumericUpDown Grid.Row="1" Grid.Column="1"
+                                                  Value="{Binding FastToSafeZSpeed, UpdateSourceTrigger=PropertyChanged}"
+                                                  Minimum="0"
+                                                  Style="{StaticResource NumericDoubleUpDownStyle}"
+                                                  Margin="5,0,15,8"/>
+                                <TextBlock Grid.Row="1" Grid.Column="2"
+                                           Text="快速回 SafeZ 的速度，0 表示沿用 Z 轴参数中的速度。"
+                                           Foreground="{StaticResource Brush.Foreground.Secondary}"
+                                           TextWrapping="Wrap"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,0,8"/>
+
+                                <TextBlock Grid.Row="2" Text="PunchDownSpeed" VerticalAlignment="Center"/>
+                                <hc:NumericUpDown Grid.Row="2" Grid.Column="1"
+                                                  Value="{Binding PunchDownSpeed, UpdateSourceTrigger=PropertyChanged}"
+                                                  Minimum="0"
+                                                  Style="{StaticResource NumericDoubleUpDownStyle}"
+                                                  Margin="5,0,15,0"/>
+                                <TextBlock Grid.Row="2" Grid.Column="2"
+                                           Text="正式冲孔下压速度，头道和二道均采用此参数；0 表示沿用 Z 轴参数中的速度。"
+                                           Foreground="{StaticResource Brush.Foreground.Secondary}"
+                                           TextWrapping="Wrap"
+                                           VerticalAlignment="Center"/>
+                            </Grid>
+                        </GroupBox>
+
+                        <GroupBox Header="表面预探点(相对第一个孔位的预探偏移，默认 X=-1mm、Y=0mm。)" Background="{StaticResource Brush.Status.Green.Subtle}" Padding="10" Margin="0,0,0,10">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="180"/>
+                                    <ColumnDefinition Width="240"/>
+                                    <ColumnDefinition Width="180"/>
+                                    <ColumnDefinition Width="240"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Text="X偏移" VerticalAlignment="Center"/>
+                                <hc:NumericUpDown Grid.Column="1"
+                                                  Value="{Binding SurfaceProbeOffsetX, UpdateSourceTrigger=PropertyChanged}"
+                                                  Style="{StaticResource NumericDoubleUpDownStyle}"
+                                                  Margin="5,0,15,0"/>
+                                <TextBlock Grid.Column="2" Text="Y偏移" VerticalAlignment="Center"/>
+                                <hc:NumericUpDown Grid.Column="3"
+                                                  Value="{Binding SurfaceProbeOffsetY, UpdateSourceTrigger=PropertyChanged}"
+                                                  Style="{StaticResource NumericDoubleUpDownStyle}"
+                                                  Margin="5,0,15,0"/>
+                            </Grid>
+                        </GroupBox>
+
+                        <GroupBox Header="表面探测方式" Background="{StaticResource Brush.Status.Yellow.Subtle}" Padding="10" Margin="0,0,0,10">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="180"/>
+                                    <ColumnDefinition Width="240"/>
+                                    <ColumnDefinition Width="180"/>
+                                    <ColumnDefinition Width="240"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Text="表面探测方式" VerticalAlignment="Center" Margin="0,0,0,8"/>
+                                <ComboBox Grid.Column="1"
+                                          ItemsSource="{Binding SurfaceDetectionModes}"
+                                          SelectedItem="{Binding SurfaceDetectionMode, UpdateSourceTrigger=PropertyChanged}"
+                                          Margin="5,0,15,8"/>
+                                <TextBlock Grid.Column="2" Grid.ColumnSpan="2"
+                                           Text="Latch：使用运动卡锁存位置；IoPolling：运动中轮询输入端口并记录当前 Z。"
+                                           Foreground="{StaticResource Brush.Foreground.Secondary}"
+                                           TextWrapping="Wrap"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,0,8"/>
+
+                                <TextBlock Grid.Row="1" Text="表面探测IO" VerticalAlignment="Center" Margin="0,0,0,8"/>
+                                <hc:NumericUpDown Grid.Row="1" Grid.Column="1"
+                                                  Value="{Binding SurfaceDetectInputPort, UpdateSourceTrigger=PropertyChanged}"
+                                                  Minimum="0"
+                                                  DecimalPlaces="0"
+                                                  Increment="1"
+                                                  Style="{StaticResource NumericIntUpDownStyle}"
+                                                  Margin="5,0,15,8"/>
+                                <CheckBox Grid.Row="1" Grid.Column="2" Grid.ColumnSpan="2"
+                                          Content="SurfaceDetectInputLowActive：低电平有效"
+                                          IsChecked="{Binding SurfaceDetectInputLowActive, UpdateSourceTrigger=PropertyChanged}"
+                                          Margin="0,0,0,8"/>
+
+                                <TextBlock Grid.Row="2" Text="探测时IO轮询间隔" VerticalAlignment="Center"/>
+                                <hc:NumericUpDown Grid.Row="2" Grid.Column="1"
+                                                  Value="{Binding SurfaceDetectPollIntervalMs, UpdateSourceTrigger=PropertyChanged}"
+                                                  Minimum="1"
+                                                  DecimalPlaces="0"
+                                                  Increment="1"
+                                                  Style="{StaticResource NumericIntUpDownStyle}"
+                                                  Margin="5,0,15,0"/>
+                                <TextBlock Grid.Row="2" Grid.Column="2" Grid.ColumnSpan="2"
+                                           Text="IO 轮询和冲孔中 SurfaceZ 采样的检查间隔，单位 ms。"
+                                           Foreground="{StaticResource Brush.Foreground.Secondary}"
+                                           TextWrapping="Wrap"
+                                           VerticalAlignment="Center"/>
+                            </Grid>
+                        </GroupBox>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
             <TabItem Header="相机">
                 <TabControl>
 

@@ -146,6 +146,34 @@ namespace Fredy.Drilling.Holes.Services
             config.AdtHoming.HomeTimeoutMs = 0;
             config.AdtHoming.SlowHomeSpeed = 0d;
             config.CameraPunchOffsetCalibrationTestPunch ??= new CameraPunchOffsetCalibrationTestPunchConfig();
+            if (config.PunchSafeZ == 0d)
+            {
+                config.PunchSafeZ = config.CameraPunchOffsetCalibrationTestPunch.SafeZ;
+            }
+
+            config.CameraPunchOffsetCalibrationTestPunch.SafeZ = config.PunchSafeZ;
+            config.SurfaceDetectInputPort = config.CameraPunchOffsetCalibrationTestPunch.SurfaceDetectInputPort;
+            config.SurfaceDetectInputLowActive = config.CameraPunchOffsetCalibrationTestPunch.SurfaceDetectInputLowActive;
+            if (config.FastToSafeZSpeed < 0d)
+            {
+                config.FastToSafeZSpeed = 0d;
+            }
+
+            if (config.PunchDownSpeed < 0d)
+            {
+                config.PunchDownSpeed = 0d;
+            }
+
+            if (string.IsNullOrWhiteSpace(config.SurfaceDetectionMode))
+            {
+                config.SurfaceDetectionMode = "Latch";
+            }
+
+            if (config.SurfaceDetectPollIntervalMs <= 0)
+            {
+                config.SurfaceDetectPollIntervalMs = 10;
+            }
+
             return config;
         }
 

@@ -97,6 +97,7 @@ namespace Fredy.Drilling.Holes.ViewModels
             OffsetX = coordinateService.Calibration.CameraToPunchOffsetX;
             OffsetY = coordinateService.Calibration.CameraToPunchOffsetY;
             LoadTestPunchSettings(config.CameraPunchOffsetCalibrationTestPunch);
+            TestPunchSafeZ = config.PunchSafeZ;
             SetTestPunchReference(config.WorkpieceReferenceZ, config.HasWorkpieceReferenceZ);
 
             InitializeCollections(hardwareStateService.InputCount, hardwareStateService.OutputCount);
@@ -334,6 +335,9 @@ namespace Fredy.Drilling.Holes.ViewModels
             try
             {
                 var config = _configService.CurrentConfig;
+                config.PunchSafeZ = TestPunchSafeZ;
+                config.SurfaceDetectInputPort = TestPunchSurfaceInputPort;
+                config.SurfaceDetectInputLowActive = TestPunchSurfaceInputLowActive;
                 config.CameraPunchOffsetCalibrationTestPunch = BuildTestPunchConfig();
                 _configService.SaveWithArchive(config);
                 _logger?.LogInformation("测试冲孔参数已保存");
@@ -482,6 +486,9 @@ namespace Fredy.Drilling.Holes.ViewModels
             try
             {
                 var config = _configService.CurrentConfig;
+                config.PunchSafeZ = TestPunchSafeZ;
+                config.SurfaceDetectInputPort = TestPunchSurfaceInputPort;
+                config.SurfaceDetectInputLowActive = TestPunchSurfaceInputLowActive;
                 config.WorkpieceReferenceZ = referenceZ;
                 config.HasWorkpieceReferenceZ = true;
                 config.CameraPunchOffsetCalibrationTestPunch = BuildTestPunchConfig();

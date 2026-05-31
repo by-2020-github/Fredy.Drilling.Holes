@@ -67,6 +67,13 @@ namespace Fredy.Drilling.Holes.ViewModels
             "Basler"
         };
 
+        public IReadOnlyList<string> SurfaceDetectionModes { get; } =
+        new[]
+        {
+            "Latch",
+            "IoPolling"
+        };
+
         [ObservableProperty] private IReadOnlyList<string> _cameraConnectionOptions = SimulatedCameraConnectionDefaults;
 
         [ObservableProperty] private MotionControllerConfig _motionController = new();
@@ -84,6 +91,16 @@ namespace Fredy.Drilling.Holes.ViewModels
         [ObservableProperty] private double _fastMoveSpeed = 9.0;
         [ObservableProperty] private double _slowMoveDist = -12.0;
         [ObservableProperty] private double _slowMoveSpeed = 0.7;
+
+        [ObservableProperty] private double _punchSafeZ = 8500d;
+    [ObservableProperty] private double _fastToSafeZSpeed;
+    [ObservableProperty] private double _punchDownSpeed;
+        [ObservableProperty] private string _surfaceDetectionMode = "Latch";
+        [ObservableProperty] private double _surfaceProbeOffsetX = -1d;
+        [ObservableProperty] private double _surfaceProbeOffsetY;
+        [ObservableProperty] private int _surfaceDetectInputPort;
+        [ObservableProperty] private bool _surfaceDetectInputLowActive = true;
+        [ObservableProperty] private int _surfaceDetectPollIntervalMs = 10;
 
         [ObservableProperty] private bool _isIoHome;
         [ObservableProperty] private bool _isLatch;
@@ -206,60 +223,74 @@ namespace Fredy.Drilling.Holes.ViewModels
 
         private AppConfig BuildConfig()
         {
-            return new AppConfig
+            var config = _configService.CurrentConfig;
+
+            config.MotionController = new MotionControllerConfig
             {
-                MotionController = new MotionControllerConfig
-                {
-                    ControllerType = MotionController.ControllerType,
-                    ConnectionString = MotionController.ConnectionString
-                },
-                Camera = new CameraConfig
-                {
-                    CameraType = Camera.CameraType,
-                    ConnectionString = Camera.ConnectionString,
-                    PixelSizeX = Camera.PixelSizeX,
-                    PixelSizeY = Camera.PixelSizeY,
-                    FovWidth = Camera.FovWidth,
-                    FovHeight = Camera.FovHeight,
-                    SaveDirectory = Camera.SaveDirectory
-                },
-                XyDrive = CloneMotionParams(XyDrive),
-                ZAxisBase = CloneMotionParams(ZAxisBase),
-                FirstPass = CloneMotionParams(FirstPass),
-                SecondPass = CloneMotionParams(SecondPass),
-                XAxis = CloneAxisParamConfig(XAxis),
-                YAxis = CloneAxisParamConfig(YAxis),
-                ZAxis = CloneAxisParamConfig(ZAxis),
-                FastMovePos = FastMovePos,
-                FastMoveSpeed = FastMoveSpeed,
-                SlowMoveDist = SlowMoveDist,
-                SlowMoveSpeed = SlowMoveSpeed,
-                IsIoHome = IsIoHome,
-                IsLatch = IsLatch,
-                IsGratingHome = IsGratingHome,
-                XLimitPort = ClonePort(XLimitPort),
-                YLimitPort = ClonePort(YLimitPort),
-                AdtHoming = CloneAdtHomingConfig(AdtHoming),
-                RedLightPort = RedLightPort,
-                IsDebugMode = IsDebugMode,
-                DetectionOffsetThreshold = DetectionOffsetThreshold,
-                DetectionRingItems = DetectionRingItems
-                    .OrderBy(x => x.Index)
-                    .Select(CloneDetectionRingItem)
-                    .ToList(),
-                SecondPassOffsetThreshold = SecondPassOffsetThreshold,
-                SecondPassDetectionItems = SecondPassDetectionItems
-                    .OrderBy(x => x.Index)
-                    .Select(CloneSecondPassDetectionItem)
-                    .ToList(),
-                ScanUseBrightFieldDetector = ScanUseBrightFieldDetector,
-                ScanDetectMinArea = ScanDetectMinArea,
-                ScanDetectMaxArea = ScanDetectMaxArea,
-                ScanDetectThreshold = ScanDetectThreshold,
-                ScanDetectCircularity = ScanDetectCircularity,
-                ScanDetectMorphologySize = ScanDetectMorphologySize,
-                ScanDeduplicateToleranceMm = ScanDeduplicateToleranceMm
+                ControllerType = MotionController.ControllerType,
+                ConnectionString = MotionController.ConnectionString
             };
+            config.Camera = new CameraConfig
+            {
+                CameraType = Camera.CameraType,
+                ConnectionString = Camera.ConnectionString,
+                PixelSizeX = Camera.PixelSizeX,
+                PixelSizeY = Camera.PixelSizeY,
+                FovWidth = Camera.FovWidth,
+                FovHeight = Camera.FovHeight,
+                SaveDirectory = Camera.SaveDirectory
+            };
+            config.XyDrive = CloneMotionParams(XyDrive);
+            config.ZAxisBase = CloneMotionParams(ZAxisBase);
+            config.FirstPass = CloneMotionParams(FirstPass);
+            config.SecondPass = CloneMotionParams(SecondPass);
+            config.XAxis = CloneAxisParamConfig(XAxis);
+            config.YAxis = CloneAxisParamConfig(YAxis);
+            config.ZAxis = CloneAxisParamConfig(ZAxis);
+            config.FastMovePos = FastMovePos;
+            config.FastMoveSpeed = FastMoveSpeed;
+            config.SlowMoveDist = SlowMoveDist;
+            config.SlowMoveSpeed = SlowMoveSpeed;
+            config.PunchSafeZ = PunchSafeZ;
+            config.FastToSafeZSpeed = FastToSafeZSpeed;
+            config.PunchDownSpeed = PunchDownSpeed;
+            config.SurfaceDetectionMode = string.IsNullOrWhiteSpace(SurfaceDetectionMode) ? "Latch" : SurfaceDetectionMode;
+            config.SurfaceProbeOffsetX = SurfaceProbeOffsetX;
+            config.SurfaceProbeOffsetY = SurfaceProbeOffsetY;
+            config.SurfaceDetectInputPort = SurfaceDetectInputPort;
+            config.SurfaceDetectInputLowActive = SurfaceDetectInputLowActive;
+            config.SurfaceDetectPollIntervalMs = SurfaceDetectPollIntervalMs;
+            config.CameraPunchOffsetCalibrationTestPunch ??= new CameraPunchOffsetCalibrationTestPunchConfig();
+            config.CameraPunchOffsetCalibrationTestPunch.SafeZ = PunchSafeZ;
+            config.CameraPunchOffsetCalibrationTestPunch.SurfaceDetectInputPort = SurfaceDetectInputPort;
+            config.CameraPunchOffsetCalibrationTestPunch.SurfaceDetectInputLowActive = SurfaceDetectInputLowActive;
+            config.IsIoHome = IsIoHome;
+            config.IsLatch = IsLatch;
+            config.IsGratingHome = IsGratingHome;
+            config.XLimitPort = ClonePort(XLimitPort);
+            config.YLimitPort = ClonePort(YLimitPort);
+            config.AdtHoming = CloneAdtHomingConfig(AdtHoming);
+            config.RedLightPort = RedLightPort;
+            config.IsDebugMode = IsDebugMode;
+            config.DetectionOffsetThreshold = DetectionOffsetThreshold;
+            config.DetectionRingItems = DetectionRingItems
+                .OrderBy(x => x.Index)
+                .Select(CloneDetectionRingItem)
+                .ToList();
+            config.SecondPassOffsetThreshold = SecondPassOffsetThreshold;
+            config.SecondPassDetectionItems = SecondPassDetectionItems
+                .OrderBy(x => x.Index)
+                .Select(CloneSecondPassDetectionItem)
+                .ToList();
+            config.ScanUseBrightFieldDetector = ScanUseBrightFieldDetector;
+            config.ScanDetectMinArea = ScanDetectMinArea;
+            config.ScanDetectMaxArea = ScanDetectMaxArea;
+            config.ScanDetectThreshold = ScanDetectThreshold;
+            config.ScanDetectCircularity = ScanDetectCircularity;
+            config.ScanDetectMorphologySize = ScanDetectMorphologySize;
+            config.ScanDeduplicateToleranceMm = ScanDeduplicateToleranceMm;
+
+            return config;
         }
 
         private void LoadFromConfig(AppConfig config)
@@ -295,6 +326,16 @@ namespace Fredy.Drilling.Holes.ViewModels
             FastMoveSpeed = config.FastMoveSpeed;
             SlowMoveDist = config.SlowMoveDist;
             SlowMoveSpeed = config.SlowMoveSpeed;
+
+            PunchSafeZ = config.PunchSafeZ;
+            FastToSafeZSpeed = config.FastToSafeZSpeed;
+            PunchDownSpeed = config.PunchDownSpeed;
+            SurfaceDetectionMode = string.IsNullOrWhiteSpace(config.SurfaceDetectionMode) ? "Latch" : config.SurfaceDetectionMode;
+            SurfaceProbeOffsetX = config.SurfaceProbeOffsetX;
+            SurfaceProbeOffsetY = config.SurfaceProbeOffsetY;
+            SurfaceDetectInputPort = config.SurfaceDetectInputPort;
+            SurfaceDetectInputLowActive = config.SurfaceDetectInputLowActive;
+            SurfaceDetectPollIntervalMs = config.SurfaceDetectPollIntervalMs;
 
             IsIoHome = config.IsIoHome;
             IsLatch = config.IsLatch;
@@ -686,6 +727,15 @@ namespace Fredy.Drilling.Holes.ViewModels
             AddIfChanged(lines, "快速速度", _originalConfig.FastMoveSpeed, current.FastMoveSpeed);
             AddIfChanged(lines, "慢速移动距离", _originalConfig.SlowMoveDist, current.SlowMoveDist);
             AddIfChanged(lines, "慢速速度", _originalConfig.SlowMoveSpeed, current.SlowMoveSpeed);
+            AddIfChanged(lines, "冲孔安全Z", _originalConfig.PunchSafeZ, current.PunchSafeZ);
+            AddIfChanged(lines, "快速回SafeZ速度", _originalConfig.FastToSafeZSpeed, current.FastToSafeZSpeed);
+            AddIfChanged(lines, "正式冲孔下压速度", _originalConfig.PunchDownSpeed, current.PunchDownSpeed);
+            AddIfChanged(lines, "表面探测模式", _originalConfig.SurfaceDetectionMode, current.SurfaceDetectionMode);
+            AddIfChanged(lines, "表面预探X偏移", _originalConfig.SurfaceProbeOffsetX, current.SurfaceProbeOffsetX);
+            AddIfChanged(lines, "表面预探Y偏移", _originalConfig.SurfaceProbeOffsetY, current.SurfaceProbeOffsetY);
+            AddIfChanged(lines, "表面探测输入端口", _originalConfig.SurfaceDetectInputPort, current.SurfaceDetectInputPort);
+            AddIfChanged(lines, "表面探测低电平有效", _originalConfig.SurfaceDetectInputLowActive, current.SurfaceDetectInputLowActive);
+            AddIfChanged(lines, "表面探测轮询间隔(ms)", _originalConfig.SurfaceDetectPollIntervalMs, current.SurfaceDetectPollIntervalMs);
             AddIfChanged(lines, "IO回零", _originalConfig.IsIoHome, current.IsIoHome);
             AddIfChanged(lines, "锁存", _originalConfig.IsLatch, current.IsLatch);
             AddIfChanged(lines, "光栅尺回零", _originalConfig.IsGratingHome, current.IsGratingHome);

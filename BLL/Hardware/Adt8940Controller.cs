@@ -1,5 +1,6 @@
 using Serilog;
 using System;
+using System.Threading;
 
 namespace BLL
 {
@@ -7,13 +8,15 @@ namespace BLL
     public class Adt8940Controller : IHardwareController
     {
         private readonly IMotionService _motionManager;
+        private readonly HAL.IIOCard _ioCard;
         private readonly ILogger _logger;
         private HAL.MotionAdt8940 AdtMotion => _motionManager.Hardware as HAL.MotionAdt8940 ?? 
             throw new InvalidOperationException("底层硬件不是 MotionAdt8940 实现，无法使用 ADT8940Controller 特定功能。");
 
-        public Adt8940Controller(IMotionService motionManager, ILogger logger)
+        public Adt8940Controller(IMotionService motionManager, HAL.IIOCard ioCard, ILogger logger)
         {
             _motionManager = motionManager ?? throw new ArgumentNullException(nameof(motionManager));
+            _ioCard = ioCard ?? throw new ArgumentNullException(nameof(ioCard));
             _logger = (logger ?? Log.Logger).ForContext<Adt8940Controller>();
         }
 
@@ -42,14 +45,15 @@ namespace BLL
             _motionManager.MoveYAsync(currentY + offsetY, _motionManager.YAxis.Velocity, false);
         }
 
-        public void FastMoveZ(double distance = 0.0)
+        public void FastMoveZ(double distance = 0.0, double speed = 0.0)
         {
-            // Z轴快速移动向下探
             double currentZ = _motionManager.GetZPosition();
-            _motionManager.MoveZAsync(currentZ + distance, _motionManager.ZAxis.Velocity, true).Wait();
+            double targetZ = currentZ + distance;
+            double moveSpeed = speed > 0d ? speed : _motionManager.ZAxis.Velocity;
+            _motionManager.MoveZAsync(targetZ, moveSpeed, true).Wait();
         }
 
-        public void SlowMoveZ(double distance = 0.0)
+        public void SlowMoveZ(double distance = 0.0, double speed = 0.0)
         {
             int axisZ = _motionManager.ZAxis.AxisNo;
             
@@ -59,21 +63,95 @@ namespace BLL
             // 设置位置锁存: mode=1(有效), regi=1(实际位置), logical=1(电平由低到高触发—此处需根据实际探针信号极性调整)
             AdtMotion.SetLockPositionModeAsync(axisZ, 1, 1, 1).Wait();
 
-            // 慢速发冲 (可以设置很低的慢速速度)
             double currentZ = _motionManager.GetZPosition();
-            _motionManager.MoveZAsync(currentZ + distance, 0.5, true).Wait(); // 慢速 0.5 mm/s
+            double targetZ = currentZ + distance;
+            double moveSpeed = speed > 0d ? speed : 0.5d;
+            _motionManager.MoveZAsync(targetZ, moveSpeed, true).Wait();
         }
 
-        public void LiftZ()
+        public void LiftZ(double safeZ, double speed = 0.0)
         {
-            // Z轴回零或移动到安全绝对坐标，此处以移动到0位演示，并且以安全快速抬升
-            _motionManager.MoveZAsync(0, _motionManager.ZAxis.Velocity, true).Wait();
+            double moveSpeed = speed > 0d ? speed : _motionManager.ZAxis.Velocity;
+            _motionManager.MoveZAsync(safeZ, moveSpeed, true).Wait();
         }
 
-        public void PunchDown(double compensation = 0.0)
+        public SurfaceDetectionResult ProbeSurface(double fastDistance, double fastSpeed, double slowDistance, double slowSpeed, SurfaceDetectionOptions options)
+        {
+            ArgumentNullException.ThrowIfNull(options);
+
+            PrepareSurfaceDetection(options);
+            FastMoveZ(fastDistance, fastSpeed);
+            if (TryReadSurfaceDetection(options, out var earlySurfaceZ))
+            {
+                throw new InvalidOperationException($"快速接近阶段已触发表面检测信号，Z={earlySurfaceZ:F4}，请检查针尖高度或工件状态。");
+            }
+
+            PrepareSurfaceDetection(options);
+            double targetZ = _motionManager.GetZPosition() + slowDistance;
+            double moveSpeed = slowSpeed > 0d ? slowSpeed : 0.5d;
+            _motionManager.MoveZAsync(targetZ, moveSpeed, false).Wait();
+
+            while (IsZAxisMoving())
+            {
+                if (TryReadSurfaceDetection(options, out var surfaceZ))
+                {
+                    StopZ();
+                    WaitForZStop();
+                    _logger.Information("探面完成: Mode={Mode}, SurfaceZ={SurfaceZ:F4}", options.Mode, surfaceZ);
+                    return new SurfaceDetectionResult(true, surfaceZ);
+                }
+
+                Thread.Sleep(ResolvePollInterval(options));
+            }
+
+            if (TryReadSurfaceDetection(options, out var finalSurfaceZ))
+            {
+                _logger.Information("探面完成: Mode={Mode}, SurfaceZ={SurfaceZ:F4}", options.Mode, finalSurfaceZ);
+                return new SurfaceDetectionResult(true, finalSurfaceZ);
+            }
+
+            return new SurfaceDetectionResult(false, 0d);
+        }
+
+        public SurfaceDetectionResult PunchDown(double commandValue = 0.0, bool isAbsoluteTarget = false, bool detectSurface = false, SurfaceDetectionOptions? detectionOptions = null, double speed = 0.0)
         {
             double currentZ = _motionManager.GetZPosition();
-            _motionManager.MoveZAsync(currentZ + compensation, _motionManager.ZAxis.Velocity, false).Wait();
+            double targetZ = isAbsoluteTarget ? commandValue : currentZ + commandValue;
+            double moveSpeed = speed > 0d ? speed : _motionManager.ZAxis.Velocity;
+            SurfaceDetectionResult detectionResult = default;
+
+            if (detectSurface)
+            {
+                if (detectionOptions is null)
+                {
+                    throw new ArgumentNullException(nameof(detectionOptions));
+                }
+
+                PrepareSurfaceDetection(detectionOptions);
+                _motionManager.MoveZAsync(targetZ, moveSpeed, false).Wait();
+
+                while (IsZAxisMoving())
+                {
+                    if (!detectionResult.Detected && TryReadSurfaceDetection(detectionOptions, out var surfaceZ))
+                    {
+                        detectionResult = new SurfaceDetectionResult(true, surfaceZ);
+                    }
+
+                    Thread.Sleep(ResolvePollInterval(detectionOptions));
+                }
+
+                if (!detectionResult.Detected && TryReadSurfaceDetection(detectionOptions, out var finalSurfaceZ))
+                {
+                    detectionResult = new SurfaceDetectionResult(true, finalSurfaceZ);
+                }
+            }
+            else
+            {
+                _motionManager.MoveZAsync(targetZ, moveSpeed, true).Wait();
+            }
+
+            _logger.Information("执行冲孔下压: CurrentZ={CurrentZ:F4}, CommandValue={CommandValue:F4}, IsAbsoluteTarget={IsAbsoluteTarget}, TargetZ={TargetZ:F4}, Speed={Speed:F4}, DetectSurface={DetectSurface}, SurfaceDetected={SurfaceDetected}, SurfaceZ={SurfaceZ:F4}", currentZ, commandValue, isAbsoluteTarget, targetZ, moveSpeed, detectSurface, detectionResult.Detected, detectionResult.SurfaceZ);
+            return detectionResult;
         }
 
         public void StopZ()
@@ -83,7 +161,10 @@ namespace BLL
 
         public void WaitForZStop()
         {
-            // 阻塞直至Z轴停机，可以补充实现
+            while (IsZAxisMoving())
+            {
+                Thread.Sleep(10);
+            }
         }
 
         public bool CheckContactSignal()
@@ -101,6 +182,53 @@ namespace BLL
         public double ReadRecordedSurfaceZ()
         {
             return AdtMotion.GetLockPositionAsync(_motionManager.ZAxis.AxisNo).GetAwaiter().GetResult();
+        }
+
+        private void PrepareSurfaceDetection(SurfaceDetectionOptions options)
+        {
+            if (options.Mode != SurfaceDetectionMode.Latch)
+            {
+                return;
+            }
+
+            int axisZ = _motionManager.ZAxis.AxisNo;
+            AdtMotion.ClearLockStatusAsync(axisZ).Wait();
+            AdtMotion.SetLockPositionModeAsync(axisZ, 1, 1, 1).Wait();
+        }
+
+        private bool TryReadSurfaceDetection(SurfaceDetectionOptions options, out double surfaceZ)
+        {
+            surfaceZ = 0d;
+            if (options.Mode == SurfaceDetectionMode.Latch)
+            {
+                if (!AdtMotion.GetLockStatusAsync(_motionManager.ZAxis.AxisNo).GetAwaiter().GetResult())
+                {
+                    return false;
+                }
+
+                surfaceZ = AdtMotion.GetLockPositionAsync(_motionManager.ZAxis.AxisNo).GetAwaiter().GetResult();
+                return true;
+            }
+
+            var rawValue = _ioCard.ReadInputAsync(options.InputPort).GetAwaiter().GetResult();
+            var isActive = options.InputLowActive ? !rawValue : rawValue;
+            if (!isActive)
+            {
+                return false;
+            }
+
+            surfaceZ = _motionManager.GetZPosition();
+            return true;
+        }
+
+        private bool IsZAxisMoving()
+        {
+            return _motionManager.Hardware.GetStatusAsync(_motionManager.ZAxis.AxisNo).GetAwaiter().GetResult() != 0;
+        }
+
+        private static int ResolvePollInterval(SurfaceDetectionOptions options)
+        {
+            return Math.Max(1, options.PollIntervalMs);
         }
 
         public void Close()

@@ -698,7 +698,30 @@ namespace Fredy.Drilling.Holes.ViewModels
             stateMachine.InitialSurfaceReferenceZ = stateMachine.HasInitialSurfaceReference
                 ? config!.WorkpieceReferenceZ
                 : 0d;
+            stateMachine.FastApproachDistance = config?.FastMovePos ?? 0d;
+            stateMachine.FastApproachSpeed = config?.FastMoveSpeed ?? 0d;
+            stateMachine.SlowDetectDistance = config?.SlowMoveDist ?? 0d;
+            stateMachine.SlowDetectSpeed = config?.SlowMoveSpeed ?? 0d;
+            stateMachine.SafeZ = config?.PunchSafeZ ?? 0d;
+            stateMachine.FastToSafeZSpeed = config?.FastToSafeZSpeed ?? 0d;
+            stateMachine.PunchDownSpeed = config?.PunchDownSpeed ?? 0d;
+            stateMachine.ReferenceProbeOffsetX = config?.SurfaceProbeOffsetX ?? -1d;
+            stateMachine.ReferenceProbeOffsetY = config?.SurfaceProbeOffsetY ?? 0d;
+            stateMachine.SurfaceDetectionOptions = new SurfaceDetectionOptions
+            {
+                Mode = ResolveSurfaceDetectionMode(config?.SurfaceDetectionMode),
+                InputPort = config?.SurfaceDetectInputPort ?? 0,
+                InputLowActive = config?.SurfaceDetectInputLowActive ?? true,
+                PollIntervalMs = config?.SurfaceDetectPollIntervalMs ?? 10
+            };
             return stateMachine;
+        }
+
+        private static SurfaceDetectionMode ResolveSurfaceDetectionMode(string? mode)
+        {
+            return Enum.TryParse<SurfaceDetectionMode>(mode, ignoreCase: true, out var result)
+                ? result
+                : SurfaceDetectionMode.Latch;
         }
 
         private async Task RunPunchingProcessAsync(RecipeViewModel recipeViewModel, PunchStateMachine punchStateMachine, PunchProcessType processType, IReadOnlyList<int> activePunchPointIndices, CancellationToken cancellationToken)
