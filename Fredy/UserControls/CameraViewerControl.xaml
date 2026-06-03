@@ -40,6 +40,7 @@
         <Grid Grid.Row="1"
               x:Name="Viewport"
               Background="Transparent"
+              Tag="{Binding ShowWorkpieceCalibrationTools, RelativeSource={RelativeSource AncestorType=UserControl}}"
               ClipToBounds="True"
               MouseLeftButtonDown="OnMouseLeftButtonDown"
               MouseLeftButtonUp="OnMouseLeftButtonUp"
@@ -76,7 +77,21 @@
                         <MenuItem x:Name="MenuCenterRoiBinaryPreview" Header="启用中心ROI二值化预览" IsCheckable="True" IsChecked="False" Click="ToggleCenterRoiBinary_Click"/>
                         <MenuItem Header="编辑中心ROI二值化参数..." Click="EditCenterRoiBinaryParams_Click"/>
                     </MenuItem>
-                    <Separator/>
+                    <MenuItem Header="工件圆心校准">
+                        <MenuItem.Style>
+                            <Style TargetType="MenuItem">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding PlacementTarget.Tag, RelativeSource={RelativeSource AncestorType=ContextMenu}}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </MenuItem.Style>
+                        <MenuItem x:Name="MenuWorkpieceHoleRoiMode" Header="框选圆孔ROI并识别圆心" IsCheckable="True" Click="ToggleWorkpieceHoleRoiMode_Click"/>
+                        <MenuItem x:Name="MenuWorkpieceEdgePickMode" Header="边缘点自动拾取模式" IsCheckable="True" Click="ToggleWorkpieceEdgePickMode_Click"/>
+                        <MenuItem Header="清除校准图像标记" Click="ClearWorkpieceCalibrationMarkers_Click"/>
+                    </MenuItem>
                 </ContextMenu>
             </Grid.ContextMenu>
 
@@ -96,6 +111,8 @@
                 </Grid>
 
                 <Canvas x:Name="OverlayCanvas" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
+
+                <Canvas x:Name="CalibrationOverlayCanvas" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" IsHitTestVisible="False"/>
 
                 <Canvas x:Name="CenterRoiOverlayCanvas" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" IsHitTestVisible="False"/>
 

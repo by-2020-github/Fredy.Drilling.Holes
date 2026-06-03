@@ -30,6 +30,23 @@
                           ItemsSource="{Binding JogStepOptions}" SelectedItem="{Binding JogStep}"/>
             </StackPanel>
 
+            <Border Margin="0,0,0,10"
+                    Padding="10"
+                    BorderBrush="{StaticResource Brush.Border.Strong}"
+                    BorderThickness="1"
+                    Background="{StaticResource Brush.Status.Blue.Subtle}">
+                <StackPanel>
+                    <TextBlock Text="图像区右键支持两种方式：1. 框选中心圆孔 ROI 自动识别圆心；2. 开启边缘点自动拾取后，点击圆边附近自动寻边并记录。"
+                               TextWrapping="Wrap"
+                               FontSize="14"
+                               FontWeight="SemiBold"/>
+                    <TextBlock Text="{Binding InteractionStatus}"
+                               Margin="0,8,0,0"
+                               TextWrapping="Wrap"
+                               Foreground="{StaticResource Brush.Status.Blue}"/>
+                </StackPanel>
+            </Border>
+
             <GroupBox Header="坐标点记录" Margin="0,10" Background="{StaticResource Brush.Background.Subtle}">
                 <StackPanel Margin="5">
                     <TextBlock Text="人工移动相机十字到边缘，记录 3 个或以上点位：" TextWrapping="Wrap" Margin="0,0,0,10" FontSize="14"/>
@@ -95,7 +112,7 @@
 
         <Grid Grid.Column="1">
             <Border BorderBrush="{StaticResource Brush.Border.Strong}" BorderThickness="1" Background="{StaticResource Brush.Background.Disabled}">
-                <uc:CameraViewerControl ImageMat="{Binding CameraPreviewMat}" />
+                <uc:CameraViewerControl x:Name="CalibrationCameraViewer" ShowWorkpieceCalibrationTools="True" ImageMat="{Binding CameraPreviewMat}" />
             </Border>
         </Grid>
     </Grid>

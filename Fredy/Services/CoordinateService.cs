@@ -317,6 +317,31 @@ namespace Fredy.Drilling.Holes.Services
         }
 
         /// <summary>
+        /// 【校准2】直接按相机识别到的工件圆心机械坐标完成校准。
+        /// 适用于工件中心存在圆孔，且可通过视觉直接识别圆心的场景。
+        /// </summary>
+        /// <param name="cameraCenterInMachine">相机视野中识别出的工件圆心在机械坐标系下的位置。</param>
+        /// <returns>工件圆心在机械坐标系下的坐标（冲针等效，即 WorkpieceCenter）。</returns>
+        public Point2D CalibrateWorkpieceByCameraCenter(Point2D cameraCenterInMachine)
+        {
+            EnsureCameraCalibrated();
+
+            Calibration.CameraAtWorkpieceCenterX = cameraCenterInMachine.X;
+            Calibration.CameraAtWorkpieceCenterY = cameraCenterInMachine.Y;
+            Calibration.CameraToWorkpieceRotationRad = 0.0;
+
+            _logger.Information(
+                "【校准2完成-圆孔识别】工件圆心已更新：CameraAtCenter=({CX:F3}, {CY:F3}), WorkpieceCenter(冲针等效)=({WX:F3}, {WY:F3})",
+                cameraCenterInMachine.X,
+                cameraCenterInMachine.Y,
+                Calibration.WorkpieceCenterX,
+                Calibration.WorkpieceCenterY);
+
+            SaveToConfig();
+            return new Point2D(Calibration.WorkpieceCenterX, Calibration.WorkpieceCenterY);
+        }
+
+        /// <summary>
         /// 直接设置工件圆心（冲针等效机械坐标），内部换算为相机原始测量值存储。-->实际上不应该存在 2026.05.17 暂时屏蔽
         /// 适用于已知冲针圆心坐标时跳过拟合直接赋值的场景。
         /// </summary>

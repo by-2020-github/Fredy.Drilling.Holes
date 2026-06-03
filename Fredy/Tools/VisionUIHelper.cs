@@ -36,6 +36,19 @@ namespace Fredy.Drilling.Holes.Tools
         }
     }
 
+    public sealed class DetectedCircleInfo
+    {
+        public DetectedCircleInfo(OpenCvSharp.Point2d center, double radius)
+        {
+            Center = center;
+            Radius = radius;
+        }
+
+        public OpenCvSharp.Point2d Center { get; }
+
+        public double Radius { get; }
+    }
+
     public static class VisionUIHelper
     {
         /// <summary>
@@ -182,6 +195,329 @@ namespace Fredy.Drilling.Holes.Tools
                 using Mat roiMat = new Mat(mat, new OpenCvSharp.Rect(x, y, w, h));
                 roiMat.SaveImage(savePath);
             }
+        }
+
+        public static bool TryConvertUiPointToImagePixel(int sourceWidth, int sourceHeight, double uiImageWidth, double uiImageHeight, System.Windows.Point uiPoint, out OpenCvSharp.Point2d imagePoint)
+        {
+            imagePoint = default;
+
+            if (sourceWidth <= 0 || sourceHeight <= 0 || uiImageWidth <= 0 || uiImageHeight <= 0)
+            {
+                return false;
+            }
+
+            double uniformScale = Math.Min(uiImageWidth / sourceWidth, uiImageHeight / sourceHeight);
+            double renderedWidth = uniformScale * sourceWidth;
+            double renderedHeight = uniformScale * sourceHeight;
+            double offsetX = (uiImageWidth - renderedWidth) / 2.0;
+            double offsetY = (uiImageHeight - renderedHeight) / 2.0;
+
+            if (uiPoint.X < offsetX || uiPoint.X > offsetX + renderedWidth || uiPoint.Y < offsetY || uiPoint.Y > offsetY + renderedHeight)
+            {
+                return false;
+            }
+
+            imagePoint = new OpenCvSharp.Point2d(
+                (uiPoint.X - offsetX) / uniformScale,
+                (uiPoint.Y - offsetY) / uniformScale);
+            return true;
+        }
+
+        public static bool TryConvertUiRectToImageRect(int sourceWidth, int sourceHeight, double uiImageWidth, double uiImageHeight, System.Windows.Rect uiRect, out OpenCvSharp.Rect imageRect)
+        {
+            imageRect = default;
+
+            if (sourceWidth <= 0 || sourceHeight <= 0 || uiImageWidth <= 0 || uiImageHeight <= 0 || uiRect.Width <= 0 || uiRect.Height <= 0)
+            {
+                return false;
+            }
+
+            double uniformScale = Math.Min(uiImageWidth / sourceWidth, uiImageHeight / sourceHeight);
+            double renderedWidth = uniformScale * sourceWidth;
+            double renderedHeight = uniformScale * sourceHeight;
+            double offsetX = (uiImageWidth - renderedWidth) / 2.0;
+            double offsetY = (uiImageHeight - renderedHeight) / 2.0;
+
+            var renderedBounds = new System.Windows.Rect(offsetX, offsetY, renderedWidth, renderedHeight);
+            var clampedRect = System.Windows.Rect.Intersect(renderedBounds, uiRect);
+            if (clampedRect.IsEmpty || clampedRect.Width <= 0 || clampedRect.Height <= 0)
+            {
+                return false;
+            }
+
+            int x = (int)Math.Floor((clampedRect.X - offsetX) / uniformScale);
+            int y = (int)Math.Floor((clampedRect.Y - offsetY) / uniformScale);
+            int right = (int)Math.Ceiling((clampedRect.Right - offsetX) / uniformScale);
+            int bottom = (int)Math.Ceiling((clampedRect.Bottom - offsetY) / uniformScale);
+
+            x = Math.Clamp(x, 0, sourceWidth - 1);
+            y = Math.Clamp(y, 0, sourceHeight - 1);
+            right = Math.Clamp(right, x + 1, sourceWidth);
+            bottom = Math.Clamp(bottom, y + 1, sourceHeight);
+
+            imageRect = new OpenCvSharp.Rect(x, y, Math.Max(1, right - x), Math.Max(1, bottom - y));
+            return true;
+        }
+
+        public static System.Windows.Point ConvertImagePointToUiPoint(int sourceWidth, int sourceHeight, double uiImageWidth, double uiImageHeight, OpenCvSharp.Point2d imagePoint)
+        {
+            if (sourceWidth <= 0 || sourceHeight <= 0 || uiImageWidth <= 0 || uiImageHeight <= 0)
+            {
+                return new System.Windows.Point();
+            }
+
+            double uniformScale = Math.Min(uiImageWidth / sourceWidth, uiImageHeight / sourceHeight);
+            double renderedWidth = uniformScale * sourceWidth;
+            double renderedHeight = uniformScale * sourceHeight;
+            double offsetX = (uiImageWidth - renderedWidth) / 2.0;
+            double offsetY = (uiImageHeight - renderedHeight) / 2.0;
+
+            return new System.Windows.Point(
+                offsetX + imagePoint.X * uniformScale,
+                offsetY + imagePoint.Y * uniformScale);
+        }
+
+        public static System.Windows.Rect ConvertImageRectToUiRect(int sourceWidth, int sourceHeight, double uiImageWidth, double uiImageHeight, OpenCvSharp.Rect imageRect)
+        {
+            if (sourceWidth <= 0 || sourceHeight <= 0 || uiImageWidth <= 0 || uiImageHeight <= 0)
+            {
+                return System.Windows.Rect.Empty;
+            }
+
+            double uniformScale = Math.Min(uiImageWidth / sourceWidth, uiImageHeight / sourceHeight);
+            double renderedWidth = uniformScale * sourceWidth;
+            double renderedHeight = uniformScale * sourceHeight;
+            double offsetX = (uiImageWidth - renderedWidth) / 2.0;
+            double offsetY = (uiImageHeight - renderedHeight) / 2.0;
+
+            return new System.Windows.Rect(
+                offsetX + imageRect.X * uniformScale,
+                offsetY + imageRect.Y * uniformScale,
+                imageRect.Width * uniformScale,
+                imageRect.Height * uniformScale);
+        }
+
+        public static bool TryDetectDarkCircleInRoi(Mat source, OpenCvSharp.Rect roiRect, out DetectedCircleInfo? detectedCircle)
+        {
+            detectedCircle = null;
+
+            if (source == null || source.Empty() || roiRect.Width <= 0 || roiRect.Height <= 0)
+            {
+                return false;
+            }
+
+            var boundedRect = new OpenCvSharp.Rect(
+                Math.Clamp(roiRect.X, 0, source.Width - 1),
+                Math.Clamp(roiRect.Y, 0, source.Height - 1),
+                Math.Clamp(roiRect.Width, 1, source.Width - Math.Clamp(roiRect.X, 0, source.Width - 1)),
+                Math.Clamp(roiRect.Height, 1, source.Height - Math.Clamp(roiRect.Y, 0, source.Height - 1)));
+
+            using var roi = new Mat(source, boundedRect);
+            using var gray = new Mat();
+            switch (roi.Channels())
+            {
+                case 1:
+                    roi.CopyTo(gray);
+                    break;
+                case 3:
+                    Cv2.CvtColor(roi, gray, ColorConversionCodes.BGR2GRAY);
+                    break;
+                case 4:
+                    Cv2.CvtColor(roi, gray, ColorConversionCodes.BGRA2GRAY);
+                    break;
+                default:
+                    return false;
+            }
+
+            using var blurred = new Mat();
+            Cv2.GaussianBlur(gray, blurred, new OpenCvSharp.Size(5, 5), 0);
+
+            using var binary = new Mat();
+            Cv2.Threshold(blurred, binary, 0, 255, ThresholdTypes.BinaryInv | ThresholdTypes.Otsu);
+
+            using var kernel = Cv2.GetStructuringElement(MorphShapes.Ellipse, new OpenCvSharp.Size(3, 3));
+            using var cleaned = new Mat();
+            Cv2.MorphologyEx(binary, cleaned, MorphTypes.Open, kernel);
+            Cv2.MorphologyEx(cleaned, cleaned, MorphTypes.Close, kernel);
+
+            Cv2.FindContours(cleaned, out var contours, out _, RetrievalModes.External, ContourApproximationModes.ApproxSimple);
+
+            var roiCenter = new OpenCvSharp.Point2d(roi.Width / 2.0, roi.Height / 2.0);
+            double maxDistance = Math.Max(1.0, Math.Sqrt((roi.Width * roi.Width) + (roi.Height * roi.Height)) / 2.0);
+            double bestScore = double.MinValue;
+
+            foreach (var contour in contours)
+            {
+                double area = Cv2.ContourArea(contour);
+                if (area < 16 || area > roi.Width * roi.Height * 0.9)
+                {
+                    continue;
+                }
+
+                double perimeter = Cv2.ArcLength(contour, true);
+                if (perimeter <= 0)
+                {
+                    continue;
+                }
+
+                double circularity = (4 * Math.PI * area) / (perimeter * perimeter);
+                if (circularity < 0.45)
+                {
+                    continue;
+                }
+
+                Cv2.MinEnclosingCircle(contour, out var localCenter, out float radius);
+                if (radius < 2 || radius > Math.Min(roi.Width, roi.Height) / 2.0)
+                {
+                    continue;
+                }
+
+                double distance = Math.Sqrt(Math.Pow(localCenter.X - roiCenter.X, 2) + Math.Pow(localCenter.Y - roiCenter.Y, 2));
+                double fillRatio = area / Math.Max(1.0, Math.PI * radius * radius);
+                double score = (circularity * 2.0) + fillRatio - (distance / maxDistance);
+                if (score <= bestScore)
+                {
+                    continue;
+                }
+
+                bestScore = score;
+                detectedCircle = new DetectedCircleInfo(
+                    new OpenCvSharp.Point2d(boundedRect.X + localCenter.X, boundedRect.Y + localCenter.Y),
+                    radius);
+            }
+
+            if (detectedCircle != null)
+            {
+                return true;
+            }
+
+            int minRadius = Math.Max(3, Math.Min(roi.Width, roi.Height) / 12);
+            int maxRadius = Math.Max(minRadius + 1, Math.Min(roi.Width, roi.Height) / 2);
+            var circles = Cv2.HoughCircles(blurred, HoughModes.Gradient, 1.2, Math.Max(10, minRadius), 120, 18, minRadius, maxRadius);
+            if (circles.Length == 0)
+            {
+                return false;
+            }
+
+            var bestCircle = circles
+                .OrderBy(circle => Math.Sqrt(Math.Pow(circle.Center.X - roiCenter.X, 2) + Math.Pow(circle.Center.Y - roiCenter.Y, 2)))
+                .First();
+
+            detectedCircle = new DetectedCircleInfo(
+                new OpenCvSharp.Point2d(boundedRect.X + bestCircle.Center.X, boundedRect.Y + bestCircle.Center.Y),
+                bestCircle.Radius);
+            return true;
+        }
+
+        public static bool TryFindWhiteObjectEdgePoint(Mat source, OpenCvSharp.Point2d approximatePoint, out OpenCvSharp.Point2d edgePoint)
+        {
+            edgePoint = default;
+
+            if (source == null || source.Empty())
+            {
+                return false;
+            }
+
+            using var gray = new Mat();
+            switch (source.Channels())
+            {
+                case 1:
+                    source.CopyTo(gray);
+                    break;
+                case 3:
+                    Cv2.CvtColor(source, gray, ColorConversionCodes.BGR2GRAY);
+                    break;
+                case 4:
+                    Cv2.CvtColor(source, gray, ColorConversionCodes.BGRA2GRAY);
+                    break;
+                default:
+                    return false;
+            }
+
+            using var blurred = new Mat();
+            Cv2.GaussianBlur(gray, blurred, new OpenCvSharp.Size(5, 5), 0);
+
+            using var binary = new Mat();
+            Cv2.Threshold(blurred, binary, 0, 255, ThresholdTypes.Binary | ThresholdTypes.Otsu);
+
+            using var kernel = Cv2.GetStructuringElement(MorphShapes.Ellipse, new OpenCvSharp.Size(5, 5));
+            using var cleaned = new Mat();
+            Cv2.MorphologyEx(binary, cleaned, MorphTypes.Close, kernel);
+            Cv2.MorphologyEx(cleaned, cleaned, MorphTypes.Open, kernel);
+
+            var imageCenter = new OpenCvSharp.Point2d(source.Width / 2.0, source.Height / 2.0);
+            if (SampleBinary(cleaned, imageCenter) == 0)
+            {
+                Cv2.BitwiseNot(cleaned, cleaned);
+            }
+
+            double dx = approximatePoint.X - imageCenter.X;
+            double dy = approximatePoint.Y - imageCenter.Y;
+            double clickDistance = Math.Sqrt((dx * dx) + (dy * dy));
+            if (clickDistance < 1.0)
+            {
+                return false;
+            }
+
+            double unitX = dx / clickDistance;
+            double unitY = dy / clickDistance;
+            double searchRange = Math.Clamp(clickDistance * 0.25, 18.0, 60.0);
+            int start = Math.Max(1, (int)Math.Floor(clickDistance - searchRange));
+            int end = Math.Min((int)Math.Ceiling(clickDistance + searchRange), (int)Math.Ceiling(Math.Sqrt((source.Width * source.Width) + (source.Height * source.Height))));
+
+            double? preferredTransition = null;
+            double preferredScore = double.MaxValue;
+            double? fallbackTransition = null;
+            double fallbackScore = double.MaxValue;
+
+            for (int distance = start; distance <= end; distance++)
+            {
+                var inwardPoint = new OpenCvSharp.Point2d(imageCenter.X + unitX * (distance - 1), imageCenter.Y + unitY * (distance - 1));
+                var outwardPoint = new OpenCvSharp.Point2d(imageCenter.X + unitX * (distance + 1), imageCenter.Y + unitY * (distance + 1));
+                byte inwardValue = SampleBinary(cleaned, inwardPoint);
+                byte outwardValue = SampleBinary(cleaned, outwardPoint);
+
+                if (inwardValue == outwardValue)
+                {
+                    continue;
+                }
+
+                double score = Math.Abs(distance - clickDistance);
+                if (inwardValue > 0 && outwardValue == 0)
+                {
+                    if (score < preferredScore)
+                    {
+                        preferredScore = score;
+                        preferredTransition = distance;
+                    }
+
+                    continue;
+                }
+
+                if (score < fallbackScore)
+                {
+                    fallbackScore = score;
+                    fallbackTransition = distance;
+                }
+            }
+
+            double? targetDistance = preferredTransition ?? fallbackTransition;
+            if (!targetDistance.HasValue)
+            {
+                return false;
+            }
+
+            edgePoint = new OpenCvSharp.Point2d(
+                imageCenter.X + unitX * targetDistance.Value,
+                imageCenter.Y + unitY * targetDistance.Value);
+            return true;
+        }
+
+        private static byte SampleBinary(Mat binary, OpenCvSharp.Point2d point)
+        {
+            int x = Math.Clamp((int)Math.Round(point.X), 0, binary.Width - 1);
+            int y = Math.Clamp((int)Math.Round(point.Y), 0, binary.Height - 1);
+            return binary.At<byte>(y, x);
         }
 
         public static CenterRoiBinaryPreviewResult? BuildCenterRoiBinaryPreview(BitmapSource source, int roiWidth, int roiHeight, int threshold, bool invert, int circleRadius = 30)

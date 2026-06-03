@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Threading.Tasks;
 using System.Windows;
@@ -12,9 +13,52 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Win32;
 using MvCamCtrl.NET;
 using Mat = OpenCvSharp.Mat;
+using CvPoint2d = OpenCvSharp.Point2d;
+using CvRect = OpenCvSharp.Rect;
 
 namespace Fredy.Drilling.Holes.UserControls
 {
+    public sealed class WorkpieceHoleCenterDetectedEventArgs : EventArgs
+    {
+        public WorkpieceHoleCenterDetectedEventArgs(double pixelX, double pixelY, double radiusPixels, int sourceWidth, int sourceHeight)
+        {
+            PixelX = pixelX;
+            PixelY = pixelY;
+            RadiusPixels = radiusPixels;
+            SourceWidth = sourceWidth;
+            SourceHeight = sourceHeight;
+        }
+
+        public double PixelX { get; }
+
+        public double PixelY { get; }
+
+        public double RadiusPixels { get; }
+
+        public int SourceWidth { get; }
+
+        public int SourceHeight { get; }
+    }
+
+    public sealed class WorkpieceEdgePointDetectedEventArgs : EventArgs
+    {
+        public WorkpieceEdgePointDetectedEventArgs(double pixelX, double pixelY, int sourceWidth, int sourceHeight)
+        {
+            PixelX = pixelX;
+            PixelY = pixelY;
+            SourceWidth = sourceWidth;
+            SourceHeight = sourceHeight;
+        }
+
+        public double PixelX { get; }
+
+        public double PixelY { get; }
+
+        public int SourceWidth { get; }
+
+        public int SourceHeight { get; }
+    }
+
     public partial class CameraViewerControl : UserControl
     {
         public static readonly DependencyProperty ImageMatProperty = DependencyProperty.Register(
@@ -129,6 +173,15 @@ namespace Fredy.Drilling.Holes.UserControls
             set => SetValue(CanStopContinuousGrabProperty, value);
         }
 
+        public static readonly DependencyProperty ShowWorkpieceCalibrationToolsProperty = DependencyProperty.Register(
+            nameof(ShowWorkpieceCalibrationTools), typeof(bool), typeof(CameraViewerControl), new PropertyMetadata(false));
+
+        public bool ShowWorkpieceCalibrationTools
+        {
+            get => (bool)GetValue(ShowWorkpieceCalibrationToolsProperty);
+            set => SetValue(ShowWorkpieceCalibrationToolsProperty, value);
+        }
+
         public bool IsContinuousGrabActive => _isContinuousGrabbing || (_camera?.IsContinuousGrabbing ?? false);
 
         /// <summary>
@@ -159,11 +212,63 @@ namespace Fredy.Drilling.Holes.UserControls
         private long _latestFrameId;
         private DateTime? _latestFrameTimestamp;
         private int _continuousGrabFrameRate = 20;
+        private RoiInteractionMode _roiInteractionMode;
+        private bool _isWorkpieceEdgePickMode;
+        private readonly List<WorkpieceEdgeOverlayState> _workpieceEdgeOverlayPoints = new();
+        private WorkpieceHoleOverlayState? _workpieceHoleOverlay;
+
+        public event EventHandler<WorkpieceHoleCenterDetectedEventArgs>? WorkpieceHoleCenterDetected;
+        public event EventHandler<WorkpieceEdgePointDetectedEventArgs>? WorkpieceEdgePointDetected;
 
         private System.Windows.Point _startDragPos;
         private bool _isDragging = false;
         private bool _isDrawingROI = false;
         private bool _isDraggingROI = false;
+
+        private enum RoiInteractionMode
+        {
+            None,
+            TemplateExport,
+            WorkpieceHoleCalibration,
+        }
+
+        private sealed class WorkpieceEdgeOverlayState
+        {
+            public WorkpieceEdgeOverlayState(CvPoint2d pixelPoint, int sourceWidth, int sourceHeight)
+            {
+                PixelPoint = pixelPoint;
+                SourceWidth = sourceWidth;
+                SourceHeight = sourceHeight;
+            }
+
+            public CvPoint2d PixelPoint { get; }
+
+            public int SourceWidth { get; }
+
+            public int SourceHeight { get; }
+        }
+
+        private sealed class WorkpieceHoleOverlayState
+        {
+            public WorkpieceHoleOverlayState(CvPoint2d pixelCenter, double pixelRadius, CvRect roiRect, int sourceWidth, int sourceHeight)
+            {
+                PixelCenter = pixelCenter;
+                PixelRadius = pixelRadius;
+                RoiRect = roiRect;
+                SourceWidth = sourceWidth;
+                SourceHeight = sourceHeight;
+            }
+
+            public CvPoint2d PixelCenter { get; }
+
+            public double PixelRadius { get; }
+
+            public CvRect RoiRect { get; }
+
+            public int SourceWidth { get; }
+
+            public int SourceHeight { get; }
+        }
 
         public CameraViewerControl()
         {
@@ -187,13 +292,22 @@ namespace Fredy.Drilling.Holes.UserControls
 
         private void OnMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
-            if (_isDrawingROI)
+            if (_roiInteractionMode != RoiInteractionMode.None)
             {
+                _isDrawingROI = true;
                 var pos = e.GetPosition(ROICanvas);
                 Canvas.SetLeft(ROIRect, pos.X);
                 Canvas.SetTop(ROIRect, pos.Y);
                 ROIRect.Width = 0;
                 ROIRect.Height = 0;
+                ROICanvas.Visibility = Visibility.Visible;
+                Viewport.CaptureMouse();
+                e.Handled = true;
+            }
+            else if (_isWorkpieceEdgePickMode)
+            {
+                HandleWorkpieceEdgePick(e.GetPosition(DisplayImage));
+                e.Handled = true;
             }
             else
             {
@@ -205,9 +319,27 @@ namespace Fredy.Drilling.Holes.UserControls
 
         private void OnMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
         {
+            var completedRoiMode = _roiInteractionMode;
+            bool shouldProcessRoi = _isDrawingROI;
+
             _isDragging = false;
             _isDrawingROI = false;
             Viewport.ReleaseMouseCapture();
+
+            if (!shouldProcessRoi)
+            {
+                return;
+            }
+
+            if (completedRoiMode == RoiInteractionMode.WorkpieceHoleCalibration)
+            {
+                TryDetectWorkpieceHoleCenterFromCurrentRoi();
+                _roiInteractionMode = RoiInteractionMode.None;
+                if (MenuWorkpieceHoleRoiMode != null)
+                {
+                    MenuWorkpieceHoleRoiMode.IsChecked = false;
+                }
+            }
         }
 
         private void OnMouseMove(object sender, MouseEventArgs e)
@@ -617,9 +749,10 @@ namespace Fredy.Drilling.Holes.UserControls
 
         private void StartDrawROI_Click(object sender, RoutedEventArgs e)
         {
-            _isDrawingROI = true;
+            _roiInteractionMode = RoiInteractionMode.TemplateExport;
             ROICanvas.Visibility = Visibility.Visible;
             OverlayCanvas.Children.Clear();
+            SetOperationLog("请拖拽绘制模板 ROI。", true);
         }
 
         private void ROIRect_MouseDown(object sender, MouseButtonEventArgs e)
@@ -777,11 +910,249 @@ namespace Fredy.Drilling.Holes.UserControls
         {
             OverlayCanvas.Width = e.NewSize.Width;
             OverlayCanvas.Height = e.NewSize.Height;
+            CalibrationOverlayCanvas.Width = e.NewSize.Width;
+            CalibrationOverlayCanvas.Height = e.NewSize.Height;
             CenterRoiOverlayCanvas.Width = e.NewSize.Width;
             CenterRoiOverlayCanvas.Height = e.NewSize.Height;
             ROICanvas.Width = e.NewSize.Width;
             ROICanvas.Height = e.NewSize.Height;
+            RedrawWorkpieceCalibrationOverlay();
             RefreshCenterRoiBinaryPreview();
+        }
+
+        private void ToggleWorkpieceHoleRoiMode_Click(object sender, RoutedEventArgs e)
+        {
+            if (!ShowWorkpieceCalibrationTools)
+            {
+                return;
+            }
+
+            if (MenuWorkpieceHoleRoiMode.IsChecked)
+            {
+                MenuWorkpieceEdgePickMode.IsChecked = false;
+                _isWorkpieceEdgePickMode = false;
+                _roiInteractionMode = RoiInteractionMode.WorkpieceHoleCalibration;
+                ROICanvas.Visibility = Visibility.Visible;
+                SetOperationLog("圆孔 ROI 识别已启用，请在图像上拖拽框选圆孔区域。", true);
+                return;
+            }
+
+            if (_roiInteractionMode == RoiInteractionMode.WorkpieceHoleCalibration)
+            {
+                _roiInteractionMode = RoiInteractionMode.None;
+                _isDrawingROI = false;
+                SetOperationLog("已退出圆孔 ROI 识别模式。", true);
+            }
+        }
+
+        private void ToggleWorkpieceEdgePickMode_Click(object sender, RoutedEventArgs e)
+        {
+            if (!ShowWorkpieceCalibrationTools)
+            {
+                return;
+            }
+
+            _isWorkpieceEdgePickMode = MenuWorkpieceEdgePickMode.IsChecked;
+            if (_isWorkpieceEdgePickMode)
+            {
+                MenuWorkpieceHoleRoiMode.IsChecked = false;
+                if (_roiInteractionMode == RoiInteractionMode.WorkpieceHoleCalibration)
+                {
+                    _roiInteractionMode = RoiInteractionMode.None;
+                    _isDrawingROI = false;
+                }
+
+                SetOperationLog("边缘点自动拾取已启用，请左键点击圆边附近位置。", true);
+                return;
+            }
+
+            SetOperationLog("已退出边缘点自动拾取模式。", true);
+        }
+
+        private void ClearWorkpieceCalibrationMarkers_Click(object sender, RoutedEventArgs e)
+        {
+            _workpieceEdgeOverlayPoints.Clear();
+            _workpieceHoleOverlay = null;
+            CalibrationOverlayCanvas.Children.Clear();
+            SetOperationLog("已清除工件圆心校准图像标记。", true);
+        }
+
+        private void HandleWorkpieceEdgePick(System.Windows.Point uiPoint)
+        {
+            using var sourceMat = CreateWorkingMat();
+            if (sourceMat == null || sourceMat.Empty())
+            {
+                MessageBox.Show("当前没有可用于自动寻边的图像。", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            if (!Fredy.Drilling.Holes.Tools.VisionUIHelper.TryConvertUiPointToImagePixel(sourceMat.Width, sourceMat.Height, DisplayImage.ActualWidth, DisplayImage.ActualHeight, uiPoint, out var imagePoint))
+            {
+                MessageBox.Show("点击位置不在有效图像区域内。", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            if (!Fredy.Drilling.Holes.Tools.VisionUIHelper.TryFindWhiteObjectEdgePoint(sourceMat, imagePoint, out var edgePoint))
+            {
+                MessageBox.Show("未找到有效边缘，请更靠近工件圆边重新点击。", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            _workpieceEdgeOverlayPoints.Add(new WorkpieceEdgeOverlayState(edgePoint, sourceMat.Width, sourceMat.Height));
+            RedrawWorkpieceCalibrationOverlay();
+            WorkpieceEdgePointDetected?.Invoke(this, new WorkpieceEdgePointDetectedEventArgs(edgePoint.X, edgePoint.Y, sourceMat.Width, sourceMat.Height));
+            SetOperationLog($"已自动拾取边缘点：像素({edgePoint.X:F1}, {edgePoint.Y:F1})。", true);
+        }
+
+        private void TryDetectWorkpieceHoleCenterFromCurrentRoi()
+        {
+            using var sourceMat = CreateWorkingMat();
+            if (sourceMat == null || sourceMat.Empty())
+            {
+                MessageBox.Show("当前没有可用于圆孔识别的图像。", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            double left = double.IsNaN(Canvas.GetLeft(ROIRect)) ? 0 : Canvas.GetLeft(ROIRect);
+            double top = double.IsNaN(Canvas.GetTop(ROIRect)) ? 0 : Canvas.GetTop(ROIRect);
+            var uiRect = new System.Windows.Rect(left, top, ROIRect.Width, ROIRect.Height);
+            if (!Fredy.Drilling.Holes.Tools.VisionUIHelper.TryConvertUiRectToImageRect(sourceMat.Width, sourceMat.Height, DisplayImage.ActualWidth, DisplayImage.ActualHeight, uiRect, out var imageRect))
+            {
+                MessageBox.Show("ROI 无效，请重新框选圆孔区域。", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            if (!Fredy.Drilling.Holes.Tools.VisionUIHelper.TryDetectDarkCircleInRoi(sourceMat, imageRect, out var detectedCircle) || detectedCircle == null)
+            {
+                MessageBox.Show("在 ROI 内未识别到稳定圆孔，请调整框选范围后重试。", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            _workpieceHoleOverlay = new WorkpieceHoleOverlayState(detectedCircle.Center, detectedCircle.Radius, imageRect, sourceMat.Width, sourceMat.Height);
+            RedrawWorkpieceCalibrationOverlay();
+            WorkpieceHoleCenterDetected?.Invoke(this, new WorkpieceHoleCenterDetectedEventArgs(detectedCircle.Center.X, detectedCircle.Center.Y, detectedCircle.Radius, sourceMat.Width, sourceMat.Height));
+            SetOperationLog($"圆孔识别成功：像素圆心({detectedCircle.Center.X:F1}, {detectedCircle.Center.Y:F1})。", true);
+        }
+
+        private Mat? CreateWorkingMat()
+        {
+            if (ImageMat != null && !ImageMat.Empty())
+            {
+                return ImageMat.Clone();
+            }
+
+            if (ImageSource is BitmapSource bitmap)
+            {
+                return Tools.VisionUIHelper.BitmapSourceToMat(bitmap);
+            }
+
+            return null;
+        }
+
+        private void RedrawWorkpieceCalibrationOverlay()
+        {
+            CalibrationOverlayCanvas.Children.Clear();
+            if (DisplayImage.ActualWidth <= 0 || DisplayImage.ActualHeight <= 0)
+            {
+                return;
+            }
+
+            if (_workpieceHoleOverlay != null)
+            {
+                var uiRect = Tools.VisionUIHelper.ConvertImageRectToUiRect(
+                    _workpieceHoleOverlay.SourceWidth,
+                    _workpieceHoleOverlay.SourceHeight,
+                    DisplayImage.ActualWidth,
+                    DisplayImage.ActualHeight,
+                    _workpieceHoleOverlay.RoiRect);
+                var uiCenter = Tools.VisionUIHelper.ConvertImagePointToUiPoint(
+                    _workpieceHoleOverlay.SourceWidth,
+                    _workpieceHoleOverlay.SourceHeight,
+                    DisplayImage.ActualWidth,
+                    DisplayImage.ActualHeight,
+                    _workpieceHoleOverlay.PixelCenter);
+                double uniformScale = Math.Min(DisplayImage.ActualWidth / _workpieceHoleOverlay.SourceWidth, DisplayImage.ActualHeight / _workpieceHoleOverlay.SourceHeight);
+                double uiRadius = _workpieceHoleOverlay.PixelRadius * uniformScale;
+
+                var roiRectangle = new Rectangle
+                {
+                    Width = uiRect.Width,
+                    Height = uiRect.Height,
+                    Stroke = Brushes.Gold,
+                    StrokeThickness = 1.5,
+                    StrokeDashArray = new DoubleCollection { 4, 4 },
+                    Fill = Brushes.Transparent,
+                    IsHitTestVisible = false
+                };
+                Canvas.SetLeft(roiRectangle, uiRect.X);
+                Canvas.SetTop(roiRectangle, uiRect.Y);
+                CalibrationOverlayCanvas.Children.Add(roiRectangle);
+
+                var ellipse = new Ellipse
+                {
+                    Width = uiRadius * 2,
+                    Height = uiRadius * 2,
+                    Stroke = Brushes.OrangeRed,
+                    StrokeThickness = 2,
+                    Fill = Brushes.Transparent,
+                    IsHitTestVisible = false
+                };
+                Canvas.SetLeft(ellipse, uiCenter.X - uiRadius);
+                Canvas.SetTop(ellipse, uiCenter.Y - uiRadius);
+                CalibrationOverlayCanvas.Children.Add(ellipse);
+
+                AddCrossMarker(uiCenter, Brushes.OrangeRed, 8, 2);
+            }
+
+            foreach (var overlayPoint in _workpieceEdgeOverlayPoints)
+            {
+                var uiPoint = Tools.VisionUIHelper.ConvertImagePointToUiPoint(
+                    overlayPoint.SourceWidth,
+                    overlayPoint.SourceHeight,
+                    DisplayImage.ActualWidth,
+                    DisplayImage.ActualHeight,
+                    overlayPoint.PixelPoint);
+                var marker = new Ellipse
+                {
+                    Width = 8,
+                    Height = 8,
+                    Fill = Brushes.DeepSkyBlue,
+                    Stroke = Brushes.White,
+                    StrokeThickness = 1,
+                    IsHitTestVisible = false
+                };
+                Canvas.SetLeft(marker, uiPoint.X - 4);
+                Canvas.SetTop(marker, uiPoint.Y - 4);
+                CalibrationOverlayCanvas.Children.Add(marker);
+                AddCrossMarker(uiPoint, Brushes.DeepSkyBlue, 6, 1.5);
+            }
+        }
+
+        private void AddCrossMarker(System.Windows.Point center, Brush stroke, double size, double thickness)
+        {
+            var horizontal = new Line
+            {
+                X1 = center.X - size,
+                Y1 = center.Y,
+                X2 = center.X + size,
+                Y2 = center.Y,
+                Stroke = stroke,
+                StrokeThickness = thickness,
+                IsHitTestVisible = false
+            };
+            var vertical = new Line
+            {
+                X1 = center.X,
+                Y1 = center.Y - size,
+                X2 = center.X,
+                Y2 = center.Y + size,
+                Stroke = stroke,
+                StrokeThickness = thickness,
+                IsHitTestVisible = false
+            };
+
+            CalibrationOverlayCanvas.Children.Add(horizontal);
+            CalibrationOverlayCanvas.Children.Add(vertical);
         }
 
         private void RefreshCenterRoiBinaryPreview()
