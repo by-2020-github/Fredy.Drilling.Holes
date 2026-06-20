@@ -62,6 +62,7 @@ namespace HAL
         private static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(20);
         private static readonly TimeSpan HomeStopReadyPollInterval = TimeSpan.FromMilliseconds(5);
         private const int HomeStopReadyMaxWaitMs = 200;
+        private const int GratingPollIntervalMs = 2;
         private const int MaxNativeCallRecordCount = 500;
 
         private readonly ConcurrentDictionary<int, bool> _axisEnabled = new();
@@ -321,11 +322,23 @@ namespace HAL
         {
             var axisNo = axis.AxisNo;
             await HomeXYMechanicalAsync(axis, cancellationToken).ConfigureAwait(false);
-            LogHomeDebug("Axis {AxisNo} mechanical homing completed.", axisNo);
+            var posAfterMechanical = await GetPositionAsync(axisNo, cancellationToken).ConfigureAwait(false);
+            LogHomeDebug("Axis {AxisNo} mechanical homing completed. Position={Position:F3} mm", axisNo, posAfterMechanical);
 
             if (_homingOptions.IsGratingHome)
             {
-                LogHomeDebug("Axis {AxisNo} grating homing enabled. IsLatch={IsLatch}, IsIoHome={IsIoHome}", axisNo, _homingOptions.IsLatch, _homingOptions.IsIoHome);
+                // 第一阶段：机械回零完成后，向正方向移动至绝对 +1mm，为光栅寻零预留逼近空间
+                const double gratingPreMoveTargetMm = 1.0;
+                const double gratingPreMoveSpeed = 1.0;
+                var posBeforePreMove = await GetPositionAsync(axisNo, cancellationToken).ConfigureAwait(false);
+                LogHomeDebug("Axis {AxisNo} pre-move: current={Current:F3} mm, target=absolute +{Target}mm, speed={Speed:F3} mm/s", axisNo, posBeforePreMove, gratingPreMoveTargetMm, gratingPreMoveSpeed);
+                await MoveAbsoluteAsync(axisNo, gratingPreMoveTargetMm, wait: true, gratingPreMoveSpeed, cancellationToken).ConfigureAwait(false);
+                var posAfterPreMove = await GetPositionAsync(axisNo, cancellationToken).ConfigureAwait(false);
+                LogHomeDebug("Axis {AxisNo} pre-move completed. Position={Position:F3} mm", axisNo, posAfterPreMove);
+
+                var gratingPort = GetGratingPort(axisNo);
+                var gratingLevelBefore = NormalizeSignalLevel(await ReadInputLevelAsync(gratingPort.PortIndex, cancellationToken).ConfigureAwait(false));
+                LogHomeDebug("Axis {AxisNo} grating homing enabled. IsLatch={IsLatch}, IsIoHome={IsIoHome}, GratingPort={PortIndex}, IsNegative={IsNegative}, IsLowLevelActive={IsLowLevelActive}, CurrentLevel={CurrentLevel}", axisNo, _homingOptions.IsLatch, _homingOptions.IsIoHome, gratingPort.PortIndex, gratingPort.IsNegative, gratingPort.IsLowLevelActive, gratingLevelBefore);
                 if (_homingOptions.IsLatch)
                 {
                     LogHomeDebug("Axis {AxisNo} entering latch homing step.", axisNo);
@@ -334,13 +347,14 @@ namespace HAL
                 }
                 else if (_homingOptions.IsIoHome)
                 {
-                    LogHomeDebug("Axis {AxisNo} entering grating IO homing step.", axisNo);
+                    LogHomeDebug("Axis {AxisNo} entering grating IO homing step. GratingSpeed={Speed:F3} mm/s, GratingAccel={Accel:F3} mm/s², PollIntervalMs={PollMs}, HomeTimeoutMs={TimeoutMs}", axisNo, _homingOptions.GratingHomeSpeed, _homingOptions.GratingHomeAcceleration, GratingPollIntervalMs, ResolveHomeTimeoutMs(axis));
                     await HomeXYByGratingIoAsync(axis, cancellationToken).ConfigureAwait(false);
                     LogHomeDebug("Axis {AxisNo} grating IO homing step completed.", axisNo);
                 }
             }
 
-            LogHomeDebug("Axis {AxisNo} resetting position after homing.", axisNo);
+            var posBeforeReset = await GetPositionAsync(axisNo, cancellationToken).ConfigureAwait(false);
+            LogHomeDebug("Axis {AxisNo} resetting position after homing. PositionBeforeReset={Position:F3} mm", axisNo, posBeforeReset);
             ResetPosition(axisNo);
         }
 
@@ -373,7 +387,7 @@ namespace HAL
                     searchSpeedPulse,
                     accelPulse,
                     homeTimeoutMs,
-                    cancellationToken).ConfigureAwait(false);
+                    20, cancellationToken).ConfigureAwait(false);
             }
 
             LogHomeDebug("Axis {AxisNo} Z homing moving toward home sensor. TowardDirection={TowardDirection}", axisNo, towardHomeDirection);
@@ -386,7 +400,7 @@ namespace HAL
                 searchSpeedPulse,
                 accelPulse,
                 homeTimeoutMs,
-                cancellationToken).ConfigureAwait(false);
+                20, cancellationToken).ConfigureAwait(false);
 
             LogHomeDebug("Axis {AxisNo} Z homing reached sensor. Resetting position.", axisNo);
             ResetPosition(axisNo);
@@ -439,7 +453,7 @@ namespace HAL
                 searchSpeedPulse,
                 accelPulse,
                 homeTimeoutMs,
-                cancellationToken).ConfigureAwait(false);
+                20, cancellationToken).ConfigureAwait(false);
 
             // 第二段：速度降为第一段的slowK分之一，反方向慢速运动，直到传感器再次取反，认为到达零点边沿。
             LogHomeDebug("Axis {AxisNo} mechanical homing slow reverse. SlowDirection={SlowDirection}, SlowTargetLevel={SlowTargetLevel}", axisNo, slowDirection, slowTargetLevel);
@@ -452,7 +466,7 @@ namespace HAL
                 slowSpeedPulse,
                 slowAccelPulse,
                 slowTimeoutMs,
-                cancellationToken).ConfigureAwait(false);
+                20, cancellationToken).ConfigureAwait(false);
             LogHomeDebug("Axis {AxisNo} mechanical homing completed.", axisNo);
         }
 
@@ -461,61 +475,122 @@ namespace HAL
             var axisNo = axis.AxisNo;
             var port = GetGratingPort(axisNo);
             ValidatePort(port, $"Axis {axisNo} grating");
-            var towardHomeDirection = GetTowardHomeDirection(port);
-            var activeLevel = GetPortActiveSignalLevel(port);
 
-            LogHomeDebug("Axis {AxisNo} grating IO homing start. Port={PortIndex}, ActiveLevel={ActiveLevel}, TowardDirection={TowardDirection}", axisNo, port.PortIndex, activeLevel, towardHomeDirection);
+            // 读取当前光栅端口电平，计算信号跳变目标（取反）
+            var rawLevel = await ReadInputLevelAsync(port.PortIndex, cancellationToken).ConfigureAwait(false);
+            var currentLevel = NormalizeSignalLevel(rawLevel);
+            var flipTargetLevel = currentLevel == 0 ? 1 : 0;
+
+            // 光栅尺零点位于负方向，始终以负方向慢速逼近（本机 Dir=1=负方向）
+            const int gratingSearchDirection = 1;
+
+            var startPosition = await GetPositionAsync(axisNo, cancellationToken).ConfigureAwait(false);
+            LogHomeDebug("Axis {AxisNo} grating IO homing start. Port={PortIndex}, RawLevel={RawLevel}, CurrentLevel={CurrentLevel}, FlipTarget={FlipTarget}, Direction=Negative, StartPosition={StartPosition:F3} mm, Speed={Speed:F3} mm/s, Accel={Accel:F3} mm/s², TimeoutMs={TimeoutMs}", axisNo, port.PortIndex, rawLevel, currentLevel, flipTargetLevel, startPosition, _homingOptions.GratingHomeSpeed, _homingOptions.GratingHomeAcceleration, ResolveHomeTimeoutMs(axis));
 
             await MoveContinuousUntilInputLevelAsync(
                 axisNo,
-                towardHomeDirection,
+                gratingSearchDirection,
                 port,
-                activeLevel,
+                flipTargetLevel,
                 ToSpeedPulse(_homingOptions.GratingHomeStartSpeed, axis),
                 ToSpeedPulse(_homingOptions.GratingHomeSpeed, axis),
                 ToAccelerationPulse(_homingOptions.GratingHomeAcceleration, axis),
                 ResolveHomeTimeoutMs(axis),
+                GratingPollIntervalMs,
                 cancellationToken).ConfigureAwait(false);
-            LogHomeDebug("Axis {AxisNo} grating IO homing completed.", axisNo);
+
+            // 信号跳变时读取当前轴位置作为光栅零点参考
+            var gratingZeroPosition = await GetPositionAsync(axisNo, cancellationToken).ConfigureAwait(false);
+            var gratingZeroLevel = NormalizeSignalLevel(await ReadInputLevelAsync(port.PortIndex, cancellationToken).ConfigureAwait(false));
+            LogHomeDebug("Axis {AxisNo} grating IO homing completed. GratingZeroPosition={Position:F3} mm, FinalPortLevel={FinalLevel}, TravelDistance={Distance:F3} mm", axisNo, gratingZeroPosition, gratingZeroLevel, gratingZeroPosition - startPosition);
         }
 
         private async Task HomeXYByLatchAsync(AxisParam axis, CancellationToken cancellationToken)
         {
             var axisNo = axis.AxisNo;
             var port = GetGratingPort(axisNo);
-            ValidatePort(port, $"Axis {axisNo} grating");
-            var towardHomeDirection = GetTowardHomeDirection(port);
+            ValidatePort(port, $"Axis {axisNo} grating latch");
 
-            LogHomeDebug("Axis {AxisNo} latch homing start.", axisNo);
-            await ClearLockStatusAsync(axisNo, cancellationToken).ConfigureAwait(false);
-            await SetLockPositionModeAsync(axisNo, 1, 0, 1, cancellationToken).ConfigureAwait(false);
+            // 读取当前光栅端口电平，计算信号跳变目标（取反）
+            var rawLevel = await ReadInputLevelAsync(port.PortIndex, cancellationToken).ConfigureAwait(false);
+            var currentLevel = NormalizeSignalLevel(rawLevel);
+            var flipTargetLevel = currentLevel == 0 ? 1 : 0;
 
+            // 负方向慢速搜索（本机 Dir=1=负方向），超时 1 分钟，位置超过 -3mm 判定失败
+            const int searchDirection = 1;
+            const int latchTimeoutMs = 60_000;
+            const double positionLimitMm = -3.0;
+
+            var startPosition = await GetPositionAsync(axisNo, cancellationToken).ConfigureAwait(false);
+            LogHomeDebug("Axis {AxisNo} latch grating homing start. Port={PortIndex}, RawLevel={RawLevel}, CurrentLevel={CurrentLevel}, FlipTarget={FlipTarget}, Direction=Negative, StartPosition={StartPosition:F3} mm, PositionLimit={Limit:F3} mm, TimeoutMs={TimeoutMs}", axisNo, port.PortIndex, rawLevel, currentLevel, flipTargetLevel, startPosition, positionLimitMm, latchTimeoutMs);
+
+            var startSpeedPulse = ToSpeedPulse(_homingOptions.GratingHomeStartSpeed, axis);
+            var speedPulse = ToSpeedPulse(_homingOptions.GratingHomeSpeed, axis);
+            var accelPulse = ToAccelerationPulse(_homingOptions.GratingHomeAcceleration, axis);
+
+            ExecuteNative(() => adt8940a1.adt8940a1_set_startv(_cardNo, axisNo, Math.Max(100, startSpeedPulse)), $"Set latch start speed for axis {axisNo}");
+            ExecuteNative(() => adt8940a1.adt8940a1_set_speed(_cardNo, axisNo, Math.Max(100, speedPulse)), $"Set latch speed for axis {axisNo}");
+            ExecuteNative(() => adt8940a1.adt8940a1_set_acc(_cardNo, axisNo, ToCardAcceleration(accelPulse)), $"Set latch acceleration for axis {axisNo}");
+            ExecuteNative(() => adt8940a1.adt8940a1_continue_move(_cardNo, axisNo, searchDirection), $"Start latch grating search move for axis {axisNo}");
+
+            var stopHandled = false;
             try
             {
-                LogHomeDebug("Axis {AxisNo} latch mode configured. Starting continuous move.", axisNo);
-                ConfigureMotion(axisNo, _homingOptions.GratingHomeStartSpeed, _homingOptions.GratingHomeSpeed, _homingOptions.GratingHomeAcceleration);
-                ExecuteNative(() => adt8940a1.adt8940a1_continue_move(_cardNo, axisNo, towardHomeDirection), $"Start latch home move for axis {axisNo}");
-
-                await WaitForLockStatusAsync(axisNo, ResolveHomeTimeoutMs(axis), cancellationToken).ConfigureAwait(false);
-                LogHomeDebug("Axis {AxisNo} latch signal detected. Stopping axis.", axisNo);
-                await StopAsync(axisNo).ConfigureAwait(false);
-
-                var lockPosition = GetLockPositionPulse(axisNo);
-                var currentPosition = GetCommandPosition(axisNo);
-                var moveDistance = lockPosition - currentPosition;
-                LogHomeDebug("Axis {AxisNo} latch position acquired. LockPosition={LockPosition}, CurrentPosition={CurrentPosition}, MoveDistance={MoveDistance}", axisNo, lockPosition, currentPosition, moveDistance);
-                if (moveDistance != 0)
+                var startedAt = Environment.TickCount64;
+                var lastLogAt = startedAt;
+                while (true)
                 {
-                    await MoveRelativePulseAsync(axisNo, moveDistance, cancellationToken).ConfigureAwait(false);
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    var level = await ReadInputLevelAsync(port.PortIndex, cancellationToken).ConfigureAwait(false);
+                    var normalizedLevel = NormalizeSignalLevel(level);
+
+                    if (normalizedLevel == flipTargetLevel)
+                    {
+                        LogHomeDebug("Axis {AxisNo} latch grating flip detected. Port={PortIndex}, Level={Level}", axisNo, port.PortIndex, normalizedLevel);
+                        ExecuteNative(() => adt8940a1.adt8940a1_sudden_stop(_cardNo, axisNo), $"Stop axis {axisNo} on latch grating flip");
+                        stopHandled = true;
+                        var stopReady = await WaitForAxisMotionIdleAsync(axisNo, HomeStopReadyMaxWaitMs, cancellationToken).ConfigureAwait(false);
+                        LogHomeDebug("Axis {AxisNo} latch grating stop settle. Ready={Ready}", axisNo, stopReady);
+                        break;
+                    }
+
+                    var currentPosition = await GetPositionAsync(axisNo, cancellationToken).ConfigureAwait(false);
+                    if (currentPosition < positionLimitMm)
+                    {
+                        LogHomeDebug("Axis {AxisNo} latch grating position limit exceeded. Position={Position:F3} mm, Limit={Limit:F3} mm", axisNo, currentPosition, positionLimitMm);
+                        ExecuteNative(() => adt8940a1.adt8940a1_sudden_stop(_cardNo, axisNo), $"Stop axis {axisNo} on latch grating position limit");
+                        stopHandled = true;
+                        throw new InvalidOperationException($"Axis {axisNo} latch grating homing failed: position {currentPosition:F3} mm exceeded limit {positionLimitMm} mm.");
+                    }
+
+                    if (Environment.TickCount64 - startedAt >= latchTimeoutMs)
+                    {
+                        LogHomeDebug("Axis {AxisNo} latch grating timeout. ElapsedMs={ElapsedMs}, Position={Position:F3} mm", axisNo, Environment.TickCount64 - startedAt, currentPosition);
+                        ExecuteNative(() => adt8940a1.adt8940a1_sudden_stop(_cardNo, axisNo), $"Stop axis {axisNo} on latch grating timeout");
+                        stopHandled = true;
+                        throw new TimeoutException($"Axis {axisNo} latch grating homing timed out after {latchTimeoutMs} ms.");
+                    }
+
+                    await Task.Delay(GratingPollIntervalMs, cancellationToken).ConfigureAwait(false);
+                    if (Environment.TickCount64 - lastLogAt >= 1000)
+                    {
+                        _logger.Debug("Axis {AxisNo} latch grating waiting. Port={PortIndex}, CurrentLevel={Level}, TargetLevel={TargetLevel}, Position={Position:F3} mm, ElapsedMs={ElapsedMs}", axisNo, port.PortIndex, normalizedLevel, flipTargetLevel, currentPosition, Environment.TickCount64 - startedAt);
+                        lastLogAt = Environment.TickCount64;
+                    }
                 }
             }
             finally
             {
-                LogHomeDebug("Axis {AxisNo} latch homing cleanup start.", axisNo);
-                await SetLockPositionModeAsync(axisNo, 0, 0, 0, cancellationToken).ConfigureAwait(false);
-                await ClearLockStatusAsync(axisNo, cancellationToken).ConfigureAwait(false);
-                LogHomeDebug("Axis {AxisNo} latch homing cleanup completed.", axisNo);
+                if (!stopHandled)
+                {
+                    await StopAsync(axisNo).ConfigureAwait(false);
+                }
             }
+
+            var gratingZeroPosition = await GetPositionAsync(axisNo, cancellationToken).ConfigureAwait(false);
+            var gratingZeroLevel = NormalizeSignalLevel(await ReadInputLevelAsync(port.PortIndex, cancellationToken).ConfigureAwait(false));
+            LogHomeDebug("Axis {AxisNo} latch grating homing completed. GratingZeroPosition={Position:F3} mm, FinalPortLevel={FinalLevel}, TravelDistance={Distance:F3} mm", axisNo, gratingZeroPosition, gratingZeroLevel, gratingZeroPosition - startPosition);
         }
 
         private async Task MoveContinuousUntilInputLevelAsync(
@@ -527,7 +602,8 @@ namespace HAL
             int driveSpeed,
             int acceleration,
             int timeoutMs,
-            CancellationToken cancellationToken)
+            int pollIntervalMs = 20,
+            CancellationToken cancellationToken = default)
         {
             ValidatePort(port, $"Axis {axisNo} home");
             LogHomeDebug("Axis {AxisNo} continuous move wait start. Dir={Dir}, Port={PortIndex}, TargetLevel={TargetLevel}, StartSpeed={StartSpeed}, DriveSpeed={DriveSpeed}, Acceleration={Acceleration}, TimeoutMs={TimeoutMs}", axisNo, dir, port.PortIndex, targetLevel, startSpeed, driveSpeed, acceleration, timeoutMs);
@@ -546,10 +622,9 @@ namespace HAL
             try
             {
                 var startedAt = Environment.TickCount64;
-                var times = 0;
+                var lastLogAt = startedAt;
                 while (true)
                 {
-                    times++;
                     cancellationToken.ThrowIfCancellationRequested();
 
                     var level = await ReadInputLevelAsync(port.PortIndex, cancellationToken).ConfigureAwait(false);
@@ -571,10 +646,12 @@ namespace HAL
                         throw new TimeoutException($"Axis {axisNo} home input wait timed out on port {port.PortIndex}.");
                     }
 
-                    await Task.Delay(PollInterval, cancellationToken).ConfigureAwait(false);
-                    if (times % 10 == 0)
+                    await Task.Delay(pollIntervalMs, cancellationToken).ConfigureAwait(false);
+                    if (Environment.TickCount64 - lastLogAt >= 1000)
                     {
-                        _logger.Debug("Axis {AxisNo} continuous move waiting. Port={PortIndex}, TargetLevel={TargetLevel}", axisNo, port.PortIndex, targetLevelNormalized);
+                        var currentPosition = await GetPositionAsync(axisNo, cancellationToken).ConfigureAwait(false);
+                        _logger.Debug("Axis {AxisNo} continuous move waiting. Port={PortIndex}, CurrentLevel={Level}, TargetLevel={TargetLevel}, Position={Position:F3} mm, ElapsedMs={ElapsedMs}", axisNo, port.PortIndex, normalizedLevel, targetLevelNormalized, currentPosition, Environment.TickCount64 - startedAt);
+                        lastLogAt = Environment.TickCount64;
                     }
                 }
             }
