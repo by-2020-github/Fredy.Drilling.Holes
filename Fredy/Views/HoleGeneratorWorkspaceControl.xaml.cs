@@ -9,6 +9,23 @@ using System.Windows.Controls;
 namespace Fredy.Drilling.Holes.Views
 {
     /// <summary>
+    /// 自动根据 ViewModel 类型从资源字典中查找对应的 DataTemplate。
+    /// 无需手动注册，DataTemplate 在 Themes/GenerationTabDataTemplates.xaml 中统一维护。
+    /// </summary>
+    public class GenerationTabTemplateSelector : DataTemplateSelector
+    {
+        public override DataTemplate? SelectTemplate(object item, DependencyObject container)
+        {
+            if (item is not GenerationTabDescriptor tab || tab.ViewModel is null)
+                return null;
+
+            var element = container as FrameworkElement;
+            var key = new DataTemplateKey(tab.ViewModel.GetType());
+            return element?.TryFindResource(key) as DataTemplate;
+        }
+    }
+
+    /// <summary>
     /// 孔位生成工作区 WPF 视图。
     /// </summary>
     public partial class HoleGeneratorView : UserControl

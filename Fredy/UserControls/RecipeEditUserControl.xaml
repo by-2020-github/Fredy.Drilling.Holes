@@ -1,17 +1,19 @@
-﻿<UserControl x:Class="Fredy.Drilling.Holes.UserControls.RecipeEditUserControl"
-             x:Name="Root"
-             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
-             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
-             xmlns:converters="clr-namespace:Fredy.Drilling.Holes.Converters"
-             xmlns:hc="clr-namespace:HandyControl.Controls;assembly=HandyControl"
-             xmlns:local="clr-namespace:Fredy.Drilling.Holes.UserControls"
-             xmlns:views="clr-namespace:Fredy.Drilling.Holes.Views"
-             mc:Ignorable="d" 
-             d:DesignHeight="450" d:DesignWidth="800">
+﻿<UserControl
+    x:Class="Fredy.Drilling.Holes.UserControls.RecipeEditUserControl"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:converters="clr-namespace:Fredy.Drilling.Holes.Converters"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:hc="clr-namespace:HandyControl.Controls;assembly=HandyControl"
+    xmlns:local="clr-namespace:Fredy.Drilling.Holes.UserControls"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:views="clr-namespace:Fredy.Drilling.Holes.Views"
+    x:Name="Root"
+    d:DesignHeight="450"
+    d:DesignWidth="800"
+    mc:Ignorable="d">
     <UserControl.Resources>
-        <converters:InverseBoolConverter x:Key="InverseBoolConverter"/>
+        <converters:InverseBoolConverter x:Key="InverseBoolConverter" />
     </UserControl.Resources>
 
     <Grid Background="{StaticResource Brush.Background.Subtle}">
@@ -20,65 +22,128 @@
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <Grid Margin="16">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="120"/>
-                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="120" />
+                            <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
                         <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
 
-                        <TextBlock Text="RecipeName" VerticalAlignment="Center" Margin="0,0,12,12" FontSize="14"/>
-                        <TextBox Grid.Column="1"
-                                 Margin="0,0,0,12"
-                                 Height="32"
-                                 IsReadOnly="{Binding IsEditing, ElementName=Root, Converter={StaticResource InverseBoolConverter}}"
-                                 Text="{Binding RecipeName, UpdateSourceTrigger=PropertyChanged}"/>
+                        <TextBlock
+                            Margin="0,0,12,12"
+                            VerticalAlignment="Center"
+                            FontSize="14"
+                            Text="配方名称" />
+                        <TextBox
+                            Grid.Column="1"
+                            Height="32"
+                            Margin="0,0,0,12"
+                            IsReadOnly="{Binding IsEditing, ElementName=Root, Converter={StaticResource InverseBoolConverter}}"
+                            Text="{Binding RecipeName, UpdateSourceTrigger=PropertyChanged}" />
 
-                        <TextBlock Grid.Row="1" Text="TypeName" VerticalAlignment="Center" Margin="0,0,12,12" FontSize="14"/>
-                        <TextBox Grid.Row="1"
-                                 Grid.Column="1"
-                                 Margin="0,0,0,12"
-                                 Height="32"
-                                 IsReadOnly="{Binding IsEditing, ElementName=Root, Converter={StaticResource InverseBoolConverter}}"
-                                 Text="{Binding TypeName, UpdateSourceTrigger=PropertyChanged}"/>
+                        <TextBlock
+                            Grid.Row="1"
+                            Margin="0,0,12,12"
+                            VerticalAlignment="Center"
+                            FontSize="14"
+                            Text="头道基准类型" />
+                        <ComboBox
+                            Grid.Row="1"
+                            Grid.Column="1"
+                            Height="32"
+                            Margin="0,0,0,12"
+                            IsEnabled="{Binding IsEditing, ElementName=Root}"
+                            SelectedValue="{Binding FirstPassReference}"
+                            SelectedValuePath="Content">
+                            <ComboBoxItem Content="Surface" />
+                            <ComboBoxItem Content="Bottom" />
+                        </ComboBox>
 
-                        <TextBlock Grid.Row="2" Text="Radius" VerticalAlignment="Center" Margin="0,0,12,12" FontSize="14"/>
-                        <hc:NumericUpDown Grid.Row="2"
-                                          Grid.Column="1"
-                                          Margin="0,0,0,12"
-                                          Height="32"
-                                          IsReadOnly="{Binding IsEditing, ElementName=Root, Converter={StaticResource InverseBoolConverter}}"
-                                          Style="{StaticResource NumericDoubleUpDownStyle}"
-                                          Value="{Binding PunchParameters.Radius, UpdateSourceTrigger=PropertyChanged}"/>
+                        <TextBlock
+                            Grid.Row="2"
+                            Margin="0,0,12,12"
+                            VerticalAlignment="Center"
+                            FontSize="14"
+                            Text="工件类型" />
+                        <TextBox
+                            Grid.Row="2"
+                            Grid.Column="1"
+                            Height="32"
+                            Margin="0,0,0,12"
+                            IsReadOnly="{Binding IsEditing, ElementName=Root, Converter={StaticResource InverseBoolConverter}}"
+                            Text="{Binding TypeName, UpdateSourceTrigger=PropertyChanged}" />
 
-                        <TextBlock Grid.Row="3" Text="Rings" VerticalAlignment="Center" Margin="0,0,12,12" FontSize="14"/>
-                        <hc:NumericUpDown Grid.Row="3"
-                                          Grid.Column="1"
-                                          Margin="0,0,0,12"
-                                          Height="32"
-                                          IsReadOnly="{Binding IsEditing, ElementName=Root, Converter={StaticResource InverseBoolConverter}}"
-                                          Style="{StaticResource NumericIntUpDownStyle}"
-                                          Value="{Binding PunchParameters.Rings, UpdateSourceTrigger=PropertyChanged}"/>
+                        <TextBlock
+                            Grid.Row="3"
+                            Margin="0,0,12,12"
+                            VerticalAlignment="Center"
+                            FontSize="14"
+                            Text="半径" />
+                        <hc:NumericUpDown
+                            Grid.Row="3"
+                            Grid.Column="1"
+                            Height="32"
+                            Margin="0,0,0,12"
+                            IsReadOnly="{Binding IsEditing, ElementName=Root, Converter={StaticResource InverseBoolConverter}}"
+                            Style="{StaticResource NumericDoubleUpDownStyle}"
+                            Value="{Binding PunchParameters.Radius, UpdateSourceTrigger=PropertyChanged}" />
 
-                        <TextBlock Grid.Row="4" Text="PunchPoints" VerticalAlignment="Center" Margin="0,0,12,12" FontSize="14"/>
-                        <TextBlock Grid.Row="4"
-                                   Grid.Column="1"
-                                   Margin="0,0,0,12"
-                                   VerticalAlignment="Center"
-                                   FontSize="14"
-                                   FontWeight="SemiBold"
-                                   Foreground="{StaticResource Brush.Status.Blue}"
-                                   Text="{Binding TotalCount, StringFormat=共 {0} 个点位}"/>
+                        <TextBlock
+                            Grid.Row="4"
+                            Margin="0,0,12,12"
+                            VerticalAlignment="Center"
+                            FontSize="14"
+                            Text="环数" />
+                        <hc:NumericUpDown
+                            Grid.Row="4"
+                            Grid.Column="1"
+                            Height="32"
+                            Margin="0,0,0,12"
+                            IsReadOnly="{Binding IsEditing, ElementName=Root, Converter={StaticResource InverseBoolConverter}}"
+                            Style="{StaticResource NumericIntUpDownStyle}"
+                            Value="{Binding PunchParameters.Rings, UpdateSourceTrigger=PropertyChanged}" />
 
-                        <TextBlock Grid.Row="5" Text="说明" VerticalAlignment="Top" Margin="0,0,12,12" FontSize="14"/>
-                        <Border Grid.Row="5" Grid.Column="1" Padding="12" Background="{StaticResource Brush.Status.Yellow.Subtle}" BorderBrush="{StaticResource Brush.Status.Yellow}" BorderThickness="1" CornerRadius="4">
-                            <TextBlock TextWrapping="Wrap" Foreground="{StaticResource Brush.Foreground.Secondary}" Text="基础信息页用于维护 Recipe 元数据。冲孔点位新增与维护请切换到第二个 Tab，工艺参数请切换到第三个 Tab。"/>
+                        <TextBlock
+                            Grid.Row="5"
+                            Margin="0,0,12,12"
+                            VerticalAlignment="Center"
+                            FontSize="14"
+                            Text="点位" />
+                        <TextBlock
+                            Grid.Row="5"
+                            Grid.Column="1"
+                            Margin="0,0,0,12"
+                            VerticalAlignment="Center"
+                            FontSize="14"
+                            FontWeight="SemiBold"
+                            Foreground="{StaticResource Brush.Status.Blue}"
+                            Text="{Binding TotalCount, StringFormat=共 {0} 个点位}" />
+
+                        <TextBlock
+                            Grid.Row="6"
+                            Margin="0,0,12,12"
+                            VerticalAlignment="Top"
+                            FontSize="14"
+                            Text="说明" />
+                        <Border
+                            Grid.Row="6"
+                            Grid.Column="1"
+                            Padding="12"
+                            Background="{StaticResource Brush.Status.Yellow.Subtle}"
+                            BorderBrush="{StaticResource Brush.Status.Yellow}"
+                            BorderThickness="1"
+                            CornerRadius="4">
+                            <TextBlock
+                                Foreground="{StaticResource Brush.Foreground.Secondary}"
+                                Text="基础信息页用于维护 Recipe 元数据。冲孔点位新增与维护请切换到第二个 Tab，工艺参数请切换到第三个 Tab。"
+                                TextWrapping="Wrap" />
                         </Border>
                     </Grid>
                 </ScrollViewer>
@@ -87,83 +152,129 @@
             <TabItem Header="PunchPoints 点位编辑">
                 <Grid Margin="12">
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
 
                     <DockPanel Margin="0,0,0,10">
-                        <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
-                            <Button Content="新增单点" Width="100" Height="32" Margin="0,0,8,0" Command="{Binding AddPunchPointCommand}" IsEnabled="{Binding IsEditing, ElementName=Root}"/>
-                            <Button Content="删除选中" Width="100" Height="32" Margin="0,0,8,0" Command="{Binding RemoveSelectedPunchPointCommand}" IsEnabled="{Binding IsEditing, ElementName=Root}"/>
-                            <Button Content="重新排序" Width="100" Height="32" Margin="0,0,8,0" Command="{Binding SortPunchPointsCommand}" IsEnabled="{Binding IsEditing, ElementName=Root}"/>
-                            <Button Content="打开点集生成器" Width="130" Height="32" Click="OpenHoleGeneratorWindowButton_Click" IsEnabled="{Binding IsEditing, ElementName=Root}"/>
+                        <StackPanel DockPanel.Dock="Left" Orientation="Horizontal">
+                            <Button
+                                Width="100"
+                                Height="32"
+                                Margin="0,0,8,0"
+                                Command="{Binding AddPunchPointCommand}"
+                                Content="新增单点"
+                                IsEnabled="{Binding IsEditing, ElementName=Root}" />
+                            <Button
+                                Width="100"
+                                Height="32"
+                                Margin="0,0,8,0"
+                                Command="{Binding RemoveSelectedPunchPointCommand}"
+                                Content="删除选中"
+                                IsEnabled="{Binding IsEditing, ElementName=Root}" />
+                            <Button
+                                Width="100"
+                                Height="32"
+                                Margin="0,0,8,0"
+                                Command="{Binding SortPunchPointsCommand}"
+                                Content="重新排序"
+                                IsEnabled="{Binding IsEditing, ElementName=Root}" />
+                            <Button
+                                Width="130"
+                                Height="32"
+                                Click="OpenHoleGeneratorWindowButton_Click"
+                                Content="打开点集生成器"
+                                IsEnabled="{Binding IsEditing, ElementName=Root}" />
                         </StackPanel>
-                        <TextBlock DockPanel.Dock="Right"
-                                   VerticalAlignment="Center"
-                                   Foreground="{StaticResource Brush.Foreground.Muted}"
-                                   Text="点集生成器将在独立窗口中打开，用于不同方式生成并预览点位。"/>
+                        <TextBlock
+                            VerticalAlignment="Center"
+                            DockPanel.Dock="Right"
+                            Foreground="{StaticResource Brush.Foreground.Muted}"
+                            Text="点集生成器将在独立窗口中打开，用于不同方式生成并预览点位。" />
                     </DockPanel>
 
-                    <local:RecipePunchParametersControl Grid.Row="1"
-                                                       RecipeViewModel="{Binding RecipeViewModel, ElementName=Root}"
-                                                       IsEditing="{Binding IsEditing, ElementName=Root}"/>
+                    <local:RecipePunchParametersControl
+                        Grid.Row="1"
+                        IsEditing="{Binding IsEditing, ElementName=Root}"
+                        RecipeViewModel="{Binding RecipeViewModel, ElementName=Root}" />
                 </Grid>
             </TabItem>
 
             <TabItem Header="Detection 一道探测">
                 <Grid Margin="12">
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
-                    <TextBlock Grid.Row="0"
-                               Text="0 代表本圈不探测，其他数字 N 代表本圈探测次数"
-                               Foreground="{StaticResource Brush.Status.Green}"
-                               HorizontalAlignment="Center"
-                               Margin="0,0,0,12"
-                               FontSize="14"/>
+                    <TextBlock
+                        Grid.Row="0"
+                        Margin="0,0,0,12"
+                        HorizontalAlignment="Center"
+                        FontSize="14"
+                        Foreground="{StaticResource Brush.Status.Green}"
+                        Text="0 代表本圈不探测，其他数字 N 代表本圈探测次数" />
 
-                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="0,0,0,10">
+                    <ScrollViewer
+                        Grid.Row="1"
+                        Margin="0,0,0,10"
+                        VerticalScrollBarVisibility="Auto">
                         <ItemsControl ItemsSource="{Binding DetectionItems}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Grid Margin="45,2" Height="30">
+                                    <Grid Height="30" Margin="45,2">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="80"/>
-                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="80" />
+                                            <ColumnDefinition Width="*" />
                                         </Grid.ColumnDefinitions>
 
-                                        <TextBlock Text="{Binding Index, StringFormat=第{0}圈}" VerticalAlignment="Center" FontSize="14"/>
-                                        <hc:NumericUpDown Grid.Column="1"
-                                                          Value="{Binding DetectionCount, UpdateSourceTrigger=PropertyChanged}"
-                                                          IsReadOnly="{Binding IsEditing, ElementName=Root, Converter={StaticResource InverseBoolConverter}}"
-                                                          Style="{StaticResource NumericIntUpDownStyle}"
-                                                          Margin="0"/>
+                                        <TextBlock
+                                            VerticalAlignment="Center"
+                                            FontSize="14"
+                                            Text="{Binding Index, StringFormat=第{0}圈}" />
+                                        <hc:NumericUpDown
+                                            Grid.Column="1"
+                                            Margin="0"
+                                            IsReadOnly="{Binding IsEditing, ElementName=Root, Converter={StaticResource InverseBoolConverter}}"
+                                            Style="{StaticResource NumericIntUpDownStyle}"
+                                            Value="{Binding DetectionCount, UpdateSourceTrigger=PropertyChanged}" />
                                     </Grid>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
                     </ScrollViewer>
 
-                    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,8,0,12">
-                        <TextBlock Text="探测偏移量阈值：" VerticalAlignment="Center" FontSize="14" FontWeight="Bold"/>
-                        <hc:NumericUpDown Value="{Binding DetectionOffsetThreshold, UpdateSourceTrigger=PropertyChanged}"
-                                          Width="160"
-                                          Height="28"
-                                          IsReadOnly="{Binding IsEditing, ElementName=Root, Converter={StaticResource InverseBoolConverter}}"
-                                          Style="{StaticResource NumericIntUpDownStyle}"
-                                          Margin="0"/>
+                    <StackPanel
+                        Grid.Row="2"
+                        Margin="0,8,0,12"
+                        HorizontalAlignment="Center"
+                        Orientation="Horizontal">
+                        <TextBlock
+                            VerticalAlignment="Center"
+                            FontSize="14"
+                            FontWeight="Bold"
+                            Text="探测偏移量阈值：" />
+                        <hc:NumericUpDown
+                            Width="160"
+                            Height="28"
+                            Margin="0"
+                            IsReadOnly="{Binding IsEditing, ElementName=Root, Converter={StaticResource InverseBoolConverter}}"
+                            Style="{StaticResource NumericIntUpDownStyle}"
+                            Value="{Binding DetectionOffsetThreshold, UpdateSourceTrigger=PropertyChanged}" />
                     </StackPanel>
 
-                    <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Center">
-                        <Button Content="重置"
-                                Width="110"
-                                Height="34"
-                                Command="{Binding ResetDetectionCommand}"
-                                IsEnabled="{Binding IsEditing, ElementName=Root}"/>
+                    <StackPanel
+                        Grid.Row="3"
+                        HorizontalAlignment="Center"
+                        Orientation="Horizontal">
+                        <Button
+                            Width="110"
+                            Height="34"
+                            Command="{Binding ResetDetectionCommand}"
+                            Content="重置"
+                            IsEnabled="{Binding IsEditing, ElementName=Root}" />
                     </StackPanel>
                 </Grid>
             </TabItem>
@@ -171,66 +282,85 @@
             <TabItem Header="SecondPassDetection 二道探测">
                 <Grid Margin="12">
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
-                    <TextBlock Grid.Row="0"
-                               Text="0 代表本圈不探测，其他数字 N 代表本圈探测次数"
-                               Foreground="{StaticResource Brush.Status.Green}"
-                               HorizontalAlignment="Center"
-                               Margin="0,0,0,12"
-                               FontSize="14"/>
+                    <TextBlock
+                        Grid.Row="0"
+                        Margin="0,0,0,12"
+                        HorizontalAlignment="Center"
+                        FontSize="14"
+                        Foreground="{StaticResource Brush.Status.Green}"
+                        Text="0 代表本圈不探测，其他数字 N 代表本圈探测次数" />
 
-                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="0,0,0,10">
+                    <ScrollViewer
+                        Grid.Row="1"
+                        Margin="0,0,0,10"
+                        VerticalScrollBarVisibility="Auto">
                         <ItemsControl ItemsSource="{Binding SecondPassDetectionItems}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Grid Margin="45,2" Height="30">
+                                    <Grid Height="30" Margin="45,2">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="80"/>
-                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="80" />
+                                            <ColumnDefinition Width="*" />
                                         </Grid.ColumnDefinitions>
 
-                                        <TextBlock Text="{Binding Index, StringFormat=第{0}圈}" VerticalAlignment="Center" FontSize="14"/>
-                                        <hc:NumericUpDown Grid.Column="1"
-                                                          Value="{Binding DetectionCount, UpdateSourceTrigger=PropertyChanged}"
-                                                          IsReadOnly="{Binding IsEditing, ElementName=Root, Converter={StaticResource InverseBoolConverter}}"
-                                                          Style="{StaticResource NumericIntUpDownStyle}"
-                                                          Margin="0"/>
+                                        <TextBlock
+                                            VerticalAlignment="Center"
+                                            FontSize="14"
+                                            Text="{Binding Index, StringFormat=第{0}圈}" />
+                                        <hc:NumericUpDown
+                                            Grid.Column="1"
+                                            Margin="0"
+                                            IsReadOnly="{Binding IsEditing, ElementName=Root, Converter={StaticResource InverseBoolConverter}}"
+                                            Style="{StaticResource NumericIntUpDownStyle}"
+                                            Value="{Binding DetectionCount, UpdateSourceTrigger=PropertyChanged}" />
                                     </Grid>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
                     </ScrollViewer>
 
-                    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,8,0,12">
-                        <TextBlock Text="探测偏移量阈值：" VerticalAlignment="Center" FontSize="14" FontWeight="Bold"/>
-                        <hc:NumericUpDown Value="{Binding SecondPassOffsetThreshold, UpdateSourceTrigger=PropertyChanged}"
-                                          Width="160"
-                                          Height="28"
-                                          IsReadOnly="{Binding IsEditing, ElementName=Root, Converter={StaticResource InverseBoolConverter}}"
-                                          Style="{StaticResource NumericIntUpDownStyle}"
-                                          Margin="0"/>
+                    <StackPanel
+                        Grid.Row="2"
+                        Margin="0,8,0,12"
+                        HorizontalAlignment="Center"
+                        Orientation="Horizontal">
+                        <TextBlock
+                            VerticalAlignment="Center"
+                            FontSize="14"
+                            FontWeight="Bold"
+                            Text="探测偏移量阈值：" />
+                        <hc:NumericUpDown
+                            Width="160"
+                            Height="28"
+                            Margin="0"
+                            IsReadOnly="{Binding IsEditing, ElementName=Root, Converter={StaticResource InverseBoolConverter}}"
+                            Style="{StaticResource NumericIntUpDownStyle}"
+                            Value="{Binding SecondPassOffsetThreshold, UpdateSourceTrigger=PropertyChanged}" />
                     </StackPanel>
 
-                    <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Center">
-                        <Button Content="重置"
-                                Width="110"
-                                Height="34"
-                                Command="{Binding ResetSecondPassDetectionCommand}"
-                                IsEnabled="{Binding IsEditing, ElementName=Root}"/>
+                    <StackPanel
+                        Grid.Row="3"
+                        HorizontalAlignment="Center"
+                        Orientation="Horizontal">
+                        <Button
+                            Width="110"
+                            Height="34"
+                            Command="{Binding ResetSecondPassDetectionCommand}"
+                            Content="重置"
+                            IsEnabled="{Binding IsEditing, ElementName=Root}" />
                     </StackPanel>
                 </Grid>
             </TabItem>
 
             <TabItem Header="ProcessParameters 参数编辑">
-                <views:ProcessView RecipeViewModel="{Binding RecipeViewModel, ElementName=Root}"
-                                   IsEditing="{Binding IsEditing, ElementName=Root}"/>
+                <views:ProcessView IsEditing="{Binding IsEditing, ElementName=Root}" RecipeViewModel="{Binding RecipeViewModel, ElementName=Root}" />
             </TabItem>
         </TabControl>
     </Grid>
 </UserControl>
-

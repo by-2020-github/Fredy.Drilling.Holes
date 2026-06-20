@@ -1,3 +1,4 @@
+using Fredy.Drilling.Holes.UserControls.HoleGeneration;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -5,6 +6,7 @@ using System.Collections.Specialized;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -13,11 +15,45 @@ namespace Fredy.Drilling.Holes.ViewModels
 {
     public class HoleGeneratorViewModel : ObservableObject
     {
+        /// <summary>
+        /// 自动扫描程序集中所有标注了 [GenerationTab] 特性的 ViewModel，
+        /// 实例化并构建 GenerationTabs 集合。新增点位模式只需标注特性即可。
+        /// </summary>
         public HoleGeneratorViewModel(Action<IReadOnlyList<HoleCoordinate>>? applyGeneratedPoints = null)
         {
-            Sector = new SectorGeneratorViewModel(applyGeneratedPoints);
-            Starry = new StarryGeneratorViewModel(applyGeneratedPoints);
-            RingSpinneret = new RingSpinneretGeneratorViewModel(applyGeneratedPoints);
+            var discoveredTabs = DiscoverGenerationTabs(applyGeneratedPoints);
+            GenerationTabs = new ObservableCollection<GenerationTabDescriptor>(discoveredTabs);
+
+            Sector = GenerationTabs.FirstOrDefault(t => t.ViewModel is SectorGeneratorViewModel)?.ViewModel as SectorGeneratorViewModel
+                ?? new SectorGeneratorViewModel(applyGeneratedPoints);
+            Starry = GenerationTabs.FirstOrDefault(t => t.ViewModel is StarryGeneratorViewModel)?.ViewModel as StarryGeneratorViewModel
+                ?? new StarryGeneratorViewModel(applyGeneratedPoints);
+            RingSpinneret = GenerationTabs.FirstOrDefault(t => t.ViewModel is RingSpinneretGeneratorViewModel)?.ViewModel as RingSpinneretGeneratorViewModel
+                ?? new RingSpinneretGeneratorViewModel(applyGeneratedPoints);
+        }
+
+        /// <summary>
+        /// 通过反射扫描当前程序集中所有标注 [GenerationTab] 的 GeneratorTabViewModelBase 子类，
+        /// 按 Order 升序排列后实例化并构建 GenerationTabDescriptor 列表。
+        /// </summary>
+        private static IEnumerable<GenerationTabDescriptor> DiscoverGenerationTabs(
+            Action<IReadOnlyList<HoleCoordinate>>? applyGeneratedPoints)
+        {
+            var viewModelTypes = Assembly.GetExecutingAssembly()
+                .GetTypes()
+                .Where(t => t.IsClass
+                            && !t.IsAbstract
+                            && t.IsSubclassOf(typeof(GeneratorTabViewModelBase))
+                            && t.GetCustomAttribute<GenerationTabAttribute>() is not null)
+                .OrderBy(t => t.GetCustomAttribute<GenerationTabAttribute>()!.Order)
+                .ToList();
+
+            foreach (var type in viewModelTypes)
+            {
+                var attr = type.GetCustomAttribute<GenerationTabAttribute>()!;
+                var viewModel = (GeneratorTabViewModelBase?)Activator.CreateInstance(type, applyGeneratedPoints);
+                yield return new GenerationTabDescriptor { Header = attr.Header, ViewModel = viewModel };
+            }
         }
 
         public SectorGeneratorViewModel Sector { get; }
@@ -25,6 +61,25 @@ namespace Fredy.Drilling.Holes.ViewModels
         public StarryGeneratorViewModel Starry { get; }
 
         public RingSpinneretGeneratorViewModel RingSpinneret { get; }
+
+        /// <summary>
+        /// 动态 Tab 集合，新增点位生成模式只需在此集合添加即可。
+        /// </summary>
+        public ObservableCollection<GenerationTabDescriptor> GenerationTabs { get; }
+    }
+
+    /// <summary>
+    /// 描述一个点位生成 Tab 的头部与对应的子 ViewModel。
+    /// 水磨针等尚未实现的模式 ViewModel 可为 null。
+    /// </summary>
+    public sealed class GenerationTabDescriptor
+    {
+        public required string Header { get; init; }
+
+        /// <summary>
+        /// 对应 Tab 的子 ViewModel；若为 null 表示尚未实现。
+        /// </summary>
+        public GeneratorTabViewModelBase? ViewModel { get; init; }
     }
 
     public abstract class GeneratorTabViewModelBase : ObservableObject
@@ -120,6 +175,7 @@ namespace Fredy.Drilling.Holes.ViewModels
         }
     }
 
+    [GenerationTab("扇区盘", Order = 1)]
     public sealed class SectorGeneratorViewModel : GeneratorTabViewModelBase
     {
         private readonly SectorHoleGenerator generator = new();
@@ -279,6 +335,7 @@ namespace Fredy.Drilling.Holes.ViewModels
 
             TotalHoles = result.TotalHoles;
             UpdatePreview(result.Coordinates);
+            ApplyGeneratedPointsToRecipe(result.Coordinates);
             StatusMessage = "已生成橘子瓣模式预览。";
         }
 
@@ -310,6 +367,7 @@ namespace Fredy.Drilling.Holes.ViewModels
         }
     }
 
+    [GenerationTab("满天星", Order = 2)]
     public sealed class StarryGeneratorViewModel : GeneratorTabViewModelBase
     {
         private readonly HoleDataExporter exporter = new();
@@ -480,6 +538,7 @@ namespace Fredy.Drilling.Holes.ViewModels
 
             TotalHoles = coordinates.Count;
             UpdatePreview(coordinates);
+            ApplyGeneratedPointsToRecipe(coordinates);
             StatusMessage = "已生成满天星模式预览。";
         }
 
@@ -555,6 +614,7 @@ namespace Fredy.Drilling.Holes.ViewModels
         }
     }
 
+    [GenerationTab("环形喷丝板", Order = 3)]
     public sealed class RingSpinneretGeneratorViewModel : GeneratorTabViewModelBase
     {
         private readonly HoleDataExporter exporter = new();
@@ -667,6 +727,7 @@ namespace Fredy.Drilling.Holes.ViewModels
 
             TotalHoles = result.TotalHoles;
             UpdatePreview(result.Coordinates);
+            ApplyGeneratedPointsToRecipe(result.Coordinates);
             StatusMessage = "已生成环形喷丝板模式预览。";
         }
 
@@ -696,6 +757,20 @@ namespace Fredy.Drilling.Holes.ViewModels
             exporter.ExportRingSpinneretData(result.Coordinates, circleInfos);
             TotalHoles = result.TotalHoles;
             StatusMessage = "已执行环形喷丝板坐标导出。";
+        }
+    }
+
+    /// <summary>
+    /// 水磨针点位生成 ViewModel（预留扩展）。
+    /// 标注 [GenerationTab] 即可自动加入生成 Tab，无需手动修改 HoleGeneratorViewModel。
+    /// </summary>
+    [GenerationTab("水磨针", Order = 4)]
+    public sealed class WaterGrindingNeedleViewModel : GeneratorTabViewModelBase
+    {
+        public WaterGrindingNeedleViewModel(Action<IReadOnlyList<HoleCoordinate>>? applyGeneratedPoints = null)
+            : base(applyGeneratedPoints)
+        {
+            StatusMessage = "水磨针功能开发中。";
         }
     }
 

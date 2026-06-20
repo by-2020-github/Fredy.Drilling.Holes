@@ -1,0 +1,92 @@
+<UserControl x:Class="Fredy.Drilling.Holes.UserControls.HoleGeneration.RingSpinneretGenerationControl"
+             x:Name="Root"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:hc="clr-namespace:HandyControl.Controls;assembly=HandyControl"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:DesignHeight="600"
+             d:DesignWidth="900">
+    <UserControl.Resources>
+        <Style x:Key="FieldLabelStyle" TargetType="TextBlock">
+            <Setter Property="Margin" Value="0,0,0,6" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource Brush.Foreground.Secondary}" />
+        </Style>
+        <Style x:Key="ActionButtonStyle" TargetType="Button">
+            <Setter Property="Margin" Value="0,0,8,8" />
+            <Setter Property="Padding" Value="12,6" />
+            <Setter Property="MinWidth" Value="110" />
+        </Style>
+    </UserControl.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <Grid Margin="12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="320" />
+                <ColumnDefinition Width="16" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0">
+                <TextBlock Style="{StaticResource FieldLabelStyle}" Text="圈数" />
+                <hc:NumericUpDown Style="{StaticResource NumericIntUpDownStyle}" Margin="0,0,0,12" MinWidth="140" Value="{Binding ViewModel.CircleCount, UpdateSourceTrigger=PropertyChanged, ElementName=Root}" />
+
+                <TextBlock Style="{StaticResource FieldLabelStyle}" Text="首圈孔数" />
+                <hc:NumericUpDown Style="{StaticResource NumericIntUpDownStyle}" Margin="0,0,0,12" MinWidth="140" Value="{Binding ViewModel.FirstCircleHoles, UpdateSourceTrigger=PropertyChanged, ElementName=Root}" />
+
+                <TextBlock Style="{StaticResource FieldLabelStyle}" Text="首圈直径" />
+                <hc:NumericUpDown Style="{StaticResource NumericDoubleUpDownStyle}" Margin="0,0,0,12" MinWidth="140" Value="{Binding ViewModel.FirstCircleDiameter, UpdateSourceTrigger=PropertyChanged, ElementName=Root}" />
+
+                <TextBlock Style="{StaticResource FieldLabelStyle}" Text="圈间距" />
+                <hc:NumericUpDown Style="{StaticResource NumericDoubleUpDownStyle}" Margin="0,0,0,12" MinWidth="140" Value="{Binding ViewModel.CircleSpacing, UpdateSourceTrigger=PropertyChanged, ElementName=Root}" />
+
+                <TextBlock Style="{StaticResource FieldLabelStyle}" Text="偏移角度" />
+                <hc:NumericUpDown Style="{StaticResource NumericDoubleUpDownStyle}" Margin="0,0,0,12" MinWidth="140" Value="{Binding ViewModel.OffsetAngle, UpdateSourceTrigger=PropertyChanged, ElementName=Root}" />
+
+                <WrapPanel Margin="0,8,0,12">
+                    <Button Style="{StaticResource ActionButtonStyle}" Command="{Binding ViewModel.GenerateCircleInfoCommand, ElementName=Root}" Content="生成圈信息" />
+                    <Button Style="{StaticResource ActionButtonStyle}" Command="{Binding ViewModel.RefreshCommand, ElementName=Root}" Content="刷新" />
+                    <Button Style="{StaticResource ActionButtonStyle}" Command="{Binding ViewModel.GeneratePreviewCommand, ElementName=Root}" Content="图形预览" />
+                    <Button Style="{StaticResource ActionButtonStyle}" Command="{Binding ViewModel.GenerateAndApplyCommand, ElementName=Root}" Content="生成并应用到点位" />
+                    <Button Style="{StaticResource ActionButtonStyle}" Command="{Binding ViewModel.ExportCoordinatesCommand, ElementName=Root}" Content="导出坐标" />
+                </WrapPanel>
+
+                <Border Padding="12" Background="{StaticResource Brush.Background}" CornerRadius="6" BorderBrush="{StaticResource Brush.Border}" BorderThickness="1">
+                    <StackPanel>
+                        <TextBlock Text="总孔数" FontWeight="Bold" Foreground="{StaticResource Brush.Foreground.Secondary}" />
+                        <TextBlock Margin="0,6,0,0" FontSize="22" FontWeight="Bold" Text="{Binding ViewModel.TotalHoles, ElementName=Root}" />
+                        <TextBlock Margin="0,12,0,0" TextWrapping="Wrap" Foreground="{StaticResource Brush.Foreground.Muted}" Text="{Binding ViewModel.StatusMessage, ElementName=Root}" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <Grid Grid.Column="2">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="260" />
+                    <RowDefinition Height="16" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <GroupBox Header="圈信息">
+                    <DataGrid ItemsSource="{Binding ViewModel.CircleInfos, ElementName=Root}"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              CanUserDeleteRows="False"
+                              HeadersVisibility="Column"
+                              IsReadOnly="True">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="编号" Binding="{Binding Number}" Width="70" />
+                            <DataGridTextColumn Header="直径" Binding="{Binding Diameter, StringFormat=F3}" Width="120" />
+                            <DataGridTextColumn Header="孔数" Binding="{Binding HoleCount}" Width="100" />
+                            <DataGridTextColumn Header="起始角度" Binding="{Binding StartAngle, StringFormat=F2}" Width="*" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </GroupBox>
+
+                <!-- 预留：预览占位由父级 HoleGeneratorView 提供 -->
+            </Grid>
+        </Grid>
+    </ScrollViewer>
+</UserControl>

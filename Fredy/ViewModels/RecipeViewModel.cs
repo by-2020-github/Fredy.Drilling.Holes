@@ -148,6 +148,7 @@ namespace Fredy.Drilling.Holes.ViewModels
         private double _radius;
         private int _rings;
         private PunchPointViewModel? _selectedPunchPoint;
+        private string _firstPassReference = "Surface";
         private int _detectionOffsetThreshold;
         private int _secondPassOffsetThreshold;
         private bool _isFirstPass = true;
@@ -171,6 +172,7 @@ namespace Fredy.Drilling.Holes.ViewModels
             ProcessParameters = recipe.ProcessParameters;
             _recipeName = recipe.RecipeName;
             _typeName = recipe.TypeName;
+            _firstPassReference = ProcessParameters.FirstPassReference;
             _radius = _punchParameters.Radius;
             _rings = _punchParameters.Rings;
             PunchPoints = new ObservableCollection<PunchPointViewModel>(_punchParameters.PunchPoints
@@ -268,6 +270,18 @@ namespace Fredy.Drilling.Holes.ViewModels
                 if (SetProperty(ref _rings, value))
                 {
                     _punchParameters.Rings = value;
+                }
+            }
+        }
+
+        public string FirstPassReference
+        {
+            get => _firstPassReference;
+            set
+            {
+                if (SetProperty(ref _firstPassReference, value))
+                {
+                    ProcessParameters.FirstPassReference = value;
                 }
             }
         }

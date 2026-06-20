@@ -1,0 +1,17 @@
+<UserControl x:Class="Fredy.Drilling.Holes.UserControls.HoleGeneration.WaterGrindingNeedleGenerationControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:DesignHeight="400"
+             d:DesignWidth="600">
+    <Grid Margin="24">
+        <Border Padding="24" Background="{StaticResource Brush.Background}" CornerRadius="8" BorderBrush="{StaticResource Brush.Border}" BorderThickness="1">
+            <StackPanel>
+                <TextBlock FontSize="24" FontWeight="Bold" Foreground="{StaticResource Brush.Status.Blue}" Text="水磨针功能" />
+                <TextBlock Margin="0,16,0,0" FontSize="16" TextWrapping="Wrap" Text="当前模式在原始程序中仍处于开发中。该 WPF 版本已预留 MVVM 扩展位，可继续在对应 ViewModel 中补充参数、命令和预览逻辑。" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>

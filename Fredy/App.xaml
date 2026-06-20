@@ -13,6 +13,7 @@
                 <ResourceDictionary Source="/Fredy.Drilling.Holes;component/Themes/Colors.xaml"/>
                 <ResourceDictionary Source="/Fredy.Drilling.Holes;component/Themes/Controls.xaml"/>
                 <ResourceDictionary Source="/Fredy.Drilling.Holes;component/Themes/MainResources.xaml"/>
+                <ResourceDictionary Source="/Fredy.Drilling.Holes;component/Themes/GenerationTabDataTemplates.xaml"/>
             </ResourceDictionary.MergedDictionaries>
  
             <converters:InverseBoolConverter x:Key="InverseBoolConverter"/>

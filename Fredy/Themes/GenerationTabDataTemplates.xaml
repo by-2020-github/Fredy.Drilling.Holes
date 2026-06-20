@@ -1,0 +1,34 @@
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:gen="clr-namespace:Fredy.Drilling.Holes.UserControls.HoleGeneration"
+    xmlns:vm="clr-namespace:Fredy.Drilling.Holes.ViewModels">
+
+    <!--
+        点位生成 ViewModel → View 统一映射入口。
+        新增点位模式时，在此添加一行 DataTemplate 即可，无需修改其他文件。
+        注意：TabControl.ItemsSource 绑定的是 GenerationTabDescriptor，
+        因此模板内部需通过 {Binding ViewModel} 导航到实际的子 ViewModel。
+    -->
+
+    <!-- 扇区盘（橘子瓣） -->
+    <DataTemplate DataType="{x:Type vm:SectorGeneratorViewModel}">
+        <gen:SectorGenerationControl ViewModel="{Binding ViewModel}" />
+    </DataTemplate>
+
+    <!-- 满天星 -->
+    <DataTemplate DataType="{x:Type vm:StarryGeneratorViewModel}">
+        <gen:StarryGenerationControl ViewModel="{Binding ViewModel}" />
+    </DataTemplate>
+
+    <!-- 环形喷丝板 -->
+    <DataTemplate DataType="{x:Type vm:RingSpinneretGeneratorViewModel}">
+        <gen:RingSpinneretGenerationControl ViewModel="{Binding ViewModel}" />
+    </DataTemplate>
+
+    <!-- 水磨针（占位，无 ViewModel 绑定） -->
+    <DataTemplate DataType="{x:Type vm:WaterGrindingNeedleViewModel}">
+        <gen:WaterGrindingNeedleGenerationControl />
+    </DataTemplate>
+
+</ResourceDictionary>

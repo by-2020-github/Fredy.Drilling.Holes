@@ -59,6 +59,11 @@ namespace Common.Models
 
         public bool IsSecondDetectionActive { get; set; }
 
+        /// <summary>
+        /// 头道冲孔基准选择：Surface（表面）或 Bottom（底面）
+        /// </summary>
+        public string FirstPassReference { get; set; } = "Surface";
+
         public List<RecipeDepthItem> PunchDepths { get; set; } = CreateDefaultPunchDepths();
 
         public List<RecipeDetectionItem>? FirstPassDetectionItems { get; set; }
