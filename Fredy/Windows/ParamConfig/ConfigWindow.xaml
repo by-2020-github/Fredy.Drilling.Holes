@@ -174,19 +174,24 @@
                                         Header="回零参数">
                                         <StackPanel>
                                             <GroupBox Header="回零模式">
-                                                <StackPanel Margin="5" Orientation="Horizontal">
+                                                <StackPanel Margin="5">
                                                     <CheckBox
-                                                        Margin="15,0"
-                                                        Content="IO回零"
-                                                        IsChecked="{Binding IsIoHome}" />
-                                                    <CheckBox
-                                                        Margin="15,0"
-                                                        Content="锁存"
-                                                        IsChecked="{Binding IsLatch}" />
-                                                    <CheckBox
-                                                        Margin="15,0"
+                                                        Margin="0,0,0,8"
                                                         Content="光栅尺回零"
+                                                        FontWeight="SemiBold"
                                                         IsChecked="{Binding IsGratingHome}" />
+                                                    <StackPanel Margin="25,0,0,0" IsEnabled="{Binding IsGratingHome}">
+                                                        <RadioButton
+                                                            Margin="0,2"
+                                                            Content="IO回零"
+                                                            GroupName="GratingHomeMode"
+                                                            IsChecked="{Binding IsIoHome}" />
+                                                        <RadioButton
+                                                            Margin="0,2"
+                                                            Content="锁存"
+                                                            GroupName="GratingHomeMode"
+                                                            IsChecked="{Binding IsLatch}" />
+                                                    </StackPanel>
                                                 </StackPanel>
                                             </GroupBox>
 

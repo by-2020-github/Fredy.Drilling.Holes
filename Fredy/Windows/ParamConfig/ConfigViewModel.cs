@@ -104,9 +104,48 @@ namespace Fredy.Drilling.Holes.ViewModels
         [ObservableProperty] private bool _surfaceDetectInputLowActive = true;
         [ObservableProperty] private int _surfaceDetectPollIntervalMs = 10;
 
-        [ObservableProperty] private bool _isIoHome;
-        [ObservableProperty] private bool _isLatch;
         [ObservableProperty] private bool _isGratingHome;
+
+        partial void OnIsGratingHomeChanged(bool value)
+        {
+            if (!value)
+            {
+                _isIoHome = false;
+                _isLatch = false;
+                OnPropertyChanged(nameof(IsIoHome));
+                OnPropertyChanged(nameof(IsLatch));
+            }
+        }
+
+        [ObservableProperty] private bool _isIoHome;
+        partial void OnIsIoHomeChanged(bool value)
+        {
+            if (value)
+            {
+                _isLatch = false;
+                OnPropertyChanged(nameof(IsLatch));
+                if (!_isGratingHome)
+                {
+                    _isGratingHome = true;
+                    OnPropertyChanged(nameof(IsGratingHome));
+                }
+            }
+        }
+
+        [ObservableProperty] private bool _isLatch;
+        partial void OnIsLatchChanged(bool value)
+        {
+            if (value)
+            {
+                _isIoHome = false;
+                OnPropertyChanged(nameof(IsIoHome));
+                if (!_isGratingHome)
+                {
+                    _isGratingHome = true;
+                    OnPropertyChanged(nameof(IsGratingHome));
+                }
+            }
+        }
 
         [ObservableProperty] private PortItem _xLimitPort = new() { PortIndex = 14 };
         [ObservableProperty] private PortItem _yLimitPort = new() { PortIndex = 14 };
