@@ -85,6 +85,10 @@ namespace Fredy.Drilling.Holes.Models
 
         private double _gratingHomeAcceleration = 2.0;
 
+        private double _gratingPreMoveTargetMm = 1.0;
+
+        private double _gratingPreMoveSpeed = 1.0;
+
         private bool _zHomeTowardPositiveDirection;
 
         [JsonIgnore]
@@ -149,6 +153,20 @@ namespace Fredy.Drilling.Holes.Models
         {
             get => _gratingHomeAcceleration;
             set => SetProperty(ref _gratingHomeAcceleration, value);
+        }
+
+        // 光栅预移动目标位置 (mm) 绝对值
+        public double GratingPreMoveTargetMm
+        {
+            get => _gratingPreMoveTargetMm;
+            set => SetProperty(ref _gratingPreMoveTargetMm, value);
+        }
+
+        // 光栅预移动速度 (mm/s)
+        public double GratingPreMoveSpeed
+        {
+            get => _gratingPreMoveSpeed;
+            set => SetProperty(ref _gratingPreMoveSpeed, value);
         }
 
         public bool ZHomeTowardPositiveDirection

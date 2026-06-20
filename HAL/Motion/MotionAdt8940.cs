@@ -47,7 +47,9 @@ namespace HAL
             double SlowHomeAcceleration = 1.0,
             double GratingHomeStartSpeed = 0.5,
             double GratingHomeSpeed = 2.0,
-            double GratingHomeAcceleration = 2.0);
+            double GratingHomeAcceleration = 2.0,
+            double GratingPreMoveTargetMm = 1.0,
+            double GratingPreMoveSpeed = 1.0);
 
         public readonly record struct NativeCallRecord(
             long SequenceId,
@@ -152,7 +154,9 @@ namespace HAL
                 SlowHomeAcceleration = Math.Max(0.001, options.SlowHomeAcceleration),
                 GratingHomeStartSpeed = Math.Max(0.001, options.GratingHomeStartSpeed),
                 GratingHomeSpeed = Math.Max(0.001, options.GratingHomeSpeed),
-                GratingHomeAcceleration = Math.Max(0.001, options.GratingHomeAcceleration)
+                GratingHomeAcceleration = Math.Max(0.001, options.GratingHomeAcceleration),
+                GratingPreMoveTargetMm = Math.Max(0.1, options.GratingPreMoveTargetMm),
+                GratingPreMoveSpeed = Math.Max(0.1, options.GratingPreMoveSpeed)
             };
 
             _homeSearchSpeed = _homingOptions.HomeSearchSpeed;
@@ -327,12 +331,12 @@ namespace HAL
 
             if (_homingOptions.IsGratingHome)
             {
-                // 第一阶段：机械回零完成后，向正方向移动至绝对 +1mm，为光栅寻零预留逼近空间
-                const double gratingPreMoveTargetMm = 1.0;
-                const double gratingPreMoveSpeed = 1.0;
+                // 第一阶段：机械回零完成后，向正方向移动至绝对 +Xmm，为光栅寻零预留逼近空间
+                var preMoveTargetMm = _homingOptions.GratingPreMoveTargetMm;
+                var preMoveSpeed = _homingOptions.GratingPreMoveSpeed;
                 var posBeforePreMove = await GetPositionAsync(axisNo, cancellationToken).ConfigureAwait(false);
-                LogHomeDebug("Axis {AxisNo} pre-move: current={Current:F3} mm, target=absolute +{Target}mm, speed={Speed:F3} mm/s", axisNo, posBeforePreMove, gratingPreMoveTargetMm, gratingPreMoveSpeed);
-                await MoveAbsoluteAsync(axisNo, gratingPreMoveTargetMm, wait: true, gratingPreMoveSpeed, cancellationToken).ConfigureAwait(false);
+                LogHomeDebug("Axis {AxisNo} pre-move: current={Current:F3} mm, target=absolute +{Target}mm, speed={Speed:F3} mm/s", axisNo, posBeforePreMove, preMoveTargetMm, preMoveSpeed);
+                await MoveAbsoluteAsync(axisNo, preMoveTargetMm, wait: true, preMoveSpeed, cancellationToken).ConfigureAwait(false);
                 var posAfterPreMove = await GetPositionAsync(axisNo, cancellationToken).ConfigureAwait(false);
                 LogHomeDebug("Axis {AxisNo} pre-move completed. Position={Position:F3} mm", axisNo, posAfterPreMove);
 

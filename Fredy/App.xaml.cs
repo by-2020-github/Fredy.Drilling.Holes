@@ -473,7 +473,9 @@ namespace Fredy.Drilling.Holes
                 homing.SlowHomeAcceleration,
                 homing.GratingHomeStartSpeed,
                 homing.GratingHomeSpeed,
-                homing.GratingHomeAcceleration);
+                homing.GratingHomeAcceleration,
+                homing.GratingPreMoveTargetMm,
+                homing.GratingPreMoveSpeed);
         }
 
         private static double ResolveSharedFastHomeSearchSpeed(Models.AppConfig config)

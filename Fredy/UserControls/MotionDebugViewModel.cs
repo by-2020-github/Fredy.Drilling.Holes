@@ -414,7 +414,9 @@ namespace Fredy.Drilling.Holes.UserControls
                 homing.SlowHomeAcceleration,
                 homing.GratingHomeStartSpeed,
                 homing.GratingHomeSpeed,
-                homing.GratingHomeAcceleration);
+                homing.GratingHomeAcceleration,
+                homing.GratingPreMoveTargetMm,
+                homing.GratingPreMoveSpeed);
         }
 
         private static MotionAdt8940.HomingPort BuildHomingPort(PortItem port)

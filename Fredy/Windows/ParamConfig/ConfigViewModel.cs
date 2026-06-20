@@ -438,7 +438,9 @@ namespace Fredy.Drilling.Holes.ViewModels
                 homing.SlowHomeAcceleration,
                 homing.GratingHomeStartSpeed,
                 homing.GratingHomeSpeed,
-                homing.GratingHomeAcceleration);
+                homing.GratingHomeAcceleration,
+                homing.GratingPreMoveTargetMm,
+                homing.GratingPreMoveSpeed);
         }
 
         private static HAL.MotionAdt8940.HomingPort BuildHomingPort(PortItem port)
@@ -953,7 +955,9 @@ namespace Fredy.Drilling.Holes.ViewModels
                 SlowHomeAcceleration = source.SlowHomeAcceleration,
                 GratingHomeStartSpeed = source.GratingHomeStartSpeed,
                 GratingHomeSpeed = source.GratingHomeSpeed,
-                GratingHomeAcceleration = source.GratingHomeAcceleration
+                GratingHomeAcceleration = source.GratingHomeAcceleration,
+                GratingPreMoveTargetMm = source.GratingPreMoveTargetMm,
+                GratingPreMoveSpeed = source.GratingPreMoveSpeed
             };
         }
 
