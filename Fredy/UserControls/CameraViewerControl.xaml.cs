@@ -977,6 +977,18 @@ namespace Fredy.Drilling.Holes.UserControls
             SetOperationLog("已清除工件圆心校准图像标记。", true);
         }
 
+        private void ClearAllOverlays_Click(object sender, RoutedEventArgs e)
+        {
+            _workpieceEdgeOverlayPoints.Clear();
+            _workpieceHoleOverlay = null;
+            OverlayCanvas.Children.Clear();
+            CalibrationOverlayCanvas.Children.Clear();
+            CenterRoiOverlayCanvas.Children.Clear();
+            ROICanvas.Visibility = Visibility.Collapsed;
+            CenterRoiPreviewPanel.Visibility = Visibility.Collapsed;
+            SetOperationLog("已清除所有叠加层。", true);
+        }
+
         private void HandleWorkpieceEdgePick(System.Windows.Point uiPoint)
         {
             using var sourceMat = CreateWorkingMat();

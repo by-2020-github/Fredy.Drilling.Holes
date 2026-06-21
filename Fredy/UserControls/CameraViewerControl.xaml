@@ -92,6 +92,8 @@
                         <MenuItem x:Name="MenuWorkpieceEdgePickMode" Header="边缘点自动拾取模式" IsCheckable="True" Click="ToggleWorkpieceEdgePickMode_Click"/>
                         <MenuItem Header="清除校准图像标记" Click="ClearWorkpieceCalibrationMarkers_Click"/>
                     </MenuItem>
+                    <Separator/>
+                    <MenuItem Header="清除所有叠加层" Click="ClearAllOverlays_Click"/>
                 </ContextMenu>
             </Grid.ContextMenu>
 
