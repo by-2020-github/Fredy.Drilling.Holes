@@ -1,6 +1,7 @@
 using Fredy.Drilling.Holes.Models;
 using Fredy.Drilling.Holes.ViewModels;
 using HAL;
+using HandyControl.Data;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Win32;
 using MvCamCtrl.NET;
@@ -45,6 +46,7 @@ public partial class HkCameraControl : UserControl
     private Window? _ownerWindow;
 
     private bool _sdkAcquired;
+    private bool _isSuppressingExposureChanged;
 
     public HkCameraControl()
     {
@@ -77,6 +79,11 @@ public partial class HkCameraControl : UserControl
 
         bnGetParam.Click += BnGetParam_Click;
         bnSetParam.Click += BnSetParam_Click;
+
+        bnSetExposure.Click += BnSetExposure_Click;
+        cbAutoExposure.Checked += CbAutoExposure_CheckedChanged;
+        cbAutoExposure.Unchecked += CbAutoExposure_CheckedChanged;
+        tbExposure.ValueChanged += TbExposure_ValueChanged;
 
         bnSaveBmp.Click += (_, _) => SaveImage(MyCamera.MV_SAVE_IAMGE_TYPE.MV_Image_Bmp, ".bmp");
         bnSaveJpg.Click += (_, _) => SaveImage(MyCamera.MV_SAVE_IAMGE_TYPE.MV_Image_Jpeg, ".jpg");
@@ -489,6 +496,68 @@ public partial class HkCameraControl : UserControl
         }
     }
 
+    private void BnSetExposure_Click(object? sender, RoutedEventArgs e)
+    {
+        if (_camera is null || !_camera.IsConnected)
+        {
+            return;
+        }
+
+        var exposure = Convert.ToSingle(tbExposure.Value);
+        if (float.IsNaN(exposure))
+        {
+            ShowError("曝光参数格式错误", 0);
+            return;
+        }
+
+        var nRet = _camera.TrySetExposureTime(exposure);
+        if (nRet != MyCamera.MV_OK)
+        {
+            ShowError("设置曝光失败", nRet);
+        }
+    }
+
+    private void CbAutoExposure_CheckedChanged(object? sender, RoutedEventArgs e)
+    {
+        if (_camera is null || !_camera.IsConnected)
+        {
+            return;
+        }
+
+        var isAuto = cbAutoExposure.IsChecked == true;
+        var nRet = _camera.TrySetExposureAutoMode(isAuto);
+        if (nRet != MyCamera.MV_OK)
+        {
+            ShowError(isAuto ? "设置自动曝光失败" : "设置手动曝光失败", nRet);
+            cbAutoExposure.IsChecked = !isAuto;
+            return;
+        }
+
+        tbExposure.IsEnabled = !isAuto;
+        bnSetExposure.IsEnabled = !isAuto;
+
+        if (!isAuto)
+        {
+            ReadExposureParam();
+        }
+    }
+
+    private void TbExposure_ValueChanged(object? sender, FunctionEventArgs<double> e)
+    {
+        if (_isSuppressingExposureChanged || _camera is null || !_camera.IsConnected || cbAutoExposure.IsChecked == true)
+        {
+            return;
+        }
+
+        var exposure = Convert.ToSingle(e.Info);
+        if (float.IsNaN(exposure))
+        {
+            return;
+        }
+
+        _camera.TrySetExposureTime(exposure);
+    }
+
     private async Task StopGrabbingAsync()
     {
         if (!_isGrabbing)
@@ -538,9 +607,21 @@ public partial class HkCameraControl : UserControl
             return;
         }
 
-        if (_camera.TryGetExposureTime(out var exposure))
+        if (_camera.TryGetExposureAutoMode(out var isAuto))
         {
-            tbExposure.Value = exposure;
+            cbAutoExposure.IsChecked = isAuto;
+            tbExposure.IsEnabled = !isAuto;
+            bnSetExposure.IsEnabled = !isAuto;
+        }
+
+        if (!cbAutoExposure.IsChecked.GetValueOrDefault())
+        {
+            if (_camera.TryGetExposureTime(out var exposure))
+            {
+                _isSuppressingExposureChanged = true;
+                tbExposure.Value = exposure;
+                _isSuppressingExposureChanged = false;
+            }
         }
 
         if (_camera.TryGetGain(out var gain))
@@ -551,6 +632,21 @@ public partial class HkCameraControl : UserControl
         if (_camera.TryGetResultingFrameRate(out var frameRate))
         {
             tbFrameRate.Value = frameRate;
+        }
+    }
+
+    private void ReadExposureParam()
+    {
+        if (_camera is null || !_camera.IsConnected)
+        {
+            return;
+        }
+
+        if (_camera.TryGetExposureTime(out var exposure))
+        {
+            _isSuppressingExposureChanged = true;
+            tbExposure.Value = exposure;
+            _isSuppressingExposureChanged = false;
         }
     }
 
@@ -1023,6 +1119,8 @@ public partial class HkCameraControl : UserControl
         bnTriggerExec.IsEnabled = false;
 
         tbExposure.IsEnabled = true;
+        bnSetExposure.IsEnabled = true;
+        cbAutoExposure.IsEnabled = true;
         tbGain.IsEnabled = true;
         tbFrameRate.IsEnabled = true;
         bnGetParam.IsEnabled = true;
@@ -1043,6 +1141,8 @@ public partial class HkCameraControl : UserControl
         bnTriggerExec.IsEnabled = false;
 
         tbExposure.IsEnabled = false;
+        bnSetExposure.IsEnabled = false;
+        cbAutoExposure.IsEnabled = false;
         tbGain.IsEnabled = false;
         tbFrameRate.IsEnabled = false;
         bnGetParam.IsEnabled = false;

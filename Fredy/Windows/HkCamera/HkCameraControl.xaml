@@ -67,8 +67,11 @@
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="72" />
                         <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="8" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="8" />
                         <RowDefinition Height="Auto" />
@@ -79,11 +82,13 @@
                     </Grid.RowDefinitions>
                     <Label Grid.Row="0" Grid.Column="0" VerticalAlignment="Center" Content="曝光" />
                     <hc:NumericUpDown x:Name="tbExposure" Grid.Row="0" Grid.Column="1" IsEnabled="False" Style="{StaticResource NumericDoubleUpDownStyle}" Margin="0" />
-                    <Label Grid.Row="2" Grid.Column="0" VerticalAlignment="Center" Content="增益" />
-                    <hc:NumericUpDown x:Name="tbGain" Grid.Row="2" Grid.Column="1" IsEnabled="False" Style="{StaticResource NumericDoubleUpDownStyle}" Margin="0" />
-                    <Label Grid.Row="4" Grid.Column="0" VerticalAlignment="Center" Content="帧率" />
-                    <hc:NumericUpDown x:Name="tbFrameRate" Grid.Row="4" Grid.Column="1" IsEnabled="False" Style="{StaticResource NumericDoubleUpDownStyle}" Margin="0" />
-                    <StackPanel Grid.Row="6" Grid.ColumnSpan="2" Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button x:Name="bnSetExposure" Grid.Row="0" Grid.Column="2" Width="75" Margin="8,0,0,0" Content="设置曝光" IsEnabled="False" ToolTip="独立设置曝光时间到相机" />
+                    <CheckBox x:Name="cbAutoExposure" Grid.Row="2" Grid.Column="1" Content="自动曝光" IsEnabled="False" ToolTip="开启后相机自动调整曝光时间" />
+                    <Label Grid.Row="4" Grid.Column="0" VerticalAlignment="Center" Content="增益" />
+                    <hc:NumericUpDown x:Name="tbGain" Grid.Row="4" Grid.Column="1" Grid.ColumnSpan="2" IsEnabled="False" Style="{StaticResource NumericDoubleUpDownStyle}" Margin="0" />
+                    <Label Grid.Row="6" Grid.Column="0" VerticalAlignment="Center" Content="帧率" />
+                    <hc:NumericUpDown x:Name="tbFrameRate" Grid.Row="6" Grid.Column="1" Grid.ColumnSpan="2" IsEnabled="False" Style="{StaticResource NumericDoubleUpDownStyle}" Margin="0" />
+                    <StackPanel Grid.Row="8" Grid.ColumnSpan="3" Orientation="Horizontal" HorizontalAlignment="Right">
                         <Button x:Name="bnGetParam" Width="75" Margin="0,0,8,0" Content="获取参数" IsEnabled="False" />
                         <Button x:Name="bnSetParam" Width="75" Content="设置参数" IsEnabled="False" />
                     </StackPanel>

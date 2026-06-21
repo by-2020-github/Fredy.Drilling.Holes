@@ -350,6 +350,71 @@ namespace HAL
             return ret;
         }
 
+        public int TrySetExposureAutoMode(bool isAuto)
+        {
+            lock (_syncRoot)
+            {
+                if (_camera is null || !IsConnected || !IsCameraHandleValid())
+                {
+                    ResetConnectionState();
+                    return MyCamera.MV_E_HANDLE;
+                }
+
+                return _camera.MV_CC_SetEnumValueByString_NET("ExposureAuto", isAuto ? "Continuous" : "Off");
+            }
+        }
+
+        public bool TryGetExposureAutoMode(out bool isAuto)
+        {
+            lock (_syncRoot)
+            {
+                isAuto = false;
+
+                if (_camera is null || !IsConnected || !IsCameraHandleValid())
+                {
+                    ResetConnectionState();
+                    return false;
+                }
+
+                var param = new MyCamera.MVCC_ENUMVALUE();
+                if (_camera.MV_CC_GetEnumValue_NET("ExposureAuto", ref param) != MyCamera.MV_OK)
+                {
+                    return false;
+                }
+
+                isAuto = param.nCurValue != 0;
+                return true;
+            }
+        }
+
+        public int TrySetAutoExposureTimeLower(uint value)
+        {
+            lock (_syncRoot)
+            {
+                if (_camera is null || !IsConnected || !IsCameraHandleValid())
+                {
+                    ResetConnectionState();
+                    return MyCamera.MV_E_HANDLE;
+                }
+
+                return _camera.MV_CC_SetAutoExposureTimeLower_NET(value);
+            }
+        }
+
+        public int TrySetAutoExposureTimeUpper(uint value)
+        {
+            lock (_syncRoot)
+            {
+                if (_camera is null || !IsConnected || !IsCameraHandleValid())
+                {
+                    ResetConnectionState();
+                    return MyCamera.MV_E_HANDLE;
+                }
+
+                return _camera.MV_CC_SetAutoExposureTimeUpper_NET(value);
+            }
+        }
+
         public void Dispose()
         {
             Close();
