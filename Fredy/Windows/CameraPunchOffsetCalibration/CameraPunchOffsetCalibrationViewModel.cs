@@ -313,13 +313,73 @@ namespace Fredy.Drilling.Holes.ViewModels
                 }
 
                 var detectedZ = detectionResult.SurfaceZ;
+
+                // 检测换针：对比上次记录的参考 Z，计算 NeedleOffsetZ
+                double previousReferenceZ = config.WorkpieceReferenceZ;
+                bool hasPreviousReference = config.HasWorkpieceReferenceZ;
+                double needleOffset = 0d;
+                bool needleChanged = false;
+
+                if (hasPreviousReference && Math.Abs(detectedZ - previousReferenceZ) > 0.0001d)
+                {
+                    needleOffset = detectedZ - previousReferenceZ;
+                    needleChanged = true;
+                    config.NeedleOffsetZ = needleOffset;
+                    config.PreviousWorkpieceReferenceZ = previousReferenceZ;
+
+                    _logger?.LogInformation(
+                        "[换针检测] 上次参考 Z={PreviousZ:F4}, 本次探测 Z={CurrentZ:F4}, 偏移 NeedleOffsetZ={Offset:F4} mm（正值=新针更长/少冲，负值=新针更短/多冲）",
+                        previousReferenceZ, detectedZ, needleOffset);
+                }
+                else if (!hasPreviousReference)
+                {
+                    _logger?.LogInformation(
+                        "[换针检测] 首次记录参考 Z={CurrentZ:F4}，无上次数据可对比，NeedleOffsetZ 保持为 0",
+                        detectedZ);
+                }
+                else
+                {
+                    _logger?.LogInformation(
+                        "[换针检测] 本次探测 Z={CurrentZ:F4} 与上次一致（上次={PreviousZ:F4}），未检测到换针",
+                        detectedZ, previousReferenceZ);
+                }
+
                 SetTestPunchReference(detectedZ, hasReference: true);
-                PersistTestPunchReferenceZ(detectedZ);
+
+                // 持久化配置（含换针偏移量）
+                config.WorkpieceReferenceZ = detectedZ;
+                config.HasWorkpieceReferenceZ = true;
+                config.CameraPunchOffsetCalibrationTestPunch ??= new CameraPunchOffsetCalibrationTestPunchConfig();
+                config.CameraPunchOffsetCalibrationTestPunch.TargetX = TestPunchTargetX;
+                config.CameraPunchOffsetCalibrationTestPunch.TargetY = TestPunchTargetY;
+                config.CameraPunchOffsetCalibrationTestPunch.CompletionRestoreZ = TestPunchCompletionRestoreZ;
+                if (needleChanged)
+                {
+                    config.NeedleOffsetZ = needleOffset;
+                    config.PreviousWorkpieceReferenceZ = previousReferenceZ;
+                }
+                else if (!hasPreviousReference)
+                {
+                    config.NeedleOffsetZ = 0d;
+                    config.PreviousWorkpieceReferenceZ = detectedZ;
+                }
+                _configService.SaveWithArchive(config);
+                _logger?.LogInformation("工件参考 Z 已保存: ReferenceZ={ReferenceZ:F4}, NeedleOffsetZ={Offset:F4}, PreviousRefZ={PrevRefZ:F4}", detectedZ, config.NeedleOffsetZ, config.PreviousWorkpieceReferenceZ);
                 await MoveToCompletionRestoreZAsync(cancellationToken).ConfigureAwait(true);
                 await RecordCurrentTestPunchAbsolutePositionAsync(cancellationToken).ConfigureAwait(true);
 
-                _logger?.LogInformation("测试冲孔完成，记录绝对位置 X={ActualX:F3}, Y={ActualY:F3}，触发 Z={DetectedZ:F3}，已保存为全局参考 Z，已恢复到结束 Z={RestoreZ:F3}", TestPunchActualX, TestPunchActualY, detectedZ, TestPunchCompletionRestoreZ);
-                MessageBox.Show($"测试冲孔完成，已检测到表面。\n记录绝对 X: {TestPunchActualX:F3} mm\n记录绝对 Y: {TestPunchActualY:F3} mm\n触发 Z: {detectedZ:F3} mm\n已保存参考 Z: {TestPunchReferenceZ:F3} mm\n结束恢复 Z: {TestPunchCompletionRestoreZ:F3} mm", "测试冲孔", MessageBoxButton.OK, MessageBoxImage.Information);
+                if (needleChanged)
+                {
+                    _logger?.LogInformation("测试冲孔完成，记录绝对位置 X={ActualX:F3}, Y={ActualY:F3}，触发 Z={DetectedZ:F3}，检测到换针 NeedleOffsetZ={Offset:F4}，已保存到配置", TestPunchActualX, TestPunchActualY, detectedZ, needleOffset);
+                    MessageBox.Show(
+                        $"测试冲孔完成，检测到高度已改变！\n上次参考 Z: {previousReferenceZ:F4} mm\n本次探测 Z: {detectedZ:F4} mm\nNeedleOffsetZ: {needleOffset:F4} mm\n（正值=新针更长/少冲，负值=新针更短/多冲）\n\n现有冲孔流程已触发补偿：{needleOffset:F4} mm\n\n记录绝对 X: {TestPunchActualX:F3} mm\n记录绝对 Y: {TestPunchActualY:F3} mm",
+                        "测试冲孔 — 换针检测", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+                else
+                {
+                    _logger?.LogInformation("测试冲孔完成，记录绝对位置 X={ActualX:F3}, Y={ActualY:F3}，触发 Z={DetectedZ:F3}，已保存为全局参考 Z，已恢复到结束 Z={RestoreZ:F3}", TestPunchActualX, TestPunchActualY, detectedZ, TestPunchCompletionRestoreZ);
+                    MessageBox.Show($"测试冲孔完成，已检测到表面。\n记录绝对 X: {TestPunchActualX:F3} mm\n记录绝对 Y: {TestPunchActualY:F3} mm\n触发 Z: {detectedZ:F3} mm\n已保存参考 Z: {TestPunchReferenceZ:F3} mm\n结束恢复 Z: {TestPunchCompletionRestoreZ:F3} mm", "测试冲孔", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
             }
             catch (OperationCanceledException) when (_testPunchEmergencyStopRequested)
             {
@@ -430,6 +490,10 @@ namespace Fredy.Drilling.Holes.ViewModels
             var punchX = GetRecordedPunchXOrTarget();
             var punchY = GetRecordedPunchYOrTarget();
 
+            // 记录上一次的偏移值
+            double previousOffsetX = OffsetX;
+            double previousOffsetY = OffsetY;
+
             var offset = _coordinateService.CalibrateCameraToPunchOffset(
                 new Point2D(punchX, punchY),
                 new Point2D(CameraX, CameraY));
@@ -437,8 +501,34 @@ namespace Fredy.Drilling.Holes.ViewModels
             OffsetX = offset.X;
             OffsetY = offset.Y;
 
+            // 持久化校准数据（含上一次值）
+            if (_configService is not null)
+            {
+                try
+                {
+                    var config = _configService.CurrentConfig;
+                    config.CoordinateCalibration.PreviousCameraToPunchOffsetX = previousOffsetX;
+                    config.CoordinateCalibration.PreviousCameraToPunchOffsetY = previousOffsetY;
+                    config.CoordinateCalibration.CameraToPunchOffsetX = offset.X;
+                    config.CoordinateCalibration.CameraToPunchOffsetY = offset.Y;
+                    config.CameraPunchOffsetCalibrationTestPunch ??= new CameraPunchOffsetCalibrationTestPunchConfig();
+                    config.CameraPunchOffsetCalibrationTestPunch.TargetX = TestPunchTargetX;
+                    config.CameraPunchOffsetCalibrationTestPunch.TargetY = TestPunchTargetY;
+                    config.CameraPunchOffsetCalibrationTestPunch.CompletionRestoreZ = TestPunchCompletionRestoreZ;
+                    _configService.SaveWithArchive(config);
+                    _logger?.LogInformation(
+                        "[校准保存] 相机偏移已持久化: PreviousOffset=({PrevX:F4}, {PrevY:F4}), CurrentOffset=({CurX:F4}, {CurY:F4}), Punch=({PunchX:F3},{PunchY:F3}), Camera=({CameraX:F3},{CameraY:F3})",
+                        previousOffsetX, previousOffsetY, OffsetX, OffsetY,
+                        punchX, punchY, CameraX, CameraY);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogError(ex, "持久化相机偏移校准数据失败");
+                }
+            }
+
             _logger?.LogInformation(
-                "按测试冲孔绝对坐标计算并保存 Offset: PunchX={PunchX:F3}, PunchY={PunchY:F3}, CameraX={CameraX:F3}, CameraY={CameraY:F3}, OffsetX={OffsetX:F3}, OffsetY={OffsetY:F3}",
+                "按测试冲孔绝对坐标计算 Offset: PunchX={PunchX:F3}, PunchY={PunchY:F3}, CameraX={CameraX:F3}, CameraY={CameraY:F3}, OffsetX={OffsetX:F3}, OffsetY={OffsetY:F3}",
                 punchX,
                 punchY,
                 CameraX,
@@ -447,7 +537,7 @@ namespace Fredy.Drilling.Holes.ViewModels
                 OffsetY);
 
             MessageBox.Show(
-                $"校准完成并已保存：\nOffsetX: {OffsetX:F3} mm\nOffsetY: {OffsetY:F3} mm",
+                $"校准完成并已保存：\n上一次 OffsetX: {previousOffsetX:F4} mm → 当前 OffsetX: {OffsetX:F4} mm\n上一次 OffsetY: {previousOffsetY:F4} mm → 当前 OffsetY: {OffsetY:F4} mm",
                 "相机偏移校准", MessageBoxButton.OK, MessageBoxImage.Information);
         }
 

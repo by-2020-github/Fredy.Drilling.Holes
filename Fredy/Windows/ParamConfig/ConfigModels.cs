@@ -15,6 +15,12 @@ namespace Fredy.Drilling.Holes.Models
         /// <summary>相机视野中心相对于冲针的 Y 偏移（机械坐标系，校准1结果）。</summary>
         public double CameraToPunchOffsetY { get; set; }
 
+        /// <summary>上一次校准的 CameraToPunchOffsetX，用于变更追踪。</summary>
+        public double PreviousCameraToPunchOffsetX { get; set; }
+
+        /// <summary>上一次校准的 CameraToPunchOffsetY，用于变更追踪。</summary>
+        public double PreviousCameraToPunchOffsetY { get; set; }
+
         /// <summary>相机对准工件圆心时的机械坐标 X（校准2原始测量值）。</summary>
         public double CameraAtWorkpieceCenterX { get; set; }
 
@@ -325,6 +331,17 @@ namespace Fredy.Drilling.Holes.Models
         public bool HasWorkpieceReferenceZ { get; set; }
 
         public double WorkpieceReferenceZ { get; set; }
+
+        /// <summary>
+        /// 上一次记录的工件参考 Z，用于换针检测对比。
+        /// </summary>
+        public double PreviousWorkpieceReferenceZ { get; set; }
+
+        /// <summary>
+        /// 冲针 Z 轴偏移量（断针换针后的校准补偿），由测试冲孔自动计算。
+        /// 正值表示新针比原针更长（少冲），负值表示新针更短（多冲）。
+        /// </summary>
+        public double NeedleOffsetZ { get; set; }
 
         public int CenterRoiWidth { get; set; } = 100;
 
